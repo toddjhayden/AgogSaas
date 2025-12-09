@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension for Layer 4 memory
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agogsaas-postgres
+    environment:
+      POSTGRES_DB: agogsaas
+      POSTGRES_USER: agogsaas_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # NATS with Jetstream for Layer 3 orchestration
+  nats:
+    image: nats:latest
+    container_name: agogsaas-nats
+    command: 
+      - "-js"
+      - "-sd"
+      - "/data"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend - GraphQL API + Monitoring + Orchestration + Memory
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agogsaas-backend
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 4000
+      DATABASE_URL: postgresql://agogsaas_user:${DB_PASSWORD:-changeme}@postgres:5432/agogsaas
+      NATS_URL: nats://nats:4222
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/package.json:/app/package.json
+      - backend_node_modules:/app/node_modules
+    command: npm run dev
+
+  # Frontend - React App + Monitoring Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: agogsaas-frontend
+    environment:
+      VITE_GRAPHQL_URL: http://localhost:4000/graphql
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/package.json:/app/package.json
+      - frontend_node_modules:/app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  nats_data:
+  backend_node_modules:
+  frontend_node_modules:
+
+networks:
+  default:
+    name: agogsaas-network
