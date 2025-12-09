@@ -51,7 +51,7 @@ export class AgentSpawnerService {
     const agentProcess = this.spawnAgentProcess(agentFilePath, prompt);
 
     // 4. Subscribe to NATS for deliverable
-    const deliverableSubject = `wms.features.${this.getAgentStream(agentId)}.${reqNumber}`;
+    const deliverableSubject = `agog.features.${this.getAgentStream(agentId)}.${reqNumber}`;
     console.log(`[AgentSpawner] Subscribing to: ${deliverableSubject}`);
 
     // 5. Wait for completion or timeout
@@ -109,7 +109,7 @@ TASK: ${reqNumber} - ${featureTitle}
     // Add deliverable instructions
     prompt += `\n\nDELIVERABLE INSTRUCTIONS:
 1. Complete your work according to your agent definition
-2. Publish your FULL deliverable to NATS stream: wms.features.${stream}.${reqNumber}
+2. Publish your FULL deliverable to NATS stream: agog.features.${stream}.${reqNumber}
 3. Return a tiny completion notice (< 1000 tokens) when done
 
 The completion notice should be JSON format:
@@ -117,7 +117,7 @@ The completion notice should be JSON format:
   "agent": "${agentId}",
   "req_number": "${reqNumber}",
   "status": "COMPLETE" | "BLOCKED" | "FAILED",
-  "deliverable": "nats://wms.features.${stream}.${reqNumber}",
+  "deliverable": "nats://agog.features.${stream}.${reqNumber}",
   "summary": "Brief summary of what you completed",
   "next_agent": "name-of-next-agent" (or null if workflow complete)
 }

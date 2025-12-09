@@ -27,7 +27,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
   {
     name: 'Research',
     agent: 'cynthia',
-    natsSubject: 'wms.features.research.{reqNumber}',
+    natsSubject: 'agog.features.research.{reqNumber}',
     timeout: 7200000, // 2 hours
     retries: 0,
     onSuccess: 'next',
@@ -36,7 +36,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
   {
     name: 'Critique',
     agent: 'sylvia',
-    natsSubject: 'wms.features.critique.{reqNumber}',
+    natsSubject: 'agog.features.critique.{reqNumber}',
     timeout: 3600000, // 1 hour
     retries: 0,
     onSuccess: 'decision',
@@ -46,7 +46,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
   {
     name: 'Backend Implementation',
     agent: 'roy',
-    natsSubject: 'wms.features.backend.{reqNumber}',
+    natsSubject: 'agog.features.backend.{reqNumber}',
     timeout: 14400000, // 4 hours
     retries: 1,
     onSuccess: 'next',
@@ -55,7 +55,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
   {
     name: 'Frontend Implementation',
     agent: 'jen',
-    natsSubject: 'wms.features.frontend.{reqNumber}',
+    natsSubject: 'agog.features.frontend.{reqNumber}',
     timeout: 14400000, // 4 hours
     retries: 1,
     onSuccess: 'next',
@@ -64,7 +64,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
   {
     name: 'QA Testing',
     agent: 'billy',
-    natsSubject: 'wms.features.qa.{reqNumber}',
+    natsSubject: 'agog.features.qa.{reqNumber}',
     timeout: 7200000, // 2 hours
     retries: 0,
     onSuccess: 'next',
@@ -73,7 +73,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
   {
     name: 'Statistics',
     agent: 'priya',
-    natsSubject: 'wms.features.statistics.{reqNumber}',
+    natsSubject: 'agog.features.statistics.{reqNumber}',
     timeout: 1800000, // 30 min
     retries: 0,
     onSuccess: 'complete',
@@ -174,7 +174,7 @@ export class OrchestratorService {
     const previousStages = workflow.stages.slice(0, stageIndex).map((s) => ({
       stage: s.name,
       agent: s.agent,
-      deliverableUrl: `nats://wms.features.${this.getStreamName(s.agent)}.${reqNumber}`,
+      deliverableUrl: `nats://agog.features.${this.getStreamName(s.agent)}.${reqNumber}`,
     }));
 
     return {
@@ -310,7 +310,7 @@ export class OrchestratorService {
   private async publishEvent(eventType: string, data: any): Promise<void> {
     try {
       await this.js.publish(
-        `wms.orchestration.events.${eventType}`,
+        `agog.orchestration.events.${eventType}`,
         JSON.stringify({ ...data, timestamp: new Date() })
       );
     } catch (error) {
