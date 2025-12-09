@@ -13,7 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d
+      - ./Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
     command: postgres -c 'max_connections=200'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
@@ -45,7 +45,7 @@ services:
   # Backend - GraphQL API + All 4 Layers
   backend:
     build:
-      context: ./backend
+      context: ./Implementation/print-industry-erp/backend
       dockerfile: Dockerfile
     container_name: agogsaas-backend
     environment:
@@ -62,15 +62,15 @@ services:
       nats:
         condition: service_healthy
     volumes:
-      - ./backend/src:/app/src
-      - ./backend/package.json:/app/package.json
+      - ./Implementation/print-industry-erp/backend/src:/app/src
+      - ./Implementation/print-industry-erp/backend/package.json:/app/package.json
       - backend_node_modules:/app/node_modules
     command: npm run dev
 
   # Frontend - React App + Monitoring Dashboard
   frontend:
     build:
-      context: ./frontend
+      context: ./Implementation/print-industry-erp/frontend
       dockerfile: Dockerfile
     container_name: agogsaas-frontend
     environment:
@@ -80,9 +80,9 @@ services:
     depends_on:
       - backend
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/package.json:/app/package.json
-      - ./frontend/index.html:/app/index.html
+      - ./Implementation/print-industry-erp/frontend/src:/app/src
+      - ./Implementation/print-industry-erp/frontend/package.json:/app/package.json
+      - ./Implementation/print-industry-erp/frontend/index.html:/app/index.html
       - frontend_node_modules:/app/node_modules
     command: npm run dev -- --host 0.0.0.0
 

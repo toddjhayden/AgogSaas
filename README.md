@@ -32,19 +32,27 @@ docker-compose up -d
 
 ## Project Structure
 
-- `backend/` - GraphQL API + AI layers
-- `frontend/` - React web application
-- `project-architecture/` - System design
-- `project-spirit/` - Vision and business value
-- `Standards/` - Development standards
-- `docs/` - Documentation
-- `.claude/agents/` - AI agent definitions
-- `CONSTRAINTS.md` - Hard rules (must follow)
+```
+agogsaas/
+├── Implementation/
+│   └── print-industry-erp/
+│       ├── backend/          # GraphQL API + AI layers
+│       ├── frontend/         # React web application
+│       ├── database/         # Database schemas & migrations
+│       ├── data-models/      # YAML schema definitions
+│       └── src/              # Implementation code
+├── project-architecture/     # System design
+├── project-spirit/           # Vision and business value
+├── Standards/                # Development standards
+├── docs/                     # Documentation
+├── .claude/agents/           # AI agent definitions
+└── CONSTRAINTS.md            # Hard rules (must follow)
+```
 
 ## 4-Layer AI System
 
-**Layer 1: VALIDATION** - Pre-commit hooks prevent bad code
-**Layer 2: MONITORING** - Real-time dashboard at `/monitoring`
+**Layer 1: VALIDATION** - Pre-commit hooks prevent bad code  
+**Layer 2: MONITORING** - Real-time dashboard at `/monitoring`  
 **Layer 3: ORCHESTRATION** - Automated agent workflows  
 **Layer 4: MEMORY** - Agents learn and improve
 
@@ -59,7 +67,7 @@ See `CONSTRAINTS.md` for complete list.
 
 ## Documentation
 
-- **Getting Started**: `docs/GETTING_STARTED.md`
+- **Getting Started**: `docs/DATABASE_QUICK_REFERENCE.md`
 - **Architecture**: `project-architecture/SYSTEM_OVERVIEW.md`
 - **Standards**: `Standards/README.md`
 - **AI Agents**: `.github/AI_ONBOARDING.md`
