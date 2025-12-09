@@ -1,0 +1,230 @@
+version: '0.1'
+metadata:
+  domain: equipment
+  priority: medium
+  estimatedEffort: 1-week
+  blocksKPIs: 5+
+  status: draft
+
+entity:
+  name: EquipmentStatusLog
+  description: |
+    Time-series log of equipment status changes for utilization tracking.
+    Essential for uptime, downtime, MTBF, utilization KPIs.
+    Blocks 5+ equipment performance KPIs.
+  
+  tables:
+    - name: equipment_status_logs
+      description: Equipment status change events
+
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    # Relationships
+    equipment_id:
+      type: uuid
+      description: Equipment being tracked
+      constraints:
+        - not_null
+        - foreign_key: equipment.id
+        - indexed
+    
+    production_run_id:
+      type: uuid
+      description: Production run if equipment is running
+      constraints:
+        - foreign_key: production_runs.id
+        - indexed
+    
+    # Status
+    status:
+      type: varchar(30)
+      description: Current equipment status
+      values:
+        - running (producing good parts)
+        - setup (changeover, makeready)
+        - idle (available but not running)
+        - maintenance (planned or unplanned)
+        - breakdown (unplanned downtime)
+        - offline (not scheduled)
+      constraints:
+        - not_null
+    
+    previous_status:
+      type: varchar(30)
+      description: Status before this change
+    
+    # Timing
+    status_start:
+      type: timestamp
+      description: When this status began
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    status_end:
+      type: timestamp
+      description: When this status ended (null if current)
+    
+    duration_minutes:
+      type: integer
+      description: Duration of this status (calculated when ended)
+      constraints:
+        - check: duration_minutes >= 0
+        - check: duration_minutes = EXTRACT(EPOCH FROM (status_end - status_start)) / 60
+    
+    # Classification for OEE
+    is_productive_time:
+      type: boolean
+      description: True if status = running
+      constraints:
+        - not_null
+        - default: false
+    
+    is_planned_downtime:
+      type: boolean
+      description: True if maintenance, setup, offline
+      constraints:
+        - not_null
+        - default: false
+    
+    is_unplanned_downtime:
+      type: boolean
+      description: True if breakdown, idle (unexpected)
+      constraints:
+        - not_null
+        - default: false
+    
+    # Details
+    reason_code:
+      type: varchar(50)
+      description: Specific reason for status
+      examples:
+        - Setup: plate_change, blanket_change, ink_change
+        - Maintenance: preventive_pm, lubrication, adjustment
+        - Breakdown: mechanical_failure, electrical_fault, jam
+        - Idle: no_work_scheduled, waiting_for_material, waiting_for_approval
+    
+    reason_description:
+      type: text
+      description: Detailed notes
+    
+    operator_id:
+      type: uuid
+      description: Operator during this status
+      constraints:
+        - foreign_key: users.id
+    
+    # Metrics (for running status)
+    quantity_produced:
+      type: integer
+      description: Units produced during running status
+      constraints:
+        - check: quantity_produced >= 0
+    
+    speed_actual:
+      type: decimal
+      description: Actual production rate (units/hour)
+      constraints:
+        - check: speed_actual >= 0
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+
+  indexes:
+    - name: idx_equipment_status_logs_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_equipment_status_logs_equipment
+      columns: [equipment_id, status_start]
+      type: btree
+      description: For equipment timeline
+    
+    - name: idx_equipment_status_logs_production_run
+      columns: [production_run_id]
+      type: btree
+    
+    - name: idx_equipment_status_logs_time_range
+      columns: [tenant_id, status_start, status_end]
+      type: btree
+      description: For utilization reports
+    
+    - name: idx_equipment_status_logs_status
+      columns: [tenant_id, equipment_id, status]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - equipment_utilization_rate
+      - equipment_uptime
+      - equipment_downtime
+    
+    high:
+      - mean_time_between_failures
+      - availability_percentage
+      - setup_time_average
+      - makeready_time
+    
+    medium:
+      - breakdown_frequency
+      - idle_time_percentage
+
+  relatedEntities:
+    - equipment.yaml
+    - production-run.yaml
+    - maintenance-record.yaml (in equipment.yaml)
+
+  migrationNotes: |
+    Medium priority for Phase 6 - needed for equipment KPIs.
+    
+    Migration Considerations:
+    - Very high transaction volume table
+    - Consider partitioning by status_start (monthly)
+    - Consider time-series database (TimescaleDB)
+    - Automatic status logging from equipment PLCs
+    - Rule: status_end of previous record = status_start of next record
+    
+    Data Population:
+    - Automatic logging from equipment sensors
+    - Manual entry from operators
+    - Integration with shop floor control systems
+    
+    Blue-Green Deployment:
+    - New table, safe to add
+    - High write volume requires performance testing
+

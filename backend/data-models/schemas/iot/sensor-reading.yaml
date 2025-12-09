@@ -1,0 +1,445 @@
+version: '0.1'
+metadata:
+  domain: iot
+  priority: medium
+  estimatedEffort: 2-weeks
+  blocksKPIs: 12+
+  status: draft
+
+entity:
+  name: SensorReading
+  description: |
+    Time-series sensor data from equipment and environmental monitoring.
+    Foundation for IIoT, predictive maintenance, real-time monitoring, digital twin.
+    Enables automated event detection (cycle counts, threshold breaches, anomalies).
+    Blocks 12+ real-time monitoring, predictive, and energy management KPIs.
+  
+  tables:
+    - name: sensors
+      description: Sensor registry (what sensors exist)
+    - name: sensor_readings
+      description: Time-series sensor data (high volume)
+      
+  properties:
+    # Sensor Registry
+    sensor_id:
+      type: uuid
+      description: UUIDv7 primary key for sensor
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    sensor_code:
+      type: varchar(50)
+      description: Unique sensor identifier
+      constraints:
+        - not_null
+        - unique: [tenant_id, sensor_code]
+    
+    sensor_name:
+      type: varchar(100)
+      description: Human-readable sensor name
+      constraints:
+        - not_null
+    
+    # Sensor Location
+    equipment_id:
+      type: uuid
+      description: Equipment this sensor monitors
+      constraints:
+        - foreign_key: equipment.id
+        - indexed
+    
+    work_center_id:
+      type: uuid
+      description: Work center where sensor is located
+      constraints:
+        - foreign_key: work_centers.work_center_id
+        - indexed
+    
+    site_id:
+      type: uuid
+      description: Site where sensor is located
+      constraints:
+        - foreign_key: sites.site_id
+        - indexed
+    
+    physical_location:
+      type: varchar(200)
+      description: Physical location description
+      examples:
+        - "Press #3, Ink Station 2, Cyan unit"
+        - "Bindery Line B, Exit conveyor"
+        - "Warehouse zone A, Temperature probe"
+    
+    # Sensor Type
+    sensor_type:
+      type: enum
+      description: What physical parameter is measured
+      values:
+        - temperature (degrees)
+        - pressure (PSI, bar)
+        - humidity (percent)
+        - vibration (acceleration, frequency)
+        - speed (RPM, units/min)
+        - count (cycle counter, piece counter)
+        - position (linear, rotational)
+        - force (load cell)
+        - flow (liquid, air)
+        - level (tank level)
+        - energy (kWh, watts)
+        - current (amperage)
+        - voltage (volts)
+        - binary (on/off, open/closed)
+      constraints:
+        - not_null
+        - indexed
+    
+    measurement_parameter:
+      type: varchar(100)
+      description: Specific parameter being measured
+      examples:
+        - "Dryer temperature"
+        - "Hydraulic pressure"
+        - "Sheet count"
+        - "Motor vibration (bearing)"
+        - "Power consumption"
+    
+    unit_of_measure:
+      type: varchar(20)
+      description: Measurement unit
+      examples:
+        - "degrees_F"
+        - "PSI"
+        - "percent"
+        - "Hz"
+        - "kWh"
+      constraints:
+        - not_null
+    
+    # Data Acquisition
+    sampling_rate_ms:
+      type: integer
+      description: How often sensor reads (milliseconds)
+      constraints:
+        - not_null
+        - check: sampling_rate_ms > 0
+    
+    data_precision:
+      type: integer
+      description: Decimal places of precision
+      constraints:
+        - default: 2
+        - check: data_precision >= 0
+    
+    edge_processing:
+      type: boolean
+      description: True if processed at edge, false if raw data to cloud
+      constraints:
+        - not_null
+        - default: false
+    
+    # Operating Ranges
+    normal_min:
+      type: decimal
+      description: Normal operating minimum
+    
+    normal_max:
+      type: decimal
+      description: Normal operating maximum
+    
+    warning_min:
+      type: decimal
+      description: Warning threshold low
+    
+    warning_max:
+      type: decimal
+      description: Warning threshold high
+    
+    critical_min:
+      type: decimal
+      description: Critical alarm low
+    
+    critical_max:
+      type: decimal
+      description: Critical alarm high
+    
+    # Integration
+    protocol:
+      type: varchar(50)
+      description: Communication protocol
+      examples:
+        - "Modbus TCP"
+        - "OPC UA"
+        - "MQTT"
+        - "REST API"
+        - "Analog 4-20mA"
+    
+    plc_address:
+      type: varchar(100)
+      description: PLC or controller address
+    
+    # Status
+    sensor_status:
+      type: enum
+      description: Sensor operational status
+      values:
+        - active (reading normally)
+        - inactive (temporarily disabled)
+        - fault (sensor malfunction)
+        - calibration_due (needs calibration)
+        - offline (not communicating)
+      constraints:
+        - not_null
+        - default: active
+    
+    last_calibration:
+      type: timestamp
+      description: When sensor was last calibrated
+    
+    calibration_interval_days:
+      type: integer
+      description: Days between required calibrations
+    
+    # Audit
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+
+  # Sensor Readings (time-series data)
+  readings:
+    name: SensorReading
+    description: Time-series sensor measurements (high-volume table)
+    
+    properties:
+      reading_id:
+        type: uuid
+        description: UUIDv7 primary key (includes timestamp)
+        constraints:
+          - primary_key
+          - default: uuid_generate_v7()
+      
+      sensor_id:
+        type: uuid
+        description: Which sensor took this reading
+        constraints:
+          - not_null
+          - foreign_key: sensors.sensor_id
+          - indexed
+      
+      tenant_id:
+        type: uuid
+        description: Multi-tenant isolation
+        constraints:
+          - not_null
+          - foreign_key: tenants.id
+          - indexed
+      
+      # Timestamp
+      timestamp:
+        type: timestamp
+        description: When reading was taken
+        constraints:
+          - not_null
+          - indexed
+      
+      # Value
+      value:
+        type: decimal
+        description: Measured value
+        constraints:
+          - not_null
+      
+      value_string:
+        type: varchar(100)
+        description: For non-numeric values (binary states, status codes)
+      
+      # Quality
+      quality_code:
+        type: enum
+        description: Data quality indicator
+        values:
+          - good (reliable reading)
+          - uncertain (questionable)
+          - bad (sensor fault)
+          - calibration_mode (not production data)
+        constraints:
+          - not_null
+          - default: good
+      
+      # Context (optional - for linking to production events)
+      production_run_id:
+        type: uuid
+        description: Production run active when reading taken
+        constraints:
+          - foreign_key: production_runs.id
+      
+      production_order_id:
+        type: uuid
+        description: Production order active when reading taken
+        constraints:
+          - foreign_key: production_orders.id
+      
+      # Calculated fields (for edge processing)
+      is_alarm:
+        type: boolean
+        description: True if value exceeds alarm threshold
+        constraints:
+          - not_null
+          - default: false
+      
+      alarm_level:
+        type: enum
+        description: Alarm severity if is_alarm=true
+        values:
+          - none
+          - warning
+          - critical
+        constraints:
+          - default: none
+      
+      # For aggregated readings (edge processing)
+      is_aggregated:
+        type: boolean
+        description: True if this is min/max/avg over interval
+        constraints:
+          - not_null
+          - default: false
+      
+      aggregation_type:
+        type: enum
+        description: Type of aggregation
+        values:
+          - raw (individual reading)
+          - average (mean over interval)
+          - minimum (min over interval)
+          - maximum (max over interval)
+          - sum (total over interval)
+        constraints:
+          - default: raw
+      
+      aggregation_interval_seconds:
+        type: integer
+        description: Seconds covered by aggregation
+      
+      # Batch insert optimization
+      batch_id:
+        type: uuid
+        description: Batch identifier for bulk inserts
+
+  indexes:
+    # Sensor indexes
+    - name: idx_sensor_tenant
+      table: sensors
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_sensor_equipment
+      table: sensors
+      columns: [tenant_id, equipment_id]
+      type: btree
+    
+    - name: idx_sensor_type
+      table: sensors
+      columns: [tenant_id, sensor_type]
+      type: btree
+    
+    # Reading indexes (time-series optimized)
+    - name: idx_reading_sensor_time
+      table: sensor_readings
+      columns: [sensor_id, timestamp DESC]
+      type: btree
+    
+    - name: idx_reading_tenant_time
+      table: sensor_readings
+      columns: [tenant_id, timestamp DESC]
+      type: btree
+    
+    - name: idx_reading_alarm
+      table: sensor_readings
+      columns: [tenant_id, is_alarm, timestamp DESC]
+      type: btree
+      where: is_alarm = true
+    
+    - name: idx_reading_production
+      table: sensor_readings
+      columns: [production_run_id, timestamp]
+      type: btree
+      where: production_run_id IS NOT NULL
+
+  kpisEnabled:
+    critical:
+      - equipment_oee_realtime
+      - cycle_count_accuracy
+      - downtime_detection
+    
+    high:
+      - predictive_maintenance_alerts
+      - energy_consumption
+      - process_temperature_control
+      - vibration_monitoring
+      - speed_optimization
+    
+    medium:
+      - environmental_compliance
+      - equipment_health_score
+      - anomaly_detection
+      - digital_twin_sync
+
+  relatedEntities:
+    - equipment.yaml (sensors monitor equipment)
+    - equipment-status-log.yaml (sensor triggers status changes)
+    - production-run.yaml (readings during production)
+    - maintenance-record.yaml (sensor alerts trigger maintenance)
+    - quality-inspection.yaml (automated measurement)
+
+  migrationNotes: |
+    Sensor readings provide real-time IIoT foundation for automated monitoring.
+    
+    Data Volume Considerations:
+    - High-frequency sensors (100ms sampling) = 36M readings/hour
+    - Use partitioning by timestamp (daily/weekly partitions)
+    - Archive old data to time-series database (InfluxDB, TimescaleDB)
+    - Edge processing reduces cloud traffic (aggregate before send)
+    
+    Event Automation Examples:
+    1. Cycle Counter → Auto-create Production Count record
+    2. Vibration threshold breach → Auto-create Unplanned Downtime event
+    3. Temperature out of range → Auto-create Quality Alert
+    4. Energy spike → Flag for efficiency investigation
+    
+    Sensor Types by Use Case:
+    - OEE Calculation: cycle counters, status sensors (run/idle/down)
+    - Predictive Maintenance: vibration, temperature, current draw
+    - Quality Control: pressure, temperature, color measurement
+    - Energy Management: power meters, current sensors
+    - Environmental: temperature, humidity (warehouse, production floor)
+    
+    Integration Patterns:
+    - Edge Gateway: collect from PLCs, pre-process, batch send
+    - Direct Connection: OPC UA, Modbus TCP to cloud
+    - API Push: equipment posts readings via REST API
+    - Message Queue: MQTT for real-time streaming
+    
+    Blue-Green Deployment:
+    - New tables, safe to add
+    - Start with critical sensors (cycle counters, status)
+    - Expand to predictive sensors (vibration, temperature)
+    - Time-series database migration later for scale
+    - equipment-status-log can reference sensor_id for automation audit trail

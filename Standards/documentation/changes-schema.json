@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["schemaVersion", "documentationType", "validateAgainst", "module", "changes"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "documentationType": {
+      "type": "string",
+      "enum": ["changes", "schema", "api", "workflow"]
+    },
+    "validateAgainst": {
+      "type": "string"
+    },
+    "module": {
+      "type": "string"
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version", "date", "type", "changes"],
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["major", "minor", "patch"]
+          },
+          "automationHooks": {
+            "type": "object",
+            "properties": {
+              "beforeApply": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "afterApply": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "changes": {
+            "type": "object",
+            "properties": {
+              "added": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["component", "items"],
+                  "properties": {
+                    "component": { "type": "string" },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["type", "description"],
+                        "properties": {
+                          "type": { "type": "string" },
+                          "description": { "type": "string" },
+                          "affects": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          },
+                          "files": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "relatedChanges": {
+                "type": "object",
+                "properties": {
+                  "documents": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "configuration": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

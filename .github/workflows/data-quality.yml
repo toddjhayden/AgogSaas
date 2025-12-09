@@ -1,0 +1,196 @@
+name: Data Quality & Standards Enforcement
+
+on:
+  push:
+    branches: [ main, develop, feature/** ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-migrations:
+    name: Validate Database Migrations
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Lint migrations
+        run: node scripts/lint-migrations.js
+        continue-on-error: false
+      
+      - name: Comment on PR (if failed)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ **Migration Linting Failed**\n\nYour migrations do not meet AGOG standards. Please review the errors above and fix them.\n\n📚 **Standards Documentation:**\n- [Data Quality Standards](../Standards/data/data-quality.md)\n- [Migration Standards](../Standards/data/migration-standards.md)\n- [Database Standards](../Standards/data/database-standards.md)\n\n💡 **Common Issues:**\n- Missing `tenant_id` column\n- Foreign keys without `ON DELETE` clause\n- No validation constraints on numeric fields\n- Missing audit triggers on sensitive tables'
+            })
+
+  validate-standards:
+    name: Validate Code Standards
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for better analysis
+      
+      - name: Check for TODO/FIXME in changed files
+        run: |
+          echo "Checking for TODO/FIXME comments in changed files..."
+          
+          # Get changed files
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          
+          # Check for TODO/FIXME
+          TODO_COUNT=0
+          for file in $CHANGED_FILES; do
+            if [ -f "$file" ]; then
+              TODOS=$(grep -n "TODO\|FIXME" "$file" || true)
+              if [ ! -z "$TODOS" ]; then
+                echo "⚠️  Found TODO/FIXME in $file:"
+                echo "$TODOS"
+                TODO_COUNT=$((TODO_COUNT + 1))
+              fi
+            fi
+          done
+          
+          if [ $TODO_COUNT -gt 0 ]; then
+            echo "⚠️  Warning: Found TODO/FIXME comments in $TODO_COUNT file(s)"
+            echo "Please resolve or document these before merging"
+          else
+            echo "✅ No TODO/FIXME comments found"
+          fi
+
+  check-pr-checklist:
+    name: Verify PR Checklist
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Check PR description has checklist
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const body = pr.data.body || '';
+            
+            // Check if PR has database changes checklist
+            const hasDbChecklist = body.includes('Database Changes Checklist');
+            const hasCheckboxes = body.includes('- [ ]') || body.includes('- [x]');
+            
+            if (!hasDbChecklist && !hasCheckboxes) {
+              core.setFailed('❌ PR description is missing the checklist. Please fill out the PR template.');
+            } else if (hasDbChecklist) {
+              // Count checked vs unchecked boxes in database section
+              const dbSection = body.split('Database Changes Checklist')[1] || '';
+              const unchecked = (dbSection.match(/- \[ \]/g) || []).length;
+              const checked = (dbSection.match(/- \[x\]/gi) || []).length;
+              
+              if (unchecked > 0) {
+                console.log(`⚠️  Warning: ${unchecked} unchecked items in Database Changes Checklist`);
+                console.log(`✅ ${checked} items checked`);
+                console.log('Please complete all checklist items before merging');
+              } else if (checked > 0) {
+                console.log(`✅ All ${checked} database checklist items completed`);
+              }
+            }
+
+  link-validation:
+    name: Validate Documentation Links
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Check for broken internal links
+        run: |
+          echo "Checking for broken internal links in markdown files..."
+          
+          BROKEN_LINKS=0
+          
+          # Find all markdown files
+          for file in $(find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*"); do
+            # Extract markdown links [text](path)
+            LINKS=$(grep -oP '\[.*?\]\(\K[^)]+(?=\))' "$file" || true)
+            
+            for link in $LINKS; do
+              # Skip external links (http/https)
+              if [[ $link == http* ]]; then
+                continue
+              fi
+              
+              # Skip anchors
+              if [[ $link == \#* ]]; then
+                continue
+              fi
+              
+              # Resolve relative path
+              DIR=$(dirname "$file")
+              TARGET="$DIR/$link"
+              
+              # Check if file exists
+              if [ ! -e "$TARGET" ]; then
+                echo "❌ Broken link in $file: $link (target: $TARGET)"
+                BROKEN_LINKS=$((BROKEN_LINKS + 1))
+              fi
+            done
+          done
+          
+          if [ $BROKEN_LINKS -gt 0 ]; then
+            echo "❌ Found $BROKEN_LINKS broken link(s)"
+            exit 1
+          else
+            echo "✅ All internal links are valid"
+          fi
+
+  standards-summary:
+    name: Standards Check Summary
+    runs-on: ubuntu-latest
+    needs: [lint-migrations, validate-standards, check-pr-checklist, link-validation]
+    if: always()
+    
+    steps:
+      - name: Summary
+        run: |
+          echo "📊 Standards Enforcement Summary"
+          echo "================================"
+          echo "Migration Linting: ${{ needs.lint-migrations.result }}"
+          echo "Code Standards: ${{ needs.validate-standards.result }}"
+          echo "PR Checklist: ${{ needs.check-pr-checklist.result }}"
+          echo "Link Validation: ${{ needs.link-validation.result }}"
+          
+          if [ "${{ needs.lint-migrations.result }}" == "failure" ] || [ "${{ needs.link-validation.result }}" == "failure" ]; then
+            echo ""
+            echo "❌ One or more checks failed. Please fix the issues above."
+            exit 1
+          else
+            echo ""
+            echo "✅ All standards checks passed!"
+          fi

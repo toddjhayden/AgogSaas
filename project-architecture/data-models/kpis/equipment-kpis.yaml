@@ -1,0 +1,218 @@
+version: '0.1'
+metadata:
+  domain: equipment
+  category: Equipment Performance & Maintenance
+  total_kpis: 9
+
+kpis:
+  - id: equipment_utilization_rate
+    name: Equipment Utilization Rate
+    description: Percentage of available time equipment is in use
+    formula: "(Actual Production Time / Available Time) × 100"
+    unit: percentage
+    target: "70-85%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - equipment-status-log.yaml
+    required_entities:
+      - EquipmentStatusLog
+    required_fields:
+      - status
+      - duration_minutes
+      - is_productive_time
+      - equipment_id
+    calculation_notes: |
+      Excludes scheduled downtime (maintenance, weekends)
+      100% utilization not ideal - no buffer for breakdowns or rush jobs
+
+  - id: equipment_uptime
+    name: Equipment Uptime Percentage
+    description: Percentage of time equipment is available and running
+    formula: "(Running Time / (Running Time + Downtime)) × 100"
+    unit: percentage
+    target: ">= 90%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - equipment-status-log.yaml
+    required_entities:
+      - EquipmentStatusLog
+    required_fields:
+      - status
+      - duration_minutes
+      - is_productive_time
+      - is_unplanned_downtime
+    calculation_notes: |
+      Core reliability metric
+      Includes both planned and unplanned downtime
+
+  - id: equipment_downtime
+    name: Equipment Downtime Hours
+    description: Total hours equipment unavailable for production
+    formula: "SUM(duration_minutes WHERE is_unplanned_downtime = true) / 60"
+    unit: hours
+    target: "< 10% of available time"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - equipment-status-log.yaml
+    required_entities:
+      - EquipmentStatusLog
+    required_fields:
+      - status
+      - duration_minutes
+      - is_unplanned_downtime
+      - reason_code
+    calculation_notes: |
+      Track by reason code for targeted improvements
+      Separate planned (maintenance) from unplanned (breakdown)
+
+  - id: mean_time_between_failures
+    name: Mean Time Between Failures (MTBF)
+    description: Average time between equipment breakdowns
+    formula: "Total Operating Time / Number of Failures"
+    unit: hours
+    target: ">= 1000 hours"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - equipment-status-log.yaml
+    required_entities:
+      - EquipmentStatusLog
+    required_fields:
+      - status
+      - duration_minutes
+      - reason_code
+    calculation_notes: |
+      Higher is better - more reliable equipment
+      Track trends over time
+      Use to justify maintenance investments
+
+  - id: mean_time_to_repair
+    name: Mean Time To Repair (MTTR)
+    description: Average time to repair equipment failures
+    formula: "SUM(downtime_hours WHERE maintenance_type IN ('corrective', 'emergency')) / COUNT(failures)"
+    unit: hours
+    target: "<= 4 hours"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - maintenance-record.yaml
+    required_entities:
+      - MaintenanceRecord
+    required_fields:
+      - maintenance_type
+      - scheduled_date
+      - completed_date
+      - downtime_hours
+      - status
+    calculation_notes: |
+      Lower is better - faster repair response
+      Measures maintenance team effectiveness
+      Calculate as: (completed_date - scheduled_date) for corrective/emergency maintenance
+      Alternative: Use downtime_hours field directly from maintenance records
+      Track by equipment type to identify training needs
+
+  - id: availability_percentage
+    name: Availability (OEE Component)
+    description: Scheduled time minus downtime divided by scheduled time
+    formula: "((Scheduled Time - Downtime) / Scheduled Time) × 100"
+    unit: percentage
+    target: ">= 90%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - equipment-status-log.yaml
+      - production-run.yaml
+    required_entities:
+      - EquipmentStatusLog
+      - ProductionRun
+    required_fields:
+      - status
+      - duration_minutes
+      - is_productive_time
+      - is_planned_downtime
+      - is_unplanned_downtime
+    calculation_notes: |
+      First component of OEE calculation
+      Excludes planned maintenance from denominator
+
+  - id: setup_time_average
+    name: Average Setup Time
+    description: Average time to changeover equipment between jobs
+    formula: "AVG(duration_minutes WHERE status = 'setup')"
+    unit: minutes
+    target: "<= 30 minutes"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - equipment-status-log.yaml
+      - production-run.yaml
+    required_entities:
+      - EquipmentStatusLog
+      - ProductionRun
+    required_fields:
+      - status
+      - duration_minutes
+      - reason_code
+    calculation_notes: |
+      SMED (Single-Minute Exchange of Die) target: < 10 minutes
+      Critical for short-run profitability
+
+  - id: preventive_maintenance_compliance
+    name: Preventive Maintenance Compliance
+    description: Percentage of scheduled PM tasks completed on time
+    formula: "(PM Tasks Completed On Time / Total PM Tasks Scheduled) × 100"
+    unit: percentage
+    target: ">= 95%"
+    priority: medium
+    validation_status: partial
+    required_schemas:
+      - equipment.yaml
+      - maintenance-record.yaml
+    required_entities:
+      - Equipment
+      - MaintenanceRecord
+    required_fields:
+      - equipment_id
+      - maintenance_type
+      - scheduled_date
+      - completed_date
+      - status
+    calculation_notes: |
+      Proactive maintenance prevents breakdowns
+      Track overdue PM tasks
+
+  - id: maintenance_cost_per_equipment
+    name: Maintenance Cost per Equipment
+    description: Total maintenance spend divided by equipment count
+    formula: "Total Maintenance Cost / Equipment Count"
+    unit: currency_per_unit
+    target: "< 10% of equipment value annually"
+    priority: medium
+    validation_status: partial
+    required_schemas:
+      - equipment.yaml
+      - maintenance-record.yaml
+    required_entities:
+      - Equipment
+      - MaintenanceRecord
+    required_fields:
+      - equipment_id
+      - maintenance_cost
+    calculation_notes: |
+      Includes parts, labor, contractor costs
+      High costs may justify equipment replacement
+
+related_schemas:
+  - equipment-status-log.yaml
+  - equipment.yaml
+  - production-run.yaml
+
+notes: |
+  Equipment performance directly impacts production KPIs (OEE, capacity).
+  MTBF and uptime are leading indicators - predict future performance.
+  Utilization sweet spot is 70-85% - allows flexibility for rush jobs.
+  PM compliance prevents costly breakdowns and extends equipment life.
+  Setup time reduction enables profitable short-run work.

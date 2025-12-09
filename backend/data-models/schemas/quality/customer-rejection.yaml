@@ -1,0 +1,269 @@
+version: '0.1'
+metadata:
+  domain: quality
+  priority: medium
+  estimatedEffort: 3-days
+  blocksKPIs: 3+
+  status: draft
+
+entity:
+  name: CustomerRejection
+  description: |
+    Tracks customer complaints, returns, and rejections.
+    Essential for customer satisfaction, NPS, rejection rate KPIs.
+    Blocks 3+ customer quality KPIs.
+  
+  tables:
+    - name: customer_rejections
+      description: Customer complaints and returns
+
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    # Relationships
+    job_id:
+      type: uuid
+      description: Job that was rejected
+      constraints:
+        - not_null
+        - foreign_key: jobs.id
+        - indexed
+    
+    customer_id:
+      type: uuid
+      description: Customer making complaint
+      constraints:
+        - not_null
+        - foreign_key: customers.id
+        - indexed
+    
+    invoice_id:
+      type: uuid
+      description: Invoice for rejected work
+      constraints:
+        - foreign_key: invoices.id
+        - indexed
+    
+    # Rejection Details
+    rejection_type:
+      type: varchar(30)
+      description: Type of complaint
+      values:
+        - quality_defect
+        - wrong_quantity
+        - late_delivery
+        - wrong_specification
+        - damage_in_transit
+        - other
+      constraints:
+        - not_null
+    
+    quantity_rejected:
+      type: integer
+      description: Units rejected by customer
+      constraints:
+        - not_null
+        - check: quantity_rejected > 0
+    
+    quantity_total:
+      type: integer
+      description: Total units delivered
+      constraints:
+        - not_null
+        - check: quantity_total >= quantity_rejected
+    
+    # Timing
+    reported_at:
+      type: timestamp
+      description: When customer reported issue
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    delivered_at:
+      type: timestamp
+      description: When job was originally delivered
+      constraints:
+        - not_null
+    
+    days_since_delivery:
+      type: integer
+      description: How long before customer reported (calculated)
+      constraints:
+        - check: days_since_delivery = EXTRACT(DAY FROM (reported_at - delivered_at))
+    
+    # Severity
+    severity:
+      type: varchar(20)
+      description: Impact on customer
+      values:
+        - critical (production stopped)
+        - major (significant impact)
+        - minor (acceptable with discount)
+      constraints:
+        - not_null
+    
+    customer_description:
+      type: text
+      description: Customer's complaint details
+      constraints:
+        - not_null
+    
+    # Resolution
+    resolution_type:
+      type: varchar(30)
+      description: How issue was resolved
+      values:
+        - full_credit
+        - partial_credit
+        - rerun_job
+        - replacement
+        - accepted_with_discount
+        - no_action
+    
+    credit_amount:
+      type: decimal
+      description: Credit/refund given to customer
+      constraints:
+        - default: 0
+        - check: credit_amount >= 0
+    
+    resolution_cost:
+      type: decimal
+      description: Total cost to resolve (credit + rerun + shipping)
+      constraints:
+        - default: 0
+        - check: resolution_cost >= 0
+    
+    resolved_at:
+      type: timestamp
+      description: When issue was fully resolved
+    
+    resolved_by:
+      type: uuid
+      description: Who resolved the issue
+      constraints:
+        - foreign_key: users.id
+    
+    # Root Cause
+    internal_defect_id:
+      type: uuid
+      description: Link to quality defect if applicable
+      constraints:
+        - foreign_key: quality_defects.id
+    
+    root_cause:
+      type: text
+      description: Internal root cause analysis
+    
+    # Prevention
+    corrective_action:
+      type: text
+      description: What will prevent recurrence
+    
+    # Customer Satisfaction
+    customer_satisfied:
+      type: boolean
+      description: Was customer satisfied with resolution
+    
+    nps_score:
+      type: integer
+      description: Net Promoter Score after resolution (0-10)
+      constraints:
+        - check: nps_score BETWEEN 0 AND 10
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+
+  indexes:
+    - name: idx_customer_rejections_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_customer_rejections_job
+      columns: [job_id]
+      type: btree
+    
+    - name: idx_customer_rejections_customer
+      columns: [customer_id]
+      type: btree
+    
+    - name: idx_customer_rejections_reported_at
+      columns: [tenant_id, reported_at]
+      type: btree
+    
+    - name: idx_customer_rejections_severity
+      columns: [tenant_id, severity, reported_at]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - customer_rejection_rate
+      - customer_satisfaction_score
+      - net_promoter_score
+    
+    high:
+      - claim_rate
+      - quality_cost (resolution costs)
+      - average_resolution_time
+    
+    medium:
+      - customer_complaints_per_month
+      - credit_amount_ratio
+
+  relatedEntities:
+    - job.yaml (core-entities.yaml)
+    - invoice.yaml
+    - quality-defect.yaml
+
+  migrationNotes: |
+    Medium priority for Phase 5 - needed for customer KPIs.
+    
+    Migration Considerations:
+    - Medium transaction volume
+    - Integration with CRM system
+    - Email/support ticket integration
+    
+    Data Population:
+    - Manual entry from customer service
+    - CRM system import
+    - Email parsing integration
+    
+    Blue-Green Deployment:
+    - New table, safe to add
+    - No dependencies from other tables
+

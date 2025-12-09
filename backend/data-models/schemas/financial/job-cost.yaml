@@ -1,0 +1,247 @@
+version: '0.1'
+metadata:
+  domain: financial
+  priority: high
+  estimatedEffort: 1-week
+  status: draft
+
+entity:
+  name: JobCost
+  description: |
+    Detailed job costing tracking actual costs vs estimates.
+    Enables job profitability analysis and estimate accuracy KPIs.
+    Links to production-run, labor-tracking, and material-consumption for cost rollup.
+  
+  tables:
+    - name: job_costs
+      description: Job cost tracking and rollup
+      
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    job_id:
+      type: uuid
+      description: Job reference
+      constraints:
+        - not_null
+        - foreign_key: jobs.id
+        - indexed
+        - unique: [tenant_id, job_id]
+    
+    # Revenue (from invoice)
+    total_amount:
+      type: decimal
+      description: Total invoice amount (revenue)
+      constraints:
+        - not_null
+        - check: total_amount >= 0
+    
+    # Cost Breakdown
+    total_cost:
+      type: decimal
+      description: Total actual cost (sum of all cost components)
+      constraints:
+        - not_null
+        - check: total_cost >= 0
+    
+    material_cost:
+      type: decimal
+      description: Total material cost
+      constraints:
+        - not_null
+        - default: 0
+        - check: material_cost >= 0
+    
+    labor_cost:
+      type: decimal
+      description: Total labor cost
+      constraints:
+        - not_null
+        - default: 0
+        - check: labor_cost >= 0
+    
+    equipment_cost:
+      type: decimal
+      description: Equipment/machine time cost
+      constraints:
+        - not_null
+        - default: 0
+        - check: equipment_cost >= 0
+    
+    overhead_cost:
+      type: decimal
+      description: Allocated overhead cost
+      constraints:
+        - not_null
+        - default: 0
+        - check: overhead_cost >= 0
+    
+    outsourcing_cost:
+      type: decimal
+      description: Outsourced services cost
+      constraints:
+        - not_null
+        - default: 0
+        - check: outsourcing_cost >= 0
+    
+    other_cost:
+      type: decimal
+      description: Other miscellaneous costs
+      constraints:
+        - not_null
+        - default: 0
+        - check: other_cost >= 0
+    
+    # Estimates (for variance analysis)
+    estimated_material_cost:
+      type: decimal
+      description: Estimated material cost
+      constraints:
+        - check: estimated_material_cost >= 0
+    
+    estimated_labor_cost:
+      type: decimal
+      description: Estimated labor cost
+      constraints:
+        - check: estimated_labor_cost >= 0
+    
+    estimated_equipment_cost:
+      type: decimal
+      description: Estimated equipment cost
+      constraints:
+        - check: estimated_equipment_cost >= 0
+    
+    estimated_total_cost:
+      type: decimal
+      description: Total estimated cost
+      constraints:
+        - check: estimated_total_cost >= 0
+    
+    # Profitability Metrics (calculated)
+    gross_profit:
+      type: decimal
+      description: Gross profit (total_amount - total_cost)
+    
+    gross_profit_margin:
+      type: decimal
+      description: Gross profit margin percentage
+    
+    cost_variance:
+      type: decimal
+      description: Cost variance (estimated_total_cost - total_cost)
+    
+    cost_variance_percentage:
+      type: decimal
+      description: Cost variance as percentage
+    
+    # Status
+    status:
+      type: enum
+      description: Costing status
+      values:
+        - estimated
+        - in-progress
+        - completed
+        - reviewed
+        - approved
+      constraints:
+        - not_null
+        - default: estimated
+    
+    costing_date:
+      type: timestamp
+      description: When costing was completed
+    
+    notes:
+      type: text
+      description: Costing notes and explanations
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+
+  indexes:
+    - name: idx_job_costs_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_job_costs_job
+      columns: [tenant_id, job_id]
+      type: btree
+      unique: true
+    
+    - name: idx_job_costs_status
+      columns: [tenant_id, status]
+      type: btree
+    
+    - name: idx_job_costs_date
+      columns: [tenant_id, costing_date]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - job_profitability
+    
+    high:
+      - cost_variance
+      - estimate_accuracy
+      - gross_profit_margin_by_job
+    
+    medium:
+      - material_cost_percentage
+      - labor_cost_percentage
+      - overhead_absorption_rate
+
+  relatedEntities:
+    - job.yaml
+    - invoice.yaml
+    - production-run.yaml
+    - labor-tracking.yaml
+    - material-consumption.yaml
+
+  migrationNotes: |
+    Job costing entity aggregates costs from multiple sources.
+    Enables job profitability KPI and cost variance analysis.
+    
+    Migration Considerations:
+    - Unique constraint on (tenant_id, job_id) ensures one cost record per job
+    - Calculated fields (gross_profit, cost_variance) can be computed or stored
+    - Consider trigger or stored procedure to auto-calculate totals
+    
+    Blue-Green Deployment:
+    - New table, safe to add
+    - Foreign key to jobs must exist first
+    - Cost rollup can be implemented incrementally

@@ -1,0 +1,345 @@
+version: '0.1'
+metadata:
+  domain: procurement
+  priority: medium
+  estimatedEffort: 1-week
+  blocksKPIs: 2+
+  status: draft
+
+entity:
+  name: PurchaseOrder
+  description: |
+    Tracks material and service purchase orders to vendors.
+    Essential for procurement, vendor management, AP 3-way match.
+    Blocks 2+ procurement and supplier KPIs.
+  
+  tables:
+    - name: purchase_orders
+      description: Purchase order records
+    - name: purchase_order_lines
+      description: Line items on purchase orders
+
+  properties:
+    # Purchase Order Header
+    purchase_orders:
+      id:
+        type: uuid
+        description: UUIDv7 primary key
+        constraints:
+          - primary_key
+          - default: uuid_generate_v7()
+      
+      tenant_id:
+        type: uuid
+        description: Multi-tenant isolation
+        constraints:
+          - not_null
+          - foreign_key: tenants.id
+          - indexed
+      
+      # PO Details
+      po_number:
+        type: varchar(50)
+        description: Purchase order number
+        constraints:
+          - not_null
+          - unique
+      
+      vendor_id:
+        type: uuid
+        description: Vendor supplying goods/services
+        constraints:
+          - not_null
+          - foreign_key: vendors.id
+          - indexed
+      
+      # Dates
+      po_date:
+        type: date
+        description: PO creation date
+        constraints:
+          - not_null
+          - default: CURRENT_DATE
+      
+      required_date:
+        type: date
+        description: When materials are needed
+        constraints:
+          - not_null
+          - check: required_date >= po_date
+      
+      promised_date:
+        type: date
+        description: When vendor promised delivery
+        constraints:
+          - check: promised_date >= po_date
+      
+      # Status
+      status:
+        type: varchar(20)
+        description: PO status
+        values:
+          - draft
+          - pending_approval
+          - approved
+          - sent_to_vendor
+          - acknowledged
+          - partially_received
+          - received
+          - closed
+          - cancelled
+        constraints:
+          - not_null
+          - default: draft
+      
+      # Amounts
+      subtotal:
+        type: decimal
+        description: Sum of line items
+        constraints:
+          - not_null
+          - check: subtotal >= 0
+      
+      tax_amount:
+        type: decimal
+        description: Sales tax
+        constraints:
+          - not_null
+          - default: 0
+          - check: tax_amount >= 0
+      
+      shipping_amount:
+        type: decimal
+        description: Shipping/freight charges
+        constraints:
+          - not_null
+          - default: 0
+          - check: shipping_amount >= 0
+      
+      total_amount:
+        type: decimal
+        description: Grand total
+        constraints:
+          - not_null
+          - check: total_amount = subtotal + tax_amount + shipping_amount
+      
+      # Terms
+      payment_terms:
+        type: varchar(50)
+        description: Payment terms (e.g., Net 30)
+        constraints:
+          - not_null
+      
+      shipping_method:
+        type: varchar(50)
+        description: How it will be shipped
+      
+      ship_to_location:
+        type: text
+        description: Delivery address
+        constraints:
+          - not_null
+      
+      # Approval
+      requested_by:
+        type: uuid
+        description: Who requested the purchase
+        constraints:
+          - not_null
+          - foreign_key: users.id
+      
+      approved_by:
+        type: uuid
+        description: Who approved the PO
+        constraints:
+          - foreign_key: users.id
+      
+      approved_at:
+        type: timestamp
+        description: When approved
+      
+      # Notes
+      notes:
+        type: text
+        description: Special instructions, notes
+      
+      # Audit Fields
+      created_at:
+        type: timestamp
+        constraints:
+          - not_null
+          - default: CURRENT_TIMESTAMP
+      
+      updated_at:
+        type: timestamp
+        constraints:
+          - not_null
+          - default: CURRENT_TIMESTAMP
+      
+      created_by:
+        type: uuid
+        constraints:
+          - foreign_key: users.id
+      
+      updated_by:
+        type: uuid
+        constraints:
+          - foreign_key: users.id
+    
+    # Purchase Order Line Items
+    purchase_order_lines:
+      id:
+        type: uuid
+        description: UUIDv7 primary key
+        constraints:
+          - primary_key
+          - default: uuid_generate_v7()
+      
+      purchase_order_id:
+        type: uuid
+        description: Parent PO
+        constraints:
+          - not_null
+          - foreign_key: purchase_orders.id
+          - indexed
+          - on_delete: CASCADE
+      
+      line_number:
+        type: integer
+        description: Line sequence
+        constraints:
+          - not_null
+          - check: line_number > 0
+      
+      # Item
+      material_id:
+        type: uuid
+        description: Material being purchased
+        constraints:
+          - foreign_key: materials.id
+          - indexed
+      
+      description:
+        type: text
+        description: Item description
+        constraints:
+          - not_null
+      
+      # Quantity
+      quantity_ordered:
+        type: decimal
+        description: Quantity ordered
+        constraints:
+          - not_null
+          - check: quantity_ordered > 0
+      
+      quantity_received:
+        type: decimal
+        description: Quantity actually received
+        constraints:
+          - not_null
+          - default: 0
+          - check: quantity_received >= 0
+          - check: quantity_received <= quantity_ordered
+      
+      unit_of_measure:
+        type: varchar(20)
+        description: Unit (sheets, lbs, ea, etc.)
+        constraints:
+          - not_null
+      
+      # Pricing
+      unit_price:
+        type: decimal
+        description: Price per unit
+        constraints:
+          - not_null
+          - check: unit_price >= 0
+      
+      line_total:
+        type: decimal
+        description: Extended line total
+        constraints:
+          - not_null
+          - check: line_total = quantity_ordered * unit_price
+      
+      # GL Coding
+      gl_account:
+        type: varchar(20)
+        description: General ledger account
+      
+      cost_center:
+        type: varchar(20)
+        description: Department/cost center
+      
+      # Notes
+      notes:
+        type: text
+        description: Line item notes
+
+  indexes:
+    - name: idx_purchase_orders_tenant
+      columns: [tenant_id]
+      type: btree
+      table: purchase_orders
+    
+    - name: idx_purchase_orders_po_number
+      columns: [po_number]
+      type: btree
+      unique: true
+      table: purchase_orders
+    
+    - name: idx_purchase_orders_vendor
+      columns: [vendor_id, status]
+      type: btree
+      table: purchase_orders
+    
+    - name: idx_purchase_orders_status
+      columns: [tenant_id, status, po_date]
+      type: btree
+      table: purchase_orders
+    
+    - name: idx_purchase_order_lines_po
+      columns: [purchase_order_id, line_number]
+      type: btree
+      table: purchase_order_lines
+    
+    - name: idx_purchase_order_lines_material
+      columns: [material_id]
+      type: btree
+      table: purchase_order_lines
+
+  kpisEnabled:
+    critical:
+      - purchase_order_cycle_time
+      - vendor_on_time_delivery
+    
+    medium:
+      - procurement_cost_savings
+      - vendor_lead_time_average
+      - po_accuracy_rate
+
+  relatedEntities:
+    - materials.yaml
+    - accounts-payable.yaml
+    - vendor.yaml (assumed to exist)
+
+  migrationNotes: |
+    Medium priority for Phase 4 - needed for procurement KPIs.
+    
+    Migration Considerations:
+    - Two-table structure (header + lines)
+    - Approval workflow integration
+    - Email integration to send POs to vendors
+    - 3-way match with AP and receiving
+    
+    Data Population:
+    - Manual entry of POs
+    - Import from legacy system
+    - Integration with MRP/material planning
+    
+    Blue-Green Deployment:
+    - New tables, safe to add
+    - CASCADE delete on lines when PO deleted
+    - Consider soft delete for audit trail
+

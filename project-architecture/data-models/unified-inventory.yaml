@@ -1,0 +1,407 @@
+version: '0.1'
+metadata:
+  domain: inventory
+  priority: medium
+  estimatedEffort: 2-weeks
+  status: draft
+
+entity:
+  name: UnifiedInventory
+  description: |
+    Unified inventory management supporting multi-location, lot genealogy, and wave processing.
+    Advanced inventory control for complex print manufacturing operations.
+    Integrates with materials.yaml for master data and material-consumption.yaml for usage tracking.
+  
+  tables:
+    - name: inventory_transactions
+      description: All inventory movements (receipts, issues, transfers, adjustments)
+    - name: lot_genealogy
+      description: Parent-child relationships between lots (splitting, combining)
+    - name: wave_processing
+      description: Wave-based picking and allocation for complex jobs
+      
+  properties:
+    # Inventory Transaction Entity
+    transaction_id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    transaction_type:
+      type: enum
+      description: Type of inventory transaction
+      values:
+        - receipt
+        - issue
+        - transfer
+        - adjustment
+        - return
+        - scrap
+        - cycle-count
+      constraints:
+        - not_null
+        - indexed
+    
+    material_id:
+      type: uuid
+      description: Material being transacted
+      constraints:
+        - not_null
+        - foreign_key: materials.id
+        - indexed
+    
+    lot_number:
+      type: string
+      description: Lot/batch number
+      constraints:
+        - not_null
+        - indexed
+    
+    from_location_id:
+      type: uuid
+      description: Source location (null for receipts)
+      constraints:
+        - foreign_key: storage_locations.id
+    
+    to_location_id:
+      type: uuid
+      description: Destination location (null for issues)
+      constraints:
+        - foreign_key: storage_locations.id
+    
+    quantity:
+      type: decimal
+      description: Transaction quantity
+      constraints:
+        - not_null
+        - check: quantity != 0
+    
+    unit_cost:
+      type: decimal
+      description: Cost per unit for this transaction
+      constraints:
+        - check: unit_cost >= 0
+    
+    total_cost:
+      type: decimal
+      description: Total transaction cost
+      constraints:
+        - check: total_cost >= 0
+    
+    reference_type:
+      type: enum
+      description: Reference document type
+      values:
+        - purchase-order
+        - production-run
+        - job
+        - transfer-order
+        - adjustment
+        - cycle-count
+      constraints:
+        - indexed
+    
+    reference_id:
+      type: uuid
+      description: ID of reference document
+      constraints:
+        - indexed
+    
+    transaction_date:
+      type: timestamp
+      description: When transaction occurred
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+        - indexed
+    
+    notes:
+      type: text
+      description: Transaction notes
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - not_null
+        - foreign_key: users.id
+
+  # Lot Genealogy Entity
+  lotGenealogy:
+    name: LotGenealogy
+    description: Tracks parent-child relationships between lots (splitting, combining, rework)
+    
+    properties:
+      id:
+        type: uuid
+        description: UUIDv7 primary key
+        constraints:
+          - primary_key
+          - default: uuid_generate_v7()
+      
+      tenant_id:
+        type: uuid
+        description: Multi-tenant isolation
+        constraints:
+          - not_null
+          - foreign_key: tenants.id
+          - indexed
+      
+      parent_lot_number:
+        type: string
+        description: Parent lot number
+        constraints:
+          - not_null
+          - indexed
+      
+      child_lot_number:
+        type: string
+        description: Child lot number
+        constraints:
+          - not_null
+          - indexed
+      
+      relationship_type:
+        type: enum
+        description: Type of parent-child relationship
+        values:
+          - split
+          - combine
+          - rework
+          - repackage
+        constraints:
+          - not_null
+      
+      parent_quantity:
+        type: decimal
+        description: Quantity from parent
+        constraints:
+          - not_null
+          - check: parent_quantity > 0
+      
+      child_quantity:
+        type: decimal
+        description: Quantity in child
+        constraints:
+          - not_null
+          - check: child_quantity > 0
+      
+      material_id:
+        type: uuid
+        description: Material being tracked
+        constraints:
+          - not_null
+          - foreign_key: materials.id
+      
+      production_run_id:
+        type: uuid
+        description: Production run creating relationship
+        constraints:
+          - foreign_key: production_runs.id
+      
+      created_at:
+        type: timestamp
+        constraints:
+          - not_null
+          - default: CURRENT_TIMESTAMP
+      
+      created_by:
+        type: uuid
+        constraints:
+          - foreign_key: users.id
+
+  # Wave Processing Entity
+  waveProcessing:
+    name: WaveProcessing
+    description: Wave-based picking and allocation for complex multi-job production
+    
+    properties:
+      wave_id:
+        type: uuid
+        description: UUIDv7 primary key
+        constraints:
+          - primary_key
+          - default: uuid_generate_v7()
+      
+      tenant_id:
+        type: uuid
+        description: Multi-tenant isolation
+        constraints:
+          - not_null
+          - foreign_key: tenants.id
+          - indexed
+      
+      wave_number:
+        type: string
+        description: Human-readable wave number
+        constraints:
+          - not_null
+          - unique: [tenant_id, wave_number]
+      
+      wave_type:
+        type: enum
+        description: Type of wave processing
+        values:
+          - discrete
+          - batch
+          - cluster
+          - zone
+        constraints:
+          - not_null
+      
+      status:
+        type: enum
+        description: Wave status
+        values:
+          - planned
+          - released
+          - picking
+          - picked
+          - staged
+          - completed
+          - cancelled
+        constraints:
+          - not_null
+          - default: planned
+      
+      priority:
+        type: integer
+        description: Wave priority
+        constraints:
+          - not_null
+          - default: 5
+          - check: priority >= 1 AND priority <= 10
+      
+      jobs:
+        type: jsonb
+        description: Jobs included in this wave
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              job_id: uuid
+              material_requirements:
+                type: array
+        constraints:
+          - not_null
+      
+      planned_start:
+        type: timestamp
+        description: Planned wave start time
+      
+      actual_start:
+        type: timestamp
+        description: Actual wave start time
+      
+      planned_end:
+        type: timestamp
+        description: Planned wave completion time
+      
+      actual_end:
+        type: timestamp
+        description: Actual wave completion time
+      
+      # Audit Fields
+      created_at:
+        type: timestamp
+        constraints:
+          - not_null
+          - default: CURRENT_TIMESTAMP
+      
+      updated_at:
+        type: timestamp
+        constraints:
+          - not_null
+          - default: CURRENT_TIMESTAMP
+      
+      created_by:
+        type: uuid
+        constraints:
+          - foreign_key: users.id
+      
+      updated_by:
+        type: uuid
+        constraints:
+          - foreign_key: users.id
+
+  indexes:
+    - name: idx_transactions_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_transactions_material
+      columns: [tenant_id, material_id, transaction_date]
+      type: btree
+    
+    - name: idx_transactions_lot
+      columns: [tenant_id, lot_number]
+      type: btree
+    
+    - name: idx_transactions_type
+      columns: [tenant_id, transaction_type, transaction_date]
+      type: btree
+    
+    - name: idx_transactions_reference
+      columns: [tenant_id, reference_type, reference_id]
+      type: btree
+    
+    - name: idx_genealogy_parent
+      columns: [tenant_id, parent_lot_number]
+      type: btree
+    
+    - name: idx_genealogy_child
+      columns: [tenant_id, child_lot_number]
+      type: btree
+    
+    - name: idx_wave_status
+      columns: [tenant_id, status]
+      type: btree
+
+  kpisEnabled:
+    high:
+      - inventory_accuracy
+      - wave_efficiency
+      - picking_accuracy
+    
+    medium:
+      - lot_traceability_compliance
+      - wave_cycle_time
+      - location_utilization
+
+  relatedEntities:
+    - materials.yaml
+    - material-consumption.yaml
+    - production-run.yaml
+    - job.yaml
+
+  migrationNotes: |
+    Advanced inventory management with lot genealogy and wave processing.
+    Complex feature set that can be phased in after basic inventory is working.
+    
+    Migration Considerations:
+    - Three tables: inventory_transactions, lot_genealogy, wave_processing
+    - High transaction volume - consider partitioning by transaction_date
+    - JSONB for wave job requirements allows flexibility
+    - Indexes critical for performance (lot tracking queries are expensive)
+    
+    Blue-Green Deployment:
+    - New tables, safe to add
+    - Can be deployed after materials.yaml and production-run.yaml
+    - Wave processing can be optional feature flag initially

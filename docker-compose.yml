@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL with pgvector extension for Layer 4 memory
+  # PostgreSQL with pgvector for Layer 4 memory
   postgres:
     image: pgvector/pgvector:pg16
     container_name: agogsaas-postgres
@@ -13,7 +13,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    command: postgres -c 'max_connections=200'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
       interval: 10s
@@ -28,6 +29,8 @@ services:
       - "-js"
       - "-sd"
       - "/data"
+      - "-m"
+      - "8222"
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -39,7 +42,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend - GraphQL API + Monitoring + Orchestration + Memory
+  # Backend - GraphQL API + All 4 Layers
   backend:
     build:
       context: ./backend
@@ -79,8 +82,9 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/package.json:/app/package.json
+      - ./frontend/index.html:/app/index.html
       - frontend_node_modules:/app/node_modules
-    command: npm run dev
+    command: npm run dev -- --host 0.0.0.0
 
 volumes:
   postgres_data:

@@ -1,0 +1,294 @@
+version: '0.1'
+metadata:
+  domain: material
+  subdomain: inventory
+  priority: medium
+  estimatedEffort: 1-week
+  status: draft
+
+entity:
+  name: KitComponent
+  description: |
+    Individual components that comprise a kit with requirement level flags.
+    Each component can be marked as required or optional for inventory availability.
+    
+    The is_required_for_inventory flag (default: true) determines behavior:
+    - true (default): Component shortage blocks kit availability entirely
+    - false: Component shortage creates alternate kit version without that component
+    
+    Example:
+    Kit "Welcome Package" with:
+    - Box (4 available, required=true)
+    - Brochure (3 available, required=false)
+    
+    Result:
+    - Kit Version 1 (Box + Brochure): 3 available
+    - Kit Version 2 (Box only): 1 available
+    - Total kits: 4 available (not blocked by brochure shortage)
+    
+    This enables flexible fulfillment and maximizes sales with partial inventory.
+  
+  tables:
+    - name: kit_components
+      description: Components and their requirement levels
+      
+  kpis_enabled:
+    high:
+      - kit_fulfillment_rate
+      - kit_version_accuracy
+      - inventory_accuracy
+    medium:
+      - kit_component_shortage_rate
+      
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    kit_id:
+      type: uuid
+      description: Parent kit definition
+      constraints:
+        - not_null
+        - foreign_key: kit_definitions.id
+        - indexed
+    
+    component_material_id:
+      type: uuid
+      description: Material that is part of the kit
+      constraints:
+        - not_null
+        - foreign_key: materials.id
+        - indexed
+    
+    quantity_per_kit:
+      type: decimal
+      description: How many of this component per kit
+      constraints:
+        - not_null
+        - check: quantity_per_kit > 0
+    
+    is_required_for_inventory:
+      type: boolean
+      description: |
+        Does shortage of this component block kit availability?
+        - true (DEFAULT): Shortage blocks all kit sales
+        - false: Shortage creates alternate kit version without this component
+      constraints:
+        - not_null
+        - default: true
+    
+    version_label:
+      type: string
+      description: |
+        Human-readable label for kit version with this component
+        Examples: "Standard", "Premium", "With Brochure", "Economy"
+      constraints:
+        - nullable
+        - max_length: 100
+    
+    substitution_group:
+      type: string
+      description: |
+        Identifier for interchangeable components
+        Example: "insert_material" could have multiple components in same group
+      constraints:
+        - nullable
+        - max_length: 50
+    
+    sequence:
+      type: integer
+      description: Display order for UI listing
+      constraints:
+        - not_null
+        - default: 0
+    
+    notes:
+      type: text
+      description: Additional notes about this component's role in the kit
+      constraints:
+        - nullable
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      description: Record creation timestamp
+      constraints:
+        - not_null
+        - default: now()
+    
+    updated_at:
+      type: timestamp
+      description: Record last update timestamp
+      constraints:
+        - not_null
+        - default: now()
+    
+    created_by:
+      type: uuid
+      description: User who created the record
+      constraints:
+        - not_null
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      description: User who last updated the record
+      constraints:
+        - foreign_key: users.id
+        - nullable
+
+relationships:
+  - type: many-to-one
+    target: KitDefinition
+    description: Component belongs to a kit
+    
+  - type: many-to-one
+    target: Material
+    description: Component references a material
+
+indexes:
+  - name: idx_kit_components_tenant
+    columns: [tenant_id]
+    type: btree
+    
+  - name: idx_kit_components_kit
+    columns: [tenant_id, kit_id]
+    type: btree
+    
+  - name: idx_kit_components_material
+    columns: [tenant_id, component_material_id]
+    type: btree
+    
+  - name: idx_kit_components_required
+    columns: [tenant_id, kit_id, is_required_for_inventory]
+    type: btree
+    
+  - name: idx_kit_components_unique
+    columns: [tenant_id, kit_id, component_material_id]
+    type: btree
+    unique: true
+
+validation_rules:
+  - rule: positive_quantity
+    description: Quantity per kit must be greater than zero
+    implementation: CHECK constraint (quantity_per_kit > 0)
+    
+  - rule: kit_exists
+    description: Kit must exist in kit_definitions table
+    implementation: FOREIGN KEY constraint
+    
+  - rule: component_material_exists
+    description: Component material must exist in materials table
+    implementation: FOREIGN KEY constraint
+    
+  - rule: unique_component_per_kit
+    description: Each component can only appear once per kit
+    implementation: UNIQUE constraint on [tenant_id, kit_id, component_material_id]
+
+sample_data:
+  - kit_id: ref:kit_definitions.welcome_package
+    component_material_id: ref:materials.corrugated_box_12x12
+    quantity_per_kit: 1
+    is_required_for_inventory: true
+    version_label: "Standard"
+    sequence: 1
+    notes: "Primary packaging - always required"
+    
+  - kit_id: ref:kit_definitions.welcome_package
+    component_material_id: ref:materials.product_brochure
+    quantity_per_kit: 1
+    is_required_for_inventory: false
+    version_label: "With Brochure"
+    sequence: 2
+    notes: "Optional marketing material - can ship without if out of stock"
+    
+  - kit_id: ref:kit_definitions.welcome_package
+    component_material_id: ref:materials.instruction_sheet
+    quantity_per_kit: 1
+    is_required_for_inventory: true
+    version_label: "Standard"
+    sequence: 3
+    notes: "Required for product compliance"
+
+business_rules:
+  - rule: "Default is_required_for_inventory = true (components required by default)"
+  - rule: "Kit availability = MIN(required component quantities)"
+  - rule: "Optional component shortage creates alternate kit version"
+  - rule: "Substitution group allows picking from multiple interchangeable components"
+  - rule: "Version labels help differentiate kit variants for sales and fulfillment"
+
+kit_availability_calculation: |
+  Algorithm for calculating kit availability:
+  
+  1. Get all components for kit
+  2. Filter to required components (is_required_for_inventory = true)
+  3. Calculate available quantity for each required component:
+     available_qty = floor(component_inventory / quantity_per_kit)
+  4. Kit base availability = MIN(all required component available_qty)
+  5. For optional components, create version combinations:
+     - Version 1: All components included (limited by optional component with lowest qty)
+     - Version 2: Without specific optional component (limited by remaining optional components)
+     - Version N: Only required components
+  
+  Example SQL (simplified):
+  ```sql
+  -- Base kit availability (limited by required components)
+  WITH required_components AS (
+    SELECT 
+      kc.kit_id,
+      kc.component_material_id,
+      kc.quantity_per_kit,
+      FLOOR(mi.quantity_on_hand / kc.quantity_per_kit) as available_kits
+    FROM kit_components kc
+    JOIN material_inventory mi ON mi.material_id = kc.component_material_id
+    WHERE kc.is_required_for_inventory = true
+  )
+  SELECT 
+    kit_id,
+    MIN(available_kits) as base_kit_availability
+  FROM required_components
+  GROUP BY kit_id;
+  ```
+
+related_schemas:
+  - kit-definition.yaml
+  - materials.yaml
+  - inventory-transaction.yaml (future)
+
+migration_considerations:
+  - Medium transaction volume table
+  - Average 3-10 components per kit
+  - Kit availability calculation needs to be efficient (consider caching)
+  - Trigger-based recalculation on component inventory changes
+
+implementation_priority:
+  phase: 1
+  description: Core inventory with basic kit definitions
+  dependencies:
+    - kit-definition.yaml must be implemented together
+    - materials.yaml must exist
+  estimated_effort: 2-3 days
+
+notes: |
+  The is_required_for_inventory flag is the key differentiator:
+  - true (DEFAULT): Traditional BOM behavior - all components must be available
+  - false: Flexible fulfillment - kit can be sold without this component
+  
+  This enables packaging companies to maximize revenue even with partial inventory.
+  Common use case: Ship basic package without optional marketing materials if out of stock,
+  rather than blocking the entire sale.
+  
+  Version labels help warehouse staff understand which kit variant they're fulfilling.

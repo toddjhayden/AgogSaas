@@ -1,0 +1,424 @@
+version: '0.1'
+metadata:
+  domain: production
+  priority: critical
+  estimatedEffort: 2-weeks
+  blocksKPIs: 20+
+  status: draft
+
+entity:
+  name: ProductionRun
+  description: |
+    Records a single production run of a job on specific equipment.
+    Core entity for tracking OEE, quality, material consumption, and labor efficiency.
+    Essential for calculating 20+ production and quality KPIs.
+  
+  tables:
+    - name: production_runs
+      description: Main production run tracking table
+      
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    # References
+    equipment_id:
+      type: uuid
+      description: Equipment used for this production run
+      constraints:
+        - not_null
+        - foreign_key: equipment.id
+        - indexed
+    
+    job_id:
+      type: uuid
+      description: Job being produced
+      constraints:
+        - not_null
+        - foreign_key: jobs.id
+        - indexed
+    
+    lot_number:
+      type: string
+      description: Lot number for traceability
+      constraints:
+        - not_null
+        - indexed
+    
+    # Timing (for OEE Availability calculation)
+    scheduled_start_time:
+      type: timestamp
+      description: When production was scheduled to start (for setup time calculation)
+      constraints:
+        - not_null
+    
+    planned_start_time:
+      type: timestamp
+      description: Planned production start time (after setup)
+      constraints:
+        - not_null
+    
+    actual_start_time:
+      type: timestamp
+      description: When production actually started
+      constraints:
+        - not_null
+    
+    planned_end_time:
+      type: timestamp
+      description: When production was scheduled to end
+      constraints:
+        - not_null
+    
+    actual_end_time:
+      type: timestamp
+      description: When production actually ended (nullable if still running)
+    
+    planned_duration:
+      type: integer
+      description: Planned production duration in seconds
+      constraints:
+        - not_null
+        - check: planned_duration > 0
+    
+    actual_duration:
+      type: integer
+      description: Actual production duration in seconds (calculated from start/end times)
+      constraints:
+        - check: actual_duration > 0
+    
+    actual_production_time:
+      type: integer
+      description: Actual time producing (excludes downtime, in seconds)
+      constraints:
+        - check: actual_production_time > 0
+    
+    available_capacity_hours:
+      type: decimal
+      description: Available production capacity in hours (for capacity utilization KPI)
+      constraints:
+        - check: available_capacity_hours > 0
+    
+    # Setup Time (for Setup Time Efficiency KPI)
+    setup_time:
+      type: integer
+      description: Time spent on setup/changeover in seconds
+      constraints:
+        - not_null
+        - default: 0
+        - check: setup_time >= 0
+    
+    setup_category:
+      type: enum
+      description: Category of setup for analysis
+      values:
+        - minor-adjustment
+        - color-change
+        - substrate-change
+        - job-change
+        - equipment-change
+        - plate-change
+      constraints:
+        - not_null
+        - default: job-change
+    
+    # Speed (for OEE Performance calculation)
+    speed_theoretical:
+      type: decimal
+      description: Theoretical/target production speed (units per minute)
+      constraints:
+        - not_null
+        - check: speed_theoretical > 0
+    
+    speed_actual:
+      type: decimal
+      description: Actual production speed (units per minute)
+      constraints:
+        - check: speed_actual > 0
+    
+    # Quantity (for OEE Quality calculation & FPY)
+    quantity_produced:
+      type: integer
+      description: Total units produced (good + defect)
+      constraints:
+        - not_null
+        - default: 0
+        - check: quantity_produced >= 0
+    
+    quantity_good:
+      type: integer
+      description: Units meeting quality standards
+      constraints:
+        - not_null
+        - default: 0
+        - check: quantity_good >= 0
+        - check: quantity_good <= quantity_produced
+    
+    defect_quantity:
+      type: integer
+      description: Units failing quality standards
+      constraints:
+        - not_null
+        - default: 0
+        - check: defect_quantity >= 0
+        - check: defect_quantity <= quantity_produced
+    
+    quantity_rework:
+      type: integer
+      description: Units requiring rework
+      constraints:
+        - not_null
+        - default: 0
+        - check: quantity_rework >= 0
+    
+    quantity_scrapped:
+      type: integer
+      description: Units scrapped (cannot be reworked)
+      constraints:
+        - not_null
+        - default: 0
+        - check: quantity_scrapped >= 0
+    
+    # Status
+    status:
+      type: enum
+      description: Current production run status
+      values:
+        - scheduled
+        - setup
+        - running
+        - paused
+        - completed
+        - cancelled
+        - quality-hold
+      constraints:
+        - not_null
+        - default: scheduled
+    
+    # Downtime Tracking (for OEE Availability calculation)
+    downtime_events:
+      type: jsonb
+      description: Array of downtime events during production
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [setup, maintenance, breakdown, changeover, waiting-material, waiting-instructions, quality-issue, other]
+            start_time:
+              type: timestamp
+            end_time:
+              type: timestamp
+            duration:
+              type: integer
+              description: Duration in seconds
+            reason:
+              type: string
+              description: Detailed reason for downtime
+            resolved_by:
+              type: uuid
+              description: Employee who resolved the issue
+      constraints:
+        - not_null
+        - default: "[]"
+    
+    # Cycle Time Breakdown (for Lean Manufacturing KPIs)
+    cycle_time_breakdown:
+      type: jsonb
+      description: Detailed cycle time analysis
+      schema:
+        type: object
+        properties:
+          process_time:
+            type: integer
+            description: Actual production time in seconds
+          inspection_time:
+            type: integer
+            description: Quality inspection time in seconds
+          move_time:
+            type: integer
+            description: Material movement time in seconds
+          queue_time:
+            type: integer
+            description: Waiting time in seconds
+          total_cycle_time:
+            type: integer
+            description: Total cycle time in seconds
+    
+    # Color Accuracy (Print Industry Specific)
+    color_measurements:
+      type: jsonb
+      description: Color accuracy measurements during production run
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            measurement_time:
+              type: timestamp
+            ink_zone:
+              type: string
+            color_name:
+              type: string
+            lab_values:
+              type: object
+              properties:
+                l: number
+                a: number
+                b: number
+            delta_e:
+              type: number
+              description: Delta E color difference from target
+            within_tolerance:
+              type: boolean
+      constraints:
+        - default: "[]"
+    
+    target_color_values:
+      type: jsonb
+      description: Target color specifications for this production run
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            color_name:
+              type: string
+            ink_zone:
+              type: string
+            target_lab:
+              type: object
+              properties:
+                l: number
+                a: number
+                b: number
+            tolerance_delta_e:
+              type: number
+              description: Maximum acceptable Delta E
+      constraints:
+        - default: "[]"
+    
+    # Notes
+    notes:
+      type: text
+      description: Additional notes about the production run
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      description: Record creation timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      description: Record last update timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      description: User who created the record
+      constraints:
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      description: User who last updated the record
+      constraints:
+        - foreign_key: users.id
+
+  indexes:
+    - name: idx_production_runs_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_production_runs_equipment
+      columns: [tenant_id, equipment_id]
+      type: btree
+    
+    - name: idx_production_runs_job
+      columns: [tenant_id, job_id]
+      type: btree
+    
+    - name: idx_production_runs_lot
+      columns: [tenant_id, lot_number]
+      type: btree
+    
+    - name: idx_production_runs_status
+      columns: [tenant_id, status]
+      type: btree
+    
+    - name: idx_production_runs_time_range
+      columns: [tenant_id, actual_start_time, actual_end_time]
+      type: btree
+      description: For time-based queries and reporting
+
+  uniqueConstraints:
+    - name: uq_production_run_natural_key
+      columns: [tenant_id, equipment_id, actual_start_time]
+      description: Prevent duplicate runs for same equipment at same time
+
+  kpisEnabled:
+    critical:
+      - oee_overall_equipment_effectiveness
+      - first_pass_yield
+      - scrap_rate
+      - setup_time_efficiency
+      - production_speed_variance
+      - capacity_utilization
+    
+    high:
+      - rework_rate
+      - cycle_time
+      - yield_factor
+      - machine_utilization_rate
+      - setup_time_percentage
+      - production_schedule_attainment
+    
+    medium:
+      - manufacturing_lead_time
+      - cost_per_unit
+      - downtime_analysis
+      - availability_rate
+      - performance_rate
+      - quality_rate
+
+  relatedEntities:
+    - equipment.yaml
+    - job.yaml (from core-entities.yaml)
+    - quality-defect.yaml
+    - material-consumption.yaml
+    - labor-tracking.yaml
+
+  migrationNotes: |
+    This is a critical entity blocking 20+ KPIs. High priority for Phase 1 implementation.
+    
+    Migration Considerations:
+    - Use UUIDv7 for time-ordered primary keys
+    - Create CHECK constraints to ensure data integrity (good_units + defect_units <= units_produced)
+    - Consider partitioning by created_at for large production volumes (monthly/quarterly)
+    - JSONB fields (downtime_events, cycle_time_breakdown) allow flexible data capture
+    - Index on time ranges essential for reporting queries
+    
+    Blue-Green Deployment:
+    - This is a new table, safe to add
+    - No existing data migration needed
+    - Foreign keys to existing tables (equipment, jobs) can be added safely

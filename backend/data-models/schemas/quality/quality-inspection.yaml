@@ -1,0 +1,433 @@
+version: '0.1'
+metadata:
+  domain: quality
+  priority: high
+  estimatedEffort: 1-week
+  blocksKPIs: 6+
+  status: draft
+
+entity:
+  name: QualityInspection
+  description: |
+    Structured quality inspection and test results with specifications.
+    Records in-process and final inspections with measured values vs limits.
+    Essential for SPC (Statistical Process Control), capability analysis, appraisal costs.
+    Blocks 6+ quality and process capability KPIs.
+  
+  tables:
+    - name: quality_inspections
+      description: Inspection header records
+    - name: quality_test_results
+      description: Individual test measurements
+      
+  properties:
+    # Inspection Header
+    inspection_id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    inspection_number:
+      type: varchar(50)
+      description: Human-readable inspection number
+      constraints:
+        - not_null
+        - unique: [tenant_id, inspection_number]
+    
+    # Relationships
+    job_id:
+      type: uuid
+      description: Job being inspected
+      constraints:
+        - not_null
+        - foreign_key: jobs.id
+        - indexed
+    
+    production_run_id:
+      type: uuid
+      description: Production run being inspected
+      constraints:
+        - foreign_key: production_runs.id
+        - indexed
+    
+    production_order_id:
+      type: uuid
+      description: Production order being inspected
+      constraints:
+        - foreign_key: production_orders.id
+        - indexed
+    
+    equipment_id:
+      type: uuid
+      description: Equipment where inspection occurred
+      constraints:
+        - foreign_key: equipment.id
+        - indexed
+    
+    # Inspection Details
+    inspection_type:
+      type: enum
+      description: When/why inspection occurred
+      values:
+        - receiving (incoming material inspection)
+        - first_article (first piece off press)
+        - in_process (during production)
+        - final (before delivery)
+        - audit (quality audit sample)
+        - customer_complaint (investigating rejection)
+      constraints:
+        - not_null
+        - indexed
+    
+    inspection_stage:
+      type: varchar(50)
+      description: Production stage when inspected
+      examples:
+        - "After printing, before cutting"
+        - "Final packed goods"
+        - "Incoming substrate"
+    
+    sample_size:
+      type: integer
+      description: Number of units inspected
+      constraints:
+        - not_null
+        - check: sample_size > 0
+    
+    lot_size:
+      type: integer
+      description: Total lot/batch size
+      constraints:
+        - not_null
+        - check: lot_size >= sample_size
+    
+    # Timing
+    inspection_date:
+      type: timestamp
+      description: When inspection was performed
+      constraints:
+        - not_null
+        - indexed
+    
+    inspector_id:
+      type: uuid
+      description: Person who performed inspection
+      constraints:
+        - not_null
+        - foreign_key: users.id
+    
+    duration_minutes:
+      type: integer
+      description: Time spent on inspection (for appraisal cost)
+      constraints:
+        - check: duration_minutes > 0
+    
+    # Overall Result
+    overall_result:
+      type: enum
+      description: Overall inspection result
+      values:
+        - pass (all tests passed)
+        - pass_with_deviation (acceptable with notes)
+        - conditional (needs review)
+        - fail (rejected)
+      constraints:
+        - not_null
+        - indexed
+    
+    disposition:
+      type: enum
+      description: What to do with inspected material
+      values:
+        - accept (use as-is)
+        - accept_with_deviation (use with customer approval)
+        - rework (fix and re-inspect)
+        - scrap (discard)
+        - return_to_vendor (send back)
+        - hold (pending decision)
+      constraints:
+        - not_null
+    
+    # Defects Found
+    defects_found:
+      type: integer
+      description: Number of defective units found
+      constraints:
+        - not_null
+        - default: 0
+        - check: defects_found >= 0
+        - check: defects_found <= sample_size
+    
+    defect_rate_ppm:
+      type: decimal
+      description: Defects per million (calculated)
+      constraints:
+        - check: defect_rate_ppm = (defects_found::decimal / sample_size) * 1000000
+    
+    # Notes
+    notes:
+      type: text
+      description: Inspector observations and comments
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+
+  # Test Results (child table)
+  testResults:
+    name: QualityTestResult
+    description: Individual test measurements with specs
+    
+    properties:
+      test_result_id:
+        type: uuid
+        description: UUIDv7 primary key
+        constraints:
+          - primary_key
+          - default: uuid_generate_v7()
+      
+      inspection_id:
+        type: uuid
+        description: Parent inspection
+        constraints:
+          - not_null
+          - foreign_key: quality_inspections.inspection_id
+          - indexed
+      
+      tenant_id:
+        type: uuid
+        description: Multi-tenant isolation
+        constraints:
+          - not_null
+          - foreign_key: tenants.id
+          - indexed
+      
+      # Test Specification
+      characteristic:
+        type: varchar(100)
+        description: What is being measured
+        examples:
+          - "Sheet width (inches)"
+          - "Color Delta E (cyan)"
+          - "Registration accuracy (mm)"
+          - "Ink density (solid)"
+          - "Glue adhesion strength (lbs)"
+        constraints:
+          - not_null
+      
+      test_method:
+        type: varchar(100)
+        description: How measurement was taken
+        examples:
+          - "Micrometer"
+          - "Spectrophotometer"
+          - "Visual inspection"
+          - "Densitometer"
+      
+      specification_type:
+        type: enum
+        description: Type of specification
+        values:
+          - variable (numeric measurement)
+          - attribute (pass/fail)
+          - visual (subjective assessment)
+        constraints:
+          - not_null
+      
+      # Specification Limits (for variable data)
+      target_value:
+        type: decimal
+        description: Target/nominal value
+      
+      upper_spec_limit:
+        type: decimal
+        description: Upper specification limit (USL)
+      
+      lower_spec_limit:
+        type: decimal
+        description: Lower specification limit (LSL)
+      
+      unit_of_measure:
+        type: varchar(20)
+        description: Measurement unit
+        examples:
+          - "inches"
+          - "mm"
+          - "Delta E"
+          - "pounds"
+          - "PSI"
+      
+      # Measured Value
+      measured_value:
+        type: decimal
+        description: Actual measured value
+      
+      measurement_timestamp:
+        type: timestamp
+        description: When measurement was taken
+        constraints:
+          - not_null
+      
+      # Result Assessment
+      test_result:
+        type: enum
+        description: Did measurement meet spec?
+        values:
+          - pass (within limits)
+          - fail (out of spec)
+          - marginal (near limit)
+          - not_applicable
+        constraints:
+          - not_null
+      
+      deviation_from_target:
+        type: decimal
+        description: How far from target (calculated)
+        constraints:
+          - check: deviation_from_target = ABS(measured_value - target_value)
+      
+      # For attribute data (pass/fail)
+      attribute_result:
+        type: boolean
+        description: Pass (true) or fail (false) for attribute tests
+      
+      # For visual inspection
+      visual_rating:
+        type: integer
+        description: Subjective rating (1-5 or 1-10)
+        constraints:
+          - check: visual_rating >= 1 AND visual_rating <= 10
+      
+      # Measurement conditions
+      measurement_conditions:
+        type: jsonb
+        description: Environmental or setup conditions
+        schema:
+          type: object
+          properties:
+            temperature: number
+            humidity: number
+            operator: string
+            equipment_id: uuid
+        constraints:
+          - default: "{}"
+      
+      # Notes
+      notes:
+        type: text
+        description: Specific observations about this measurement
+      
+      # Audit
+      measured_by:
+        type: uuid
+        description: Who took the measurement
+        constraints:
+          - foreign_key: users.id
+
+  indexes:
+    # Inspection indexes
+    - name: idx_inspection_tenant
+      table: quality_inspections
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_inspection_job
+      table: quality_inspections
+      columns: [tenant_id, job_id, inspection_date]
+      type: btree
+    
+    - name: idx_inspection_type
+      table: quality_inspections
+      columns: [tenant_id, inspection_type, inspection_date]
+      type: btree
+    
+    - name: idx_inspection_result
+      table: quality_inspections
+      columns: [tenant_id, overall_result, inspection_date]
+      type: btree
+    
+    # Test result indexes
+    - name: idx_test_result_tenant
+      table: quality_test_results
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_test_result_inspection
+      table: quality_test_results
+      columns: [inspection_id]
+      type: btree
+    
+    - name: idx_test_result_characteristic
+      table: quality_test_results
+      columns: [tenant_id, characteristic, measurement_timestamp]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - first_pass_yield
+      - process_capability (Cp, Cpk)
+      - defect_rate
+    
+    high:
+      - inspection_effectiveness
+      - appraisal_cost
+      - control_chart_violations
+      - gage_R&R
+    
+    medium:
+      - measurement_system_analysis
+      - inspection_cycle_time
+
+  relatedEntities:
+    - job.yaml (jobs being inspected)
+    - production-run.yaml (production runs being inspected)
+    - production-order.yaml (production orders being inspected)
+    - quality-defect.yaml (defects found link to inspection)
+    - equipment.yaml (where inspection occurred)
+
+  migrationNotes: |
+    Quality Inspection entity provides structured test data for SPC and capability analysis.
+    
+    Two-level structure:
+    1. Inspection Header - who, what, when, overall result
+    2. Test Results - individual measurements with specs
+    
+    Use Cases:
+    - First Article Inspection (FAI) - verify setup before production
+    - In-Process Control - monitor during production for drift
+    - Final Inspection - verify finished goods meet specs
+    - Receiving Inspection - check incoming materials
+    
+    SPC Integration:
+    - test_results table feeds control charts (X-bar, R charts)
+    - Calculate Cp/Cpk from measured_value vs upper_spec_limit/lower_spec_limit
+    - Track process drift: measured_value vs target_value over time
+    
+    Appraisal Cost Calculation:
+    - duration_minutes × inspector labor rate = inspection cost
+    - Aggregate for Cost of Quality (COQ) appraisal category
+    
+    Blue-Green Deployment:
+    - New tables, safe to add
+    - Can start with manual inspections
+    - Later: integrate with measurement equipment (sensors, CMMs)
+    - quality-defect.yaml can add inspection_id FK to link defects to inspections

@@ -1,0 +1,264 @@
+version: '0.1'
+metadata:
+  domain: labor_hr
+  category: Labor Efficiency & Human Resources
+  total_kpis: 12
+
+kpis:
+  - id: labor_efficiency_rate
+    name: Labor Efficiency Rate
+    description: Actual labor hours vs. standard labor hours
+    formula: "(Standard Hours / Actual Hours) × 100"
+    unit: percentage
+    target: ">= 95%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - labor-tracking.yaml
+      - production-run.yaml
+    required_entities:
+      - LaborTracking
+      - ProductionRun
+    required_fields:
+      - hours_worked
+      - job_id
+      - production_run_id
+      - quantity_produced
+    calculation_notes: |
+      > 100%: Working faster than standard
+      < 90%: Efficiency issues need investigation
+
+  - id: labor_productivity
+    name: Labor Productivity
+    description: Output per labor hour
+    formula: "Total Units Produced / Total Labor Hours"
+    unit: units_per_hour
+    target: "Trend upward"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - labor-tracking.yaml
+    required_entities:
+      - LaborTracking
+    required_fields:
+      - quantity_produced
+      - hours_worked
+      - productivity_rate
+    calculation_notes: |
+      Track by department, shift, employee for targeted training.
+
+  - id: direct_labor_percentage
+    name: Direct Labor Percentage
+    description: Direct labor hours as percentage of total labor hours
+    formula: "(Direct Labor Hours / Total Labor Hours) × 100"
+    unit: percentage
+    target: ">= 60%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - labor-tracking.yaml
+    required_entities:
+      - LaborTracking
+    required_fields:
+      - is_direct_labor
+      - hours_worked
+      - activity_type
+    calculation_notes: |
+      Direct labor = hands-on production
+      Low percentage indicates excessive overhead or downtime
+
+  - id: overtime_hours_percentage
+    name: Overtime Hours Percentage
+    description: Overtime hours as percentage of total hours
+    formula: "(Overtime Hours / Total Hours) × 100"
+    unit: percentage
+    target: "<= 10%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - labor-tracking.yaml
+    required_entities:
+      - LaborTracking
+    required_fields:
+      - is_overtime
+      - hours_worked
+    calculation_notes: |
+      Excessive overtime indicates understaffing or poor scheduling
+      High overtime costs (1.5x-2x) hurt profitability
+
+  - id: labor_cost_per_unit
+    name: Labor Cost per Unit
+    description: Total labor cost divided by units produced
+    formula: "Total Labor Cost / Total Units Produced"
+    unit: currency_per_unit
+    target: "Meet or beat standard cost"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - labor-tracking.yaml
+      - production-run.yaml
+    required_entities:
+      - LaborTracking
+      - ProductionRun
+    required_fields:
+      - total_cost
+      - quantity_produced
+      - hourly_rate
+    calculation_notes: |
+      Key component of COGS
+      Track trends and variance from standard
+
+  - id: total_headcount
+    name: Total Headcount
+    description: Total number of active employees
+    formula: "COUNT(employees WHERE status = 'active')"
+    unit: count
+    target: "Aligned with revenue growth"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - employee.yaml
+    required_entities:
+      - Employee
+    required_fields:
+      - employment_status
+      - employee_number
+    calculation_notes: |
+      Track by department, full-time vs part-time
+
+  - id: fte_count
+    name: Full-Time Equivalent (FTE) Count
+    description: Total FTE adjusted for part-time workers
+    formula: "SUM(fte_percentage) WHERE status = 'active'"
+    unit: fte
+    target: "Aligned with workload"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - employee.yaml
+    required_entities:
+      - Employee
+    required_fields:
+      - fte_percentage
+      - employment_status
+      - employment_type
+    calculation_notes: |
+      Part-time employee at 50% = 0.5 FTE
+      Use for capacity planning and productivity calculations
+
+  - id: employee_turnover_rate
+    name: Employee Turnover Rate
+    description: Percentage of workforce that leaves annually
+    formula: "(Number of Separations / Average Headcount) × 100"
+    unit: percentage_annual
+    target: "<= 15%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - employee.yaml
+    required_entities:
+      - Employee
+    required_fields:
+      - termination_date
+      - termination_reason
+      - hire_date
+      - employment_status
+    calculation_notes: |
+      Voluntary vs involuntary turnover
+      High turnover costly: recruiting, training, lost productivity
+
+  - id: average_tenure
+    name: Average Employee Tenure
+    description: Average length of employment
+    formula: "AVG(CURRENT_DATE - hire_date) WHERE status = 'active'"
+    unit: years
+    target: ">= 5 years"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - employee.yaml
+    required_entities:
+      - Employee
+    required_fields:
+      - hire_date
+      - employment_status
+    calculation_notes: |
+      Longer tenure indicates employee satisfaction and institutional knowledge
+
+  - id: absenteeism_rate
+    name: Absenteeism Rate
+    description: Percentage of scheduled work time lost to absences
+    formula: "(Total Absent Hours / Total Scheduled Hours) × 100"
+    unit: percentage
+    target: "<= 3%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - labor-tracking.yaml
+      - employee.yaml
+    required_entities:
+      - LaborTracking
+      - Employee
+    required_fields:
+      - hours_worked
+      - activity_type
+      - pto_balance_hours
+      - sick_leave_hours
+    calculation_notes: |
+      Excludes approved PTO
+      High rate may indicate morale or safety issues
+
+  - id: revenue_per_employee
+    name: Revenue per Employee
+    description: Total revenue divided by employee count
+    formula: "Total Revenue / Total Headcount"
+    unit: currency
+    target: ">= $150,000"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+      - employee.yaml
+    required_entities:
+      - FinancialStatement
+      - Employee
+    required_fields:
+      - total_revenue
+      - employment_status
+    calculation_notes: |
+      Productivity benchmark
+      Compare to industry standards
+      Use FTE count for accuracy
+
+  - id: labor_capacity_hours
+    name: Labor Capacity Hours
+    description: Total available labor hours based on headcount
+    formula: "Total FTE × Standard Hours per Week × 52 weeks × Availability Factor"
+    unit: hours_per_year
+    target: "Sufficient for demand"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - employee.yaml
+    required_entities:
+      - Employee
+    required_fields:
+      - fte_percentage
+      - employment_status
+      - department
+    calculation_notes: |
+      Availability factor typically 0.85 (accounting for PTO, training, meetings)
+      Use for capacity planning and hiring decisions
+
+related_schemas:
+  - labor-tracking.yaml
+  - employee.yaml
+  - production-run.yaml
+  - financial-statement.yaml
+
+notes: |
+  Labor is typically 20-40% of manufacturing costs.
+  Efficiency and productivity KPIs directly impact profitability.
+  Turnover is expensive: recruiting costs + training + lost productivity.
+  Balance efficiency with employee satisfaction for long-term success.
+  Direct labor percentage shows how much time is value-added vs overhead.

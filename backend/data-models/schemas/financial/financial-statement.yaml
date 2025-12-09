@@ -1,0 +1,282 @@
+version: '0.1'
+metadata:
+  domain: financial
+  priority: high
+  estimatedEffort: 1-week
+  blocksKPIs: 25+
+  status: draft
+
+entity:
+  name: FinancialStatement
+  description: |
+    Period-based financial statements (income statement, balance sheet, cash flow).
+    Essential for all financial health KPIs: ROE, ROA, ROCE, margins, revenue growth.
+    Blocks 25+ accounting and executive dashboard KPIs.
+  
+  tables:
+    - name: financial_statements
+      description: Period-based financial statements
+
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    # Period
+    period:
+      type: date
+      description: Period end date (e.g., 2025-01-31 for January)
+      constraints:
+        - not_null
+    
+    period_type:
+      type: enum
+      description: Type of reporting period
+      values:
+        - month
+        - quarter
+        - year
+      constraints:
+        - not_null
+    
+    fiscal_year:
+      type: integer
+      description: Fiscal year
+      constraints:
+        - not_null
+    
+    # Income Statement
+    total_revenue:
+      type: decimal
+      description: Total revenue for period
+      constraints:
+        - not_null
+        - check: total_revenue >= 0
+    
+    cost_of_goods_sold:
+      type: decimal
+      description: COGS for period
+      constraints:
+        - not_null
+        - check: cost_of_goods_sold >= 0
+    
+    gross_profit:
+      type: decimal
+      description: Revenue - COGS (calculated)
+      constraints:
+        - check: gross_profit = total_revenue - cost_of_goods_sold
+    
+    operating_expenses:
+      type: decimal
+      description: Operating expenses (salaries, rent, utilities, etc.)
+      constraints:
+        - not_null
+        - check: operating_expenses >= 0
+    
+    operating_profit:
+      type: decimal
+      description: EBIT (Earnings Before Interest and Tax)
+      constraints:
+        - check: operating_profit = gross_profit - operating_expenses
+    
+    interest_expense:
+      type: decimal
+      description: Interest paid on debt
+      constraints:
+        - not_null
+        - default: 0
+        - check: interest_expense >= 0
+    
+    tax_expense:
+      type: decimal
+      description: Income tax expense
+      constraints:
+        - not_null
+        - default: 0
+        - check: tax_expense >= 0
+    
+    net_income:
+      type: decimal
+      description: Net profit after all expenses
+      constraints:
+        - not_null
+        - check: net_income = operating_profit - interest_expense - tax_expense
+    
+    # Balance Sheet
+    total_assets:
+      type: decimal
+      description: Total assets at period end
+      constraints:
+        - not_null
+        - check: total_assets >= 0
+    
+    current_assets:
+      type: decimal
+      description: Assets convertible to cash within 1 year
+      constraints:
+        - not_null
+        - check: current_assets >= 0
+        - check: current_assets <= total_assets
+    
+    fixed_assets:
+      type: decimal
+      description: Property, plant, equipment (net book value)
+      constraints:
+        - not_null
+        - check: fixed_assets >= 0
+    
+    total_liabilities:
+      type: decimal
+      description: Total liabilities at period end
+      constraints:
+        - not_null
+        - check: total_liabilities >= 0
+    
+    current_liabilities:
+      type: decimal
+      description: Liabilities due within 1 year
+      constraints:
+        - not_null
+        - check: current_liabilities >= 0
+        - check: current_liabilities <= total_liabilities
+    
+    total_debt:
+      type: decimal
+      description: Total debt (short-term + long-term)
+      constraints:
+        - not_null
+        - check: total_debt >= 0
+    
+    total_equity:
+      type: decimal
+      description: Shareholders' equity (assets - liabilities)
+      constraints:
+        - not_null
+        - check: total_equity = total_assets - total_liabilities
+    
+    # Cash Flow Statement
+    operating_cash_flow:
+      type: decimal
+      description: Cash from operations
+      constraints:
+        - not_null
+    
+    investing_cash_flow:
+      type: decimal
+      description: Cash from investing activities (usually negative)
+      constraints:
+        - not_null
+    
+    financing_cash_flow:
+      type: decimal
+      description: Cash from financing activities
+      constraints:
+        - not_null
+    
+    net_cash_flow:
+      type: decimal
+      description: Total cash flow for period
+      constraints:
+        - not_null
+        - check: net_cash_flow = operating_cash_flow + investing_cash_flow + financing_cash_flow
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+
+  indexes:
+    - name: idx_financial_statements_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_financial_statements_period
+      columns: [tenant_id, period_type, period]
+      type: btree
+      unique: true
+      description: One statement per tenant per period
+    
+    - name: idx_financial_statements_fiscal_year
+      columns: [tenant_id, fiscal_year, period_type]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - return_on_equity
+      - return_on_assets
+      - revenue_growth
+      - gross_profit_margin
+      - net_profit_margin
+    
+    high:
+      - working_capital_ratio
+      - debt_to_equity_ratio
+      - fixed_asset_turnover
+      - interest_coverage_ratio
+      - return_on_capital_employed
+      - operating_profit_margin
+      - ebitda_margin
+    
+    medium:
+      - asset_turnover
+      - equity_multiplier
+      - tangible_net_worth
+      - days_of_inventory_outstanding
+      - market_share (partial - needs revenue)
+
+  relatedEntities:
+    - invoice.yaml (revenue source)
+    - job-cost.yaml (COGS source)
+    - cash-flow.yaml
+    - accounts-receivable.yaml
+    - accounts-payable.yaml
+
+  migrationNotes: |
+    High priority for Phase 2 - needed for financial reporting dashboard.
+    
+    Migration Considerations:
+    - Unique constraint on (tenant_id, period_type, period)
+    - Many calculated fields - consider generated columns or triggers
+    - Period aggregation logic needed (sum invoices, costs for period)
+    - Consider materialized view for performance
+    - Initial load requires historical data aggregation
+    
+    Data Population:
+    - Automated monthly close process
+    - Aggregate from transactional tables (invoices, job_costs, etc.)
+    - Manual adjustments allowed (accruals, deferrals)
+    
+    Blue-Green Deployment:
+    - New table, safe to add
+    - No foreign keys from other tables initially
+

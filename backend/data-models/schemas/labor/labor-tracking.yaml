@@ -1,0 +1,250 @@
+version: '0.1'
+metadata:
+  domain: production
+  priority: medium
+  estimatedEffort: 1-week
+  blocksKPIs: 10+
+  status: draft
+
+entity:
+  name: LaborTracking
+  description: |
+    Tracks labor hours per job, production run, and activity.
+    Essential for labor efficiency, productivity, cost allocation KPIs.
+    Blocks 10+ labor and HR KPIs.
+  
+  tables:
+    - name: labor_tracking
+      description: Labor time tracking records
+
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    # Relationships
+    employee_id:
+      type: uuid
+      description: Employee working
+      constraints:
+        - not_null
+        - foreign_key: employees.id
+        - indexed
+    
+    job_id:
+      type: uuid
+      description: Job being worked on
+      constraints:
+        - foreign_key: jobs.id
+        - indexed
+    
+    production_run_id:
+      type: uuid
+      description: Specific production run
+      constraints:
+        - foreign_key: production_runs.id
+        - indexed
+    
+    equipment_id:
+      type: uuid
+      description: Equipment being operated
+      constraints:
+        - foreign_key: equipment.id
+        - indexed
+    
+    # Time
+    clock_in:
+      type: timestamp
+      description: When employee started work
+      constraints:
+        - not_null
+    
+    clock_out:
+      type: timestamp
+      description: When employee finished work
+    
+    hours_worked:
+      type: decimal
+      description: Total hours (calculated)
+      constraints:
+        - check: hours_worked >= 0
+        - check: hours_worked = EXTRACT(EPOCH FROM (clock_out - clock_in)) / 3600
+    
+    # Activity Classification
+    activity_type:
+      type: varchar(30)
+      description: Type of work performed
+      values:
+        - direct_production (hands-on manufacturing)
+        - setup (changeover, makeready)
+        - maintenance
+        - quality_inspection
+        - material_handling
+        - cleanup
+        - training
+        - meetings
+        - administrative
+        - downtime (waiting)
+      constraints:
+        - not_null
+    
+    is_direct_labor:
+      type: boolean
+      description: True if direct production activity
+      constraints:
+        - not_null
+        - default: false
+    
+    is_overtime:
+      type: boolean
+      description: True if overtime hours
+      constraints:
+        - not_null
+        - default: false
+    
+    # Productivity
+    quantity_produced:
+      type: integer
+      description: Units produced during this time
+      constraints:
+        - check: quantity_produced >= 0
+    
+    productivity_rate:
+      type: decimal
+      description: Units per hour (calculated)
+      constraints:
+        - check: productivity_rate >= 0
+        - check: productivity_rate = quantity_produced / hours_worked
+    
+    # Costing
+    hourly_rate:
+      type: decimal
+      description: Employee rate at time of work
+      constraints:
+        - not_null
+        - check: hourly_rate >= 0
+    
+    overtime_multiplier:
+      type: decimal
+      description: Overtime pay multiplier (e.g., 1.5)
+      constraints:
+        - default: 1.0
+        - check: overtime_multiplier >= 1.0
+    
+    total_cost:
+      type: decimal
+      description: Total labor cost for this period
+      constraints:
+        - not_null
+        - check: total_cost = hours_worked * hourly_rate * overtime_multiplier
+    
+    # Details
+    notes:
+      type: text
+      description: Work notes, issues, accomplishments
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+
+  indexes:
+    - name: idx_labor_tracking_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_labor_tracking_employee
+      columns: [employee_id, clock_in]
+      type: btree
+      description: For employee timesheets
+    
+    - name: idx_labor_tracking_job
+      columns: [job_id]
+      type: btree
+    
+    - name: idx_labor_tracking_production_run
+      columns: [production_run_id]
+      type: btree
+    
+    - name: idx_labor_tracking_time_range
+      columns: [tenant_id, clock_in, clock_out]
+      type: btree
+      description: For period reports
+    
+    - name: idx_labor_tracking_activity
+      columns: [tenant_id, activity_type, clock_in]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - labor_efficiency_rate
+      - labor_productivity
+      - direct_labor_percentage
+    
+    high:
+      - overtime_hours_percentage
+      - labor_cost_per_unit
+      - revenue_per_employee
+      - labor_utilization_rate
+    
+    medium:
+      - average_hourly_productivity
+      - setup_time_per_job
+      - downtime_hours
+
+  relatedEntities:
+    - employee.yaml
+    - job.yaml (core-entities.yaml)
+    - production-run.yaml
+    - equipment.yaml
+
+  migrationNotes: |
+    Medium priority for Phase 6 - needed for labor KPIs.
+    
+    Migration Considerations:
+    - High transaction volume table
+    - Consider partitioning by clock_in (monthly)
+    - Payroll system integration required
+    - Time clock integration
+    - Validation: clock_out must be after clock_in
+    
+    Data Population:
+    - Time clock integration (badge scanning)
+    - Manual entry for salaried employees
+    - Shop floor terminals
+    - Mobile app time tracking
+    
+    Blue-Green Deployment:
+    - New table, safe to add
+    - Depends on employees table existing
+

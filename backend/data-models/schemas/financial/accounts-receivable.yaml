@@ -1,0 +1,259 @@
+version: '0.1'
+metadata:
+  domain: financial
+  priority: high
+  estimatedEffort: 1-week
+  blocksKPIs: 5+
+  status: draft
+
+entity:
+  name: AccountsReceivable
+  description: |
+    Tracks customer invoices, payments, aging for AR management.
+    Essential for DSO, AR turnover, average days delinquent KPIs.
+    Blocks 5+ cash flow and receivables KPIs.
+  
+  tables:
+    - name: accounts_receivable
+      description: Customer receivables tracking
+
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    # Relationships
+    invoice_id:
+      type: uuid
+      description: Invoice this AR tracks
+      constraints:
+        - not_null
+        - foreign_key: invoices.id
+        - unique
+        - indexed
+    
+    customer_id:
+      type: uuid
+      description: Customer owing money
+      constraints:
+        - not_null
+        - foreign_key: customers.id
+        - indexed
+    
+    # Amounts
+    invoice_amount:
+      type: decimal
+      description: Original invoice total
+      constraints:
+        - not_null
+        - check: invoice_amount > 0
+    
+    amount_paid:
+      type: decimal
+      description: Total payments received
+      constraints:
+        - not_null
+        - default: 0
+        - check: amount_paid >= 0
+    
+    amount_outstanding:
+      type: decimal
+      description: Remaining balance (calculated)
+      constraints:
+        - not_null
+        - check: amount_outstanding = invoice_amount - amount_paid
+        - check: amount_outstanding >= 0
+    
+    # Dates
+    invoice_date:
+      type: date
+      description: Invoice date
+      constraints:
+        - not_null
+    
+    due_date:
+      type: date
+      description: Payment due date
+      constraints:
+        - not_null
+        - check: due_date >= invoice_date
+    
+    last_payment_date:
+      type: date
+      description: Most recent payment
+    
+    # Aging
+    days_outstanding:
+      type: integer
+      description: Days since invoice date (calculated)
+      constraints:
+        - check: days_outstanding = CURRENT_DATE - invoice_date
+    
+    days_overdue:
+      type: integer
+      description: Days past due date (calculated, 0 if not overdue)
+      constraints:
+        - check: days_overdue = GREATEST(0, CURRENT_DATE - due_date)
+    
+    aging_bucket:
+      type: varchar(20)
+      description: Aging category (calculated)
+      values:
+        - current (0-30 days)
+        - 31-60
+        - 61-90
+        - 91-120
+        - over_120
+      constraints:
+        - not_null
+    
+    # Status
+    status:
+      type: varchar(20)
+      description: AR status
+      values:
+        - open (unpaid)
+        - partial (partially paid)
+        - paid (fully paid)
+        - written_off
+        - disputed
+      constraints:
+        - not_null
+        - default: open
+    
+    is_overdue:
+      type: boolean
+      description: True if past due date with balance
+      constraints:
+        - not_null
+        - default: false
+    
+    # Collections
+    collection_attempts:
+      type: integer
+      description: Number of collection contacts made
+      constraints:
+        - default: 0
+        - check: collection_attempts >= 0
+    
+    last_collection_date:
+      type: date
+      description: Last collection contact
+    
+    collection_notes:
+      type: text
+      description: Collection activity notes
+    
+    # Write-offs
+    written_off_amount:
+      type: decimal
+      description: Amount written off as bad debt
+      constraints:
+        - default: 0
+        - check: written_off_amount >= 0
+    
+    written_off_date:
+      type: date
+      description: When written off
+    
+    written_off_reason:
+      type: text
+      description: Reason for write-off
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+
+  indexes:
+    - name: idx_accounts_receivable_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_accounts_receivable_invoice
+      columns: [invoice_id]
+      type: btree
+      unique: true
+    
+    - name: idx_accounts_receivable_customer
+      columns: [customer_id, status]
+      type: btree
+    
+    - name: idx_accounts_receivable_due_date
+      columns: [tenant_id, due_date, status]
+      type: btree
+      description: For aging reports
+    
+    - name: idx_accounts_receivable_status
+      columns: [tenant_id, status, is_overdue]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - days_sales_outstanding
+      - accounts_receivable_turnover
+    
+    high:
+      - average_days_delinquent
+      - overdues_ratio
+      - bad_debt_percentage
+      - collection_effectiveness_index
+    
+    medium:
+      - aging_by_bucket
+      - customer_payment_behavior
+
+  relatedEntities:
+    - invoice.yaml
+    - cash-flow.yaml
+    - financial-statement.yaml
+
+  migrationNotes: |
+    High priority for Phase 4 - needed for cash flow KPIs.
+    
+    Migration Considerations:
+    - One-to-one with invoices table
+    - Many calculated fields - consider generated columns
+    - Trigger on invoice payment to update AR automatically
+    - Aging bucket calculation can be view or generated column
+    
+    Data Population:
+    - Auto-create from invoices
+    - Update on payment received
+    - Collections team manually updates collection notes
+    
+    Blue-Green Deployment:
+    - New table, safe to add
+    - Depends on invoices table existing
+    - Consider materialized view for performance
+

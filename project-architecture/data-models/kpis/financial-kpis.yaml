@@ -1,0 +1,445 @@
+version: '0.1'
+metadata:
+  domain: financial
+  category: Financial Health & Profitability
+  total_kpis: 19
+
+kpis:
+  - id: gross_profit_margin
+    name: Gross Profit Margin
+    description: Gross profit as percentage of revenue
+    formula: "((Total Revenue - COGS) / Total Revenue) × 100"
+    unit: percentage
+    target: ">= 40%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+      - invoice.yaml
+    required_entities:
+      - FinancialStatement
+      - Invoice
+    required_fields:
+      - total_revenue
+      - cost_of_goods_sold
+      - gross_profit
+    calculation_notes: |
+      Core profitability metric. Low margin indicates pricing or efficiency issues.
+
+  - id: cost_per_thousand
+    name: Cost per Thousand (CPM)
+    description: Total job cost per thousand units produced (packaging industry standard)
+    formula: "(Total Job Cost / Total Good Units Produced) × 1000"
+    unit: currency_per_thousand
+    target: "Varies by product type and complexity"
+    priority: critical
+    validation_status: can_calculate
+    required_schemas:
+      - job-cost.yaml
+      - job.yaml
+      - production-run.yaml
+    required_entities:
+      - JobCost
+      - Job
+      - ProductionRun
+    required_fields:
+      - material_cost
+      - labor_cost
+      - equipment_cost
+      - overhead_cost
+      - total_cost
+      - quantity_good
+    calculation_notes: |
+      Cost per Thousand (CPM) is THE standard cost metric in the packaging and printing industry.
+      
+      Used for:
+      - Job quoting and estimating
+      - Price competitiveness analysis
+      - Historical cost comparison
+      - Make-vs-buy decisions
+      - Customer price negotiations
+      
+      Total Job Cost includes:
+      - Direct material cost (substrate, ink, plates, dies)
+      - Direct labor cost (operators, setup time)
+      - Equipment cost (machine time × burden rate)
+      - Overhead allocation (facilities, utilities, supervision)
+      
+      Formula breakdown:
+      CPM = ((material_cost + labor_cost + equipment_cost + overhead_cost) / quantity_good) × 1000
+      
+      Calculate from job_cost table:
+      - Link job_cost.job_id to jobs table
+      - Link jobs to production_runs for quantity_good
+      - Sum all cost components
+      - Divide by good units and multiply by 1000
+      
+      Industry usage:
+      - Labels: "This label costs $45 CPM" (per thousand labels)
+      - Cartons: "Folding carton at $120 CPM" (per thousand cartons)
+      - Corrugated: "Box cost is $85 CPM" (per thousand boxes)
+      - Flexible packaging: "Pouch cost $95 CPM" (per thousand pouches)
+      
+      CPM enables apples-to-apples comparison:
+      - Different run lengths (10k vs 100k quantities)
+      - Different equipment (offset vs digital vs flexo)
+      - Different materials (coated vs uncoated, thickness)
+      - Different complexity (number of colors, die complexity)
+      
+      Track CPM by:
+      - Product category (labels vs cartons vs corrugated)
+      - Quantity range (short-run vs long-run economics)
+      - Customer (volume discount patterns)
+      - Equipment type (digital vs conventional)
+      
+      Use CPM for:
+      - Estimating new jobs (historical CPM + adjustments)
+      - Identifying cost outliers (jobs with unusually high CPM)
+      - Process improvement targets (reduce CPM by 10%)
+      - Competitive benchmarking (are we in market range?)
+      
+      CPM vs other metrics:
+      - CPM = absolute cost (dollars per thousand)
+      - Margin % = relative profitability (percent of revenue)
+      - Both needed: low CPM + good margin = competitive and profitable
+
+  - id: net_profit_margin
+    name: Net Profit Margin
+    description: Net income as percentage of revenue
+    formula: "(Net Income / Total Revenue) × 100"
+    unit: percentage
+    target: ">= 10%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - net_income
+      - total_revenue
+    calculation_notes: |
+      Bottom line profitability after all expenses.
+
+  - id: return_on_equity
+    name: Return on Equity (ROE)
+    description: Net income divided by shareholders' equity
+    formula: "(Net Income / Total Equity) × 100"
+    unit: percentage
+    target: ">= 15%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - net_income
+      - total_equity
+    calculation_notes: |
+      Measures return generated on shareholders' investment.
+
+  - id: return_on_assets
+    name: Return on Assets (ROA)
+    description: Net income divided by total assets
+    formula: "(Net Income / Total Assets) × 100"
+    unit: percentage
+    target: ">= 5%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - net_income
+      - total_assets
+    calculation_notes: |
+      Measures how efficiently assets generate profit.
+
+  - id: return_on_capital_employed
+    name: Return on Capital Employed (ROCE)
+    description: EBIT divided by capital employed
+    formula: "(Operating Profit / (Total Assets - Current Liabilities)) × 100"
+    unit: percentage
+    target: ">= 15%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - operating_profit
+      - total_assets
+      - current_liabilities
+    calculation_notes: |
+      Shows efficiency of capital utilization.
+      Capital Employed = Total Assets - Current Liabilities
+
+  - id: revenue_growth
+    name: Revenue Growth Rate
+    description: Year-over-year revenue increase
+    formula: "((Current Period Revenue - Prior Period Revenue) / Prior Period Revenue) × 100"
+    unit: percentage
+    target: ">= 10% annually"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+      - invoice.yaml
+    required_entities:
+      - FinancialStatement
+      - Invoice
+    required_fields:
+      - total_revenue
+      - period
+      - fiscal_year
+    calculation_notes: |
+      Track monthly, quarterly, and annually.
+      Adjust for seasonal variations.
+
+  - id: operating_profit_margin
+    name: Operating Profit Margin (EBIT Margin)
+    description: Operating profit as percentage of revenue
+    formula: "(Operating Profit / Total Revenue) × 100"
+    unit: percentage
+    target: ">= 15%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - operating_profit
+      - total_revenue
+    calculation_notes: |
+      Shows profitability before interest and taxes.
+
+  - id: ebitda_margin
+    name: EBITDA Margin
+    description: EBITDA as percentage of revenue
+    formula: "((Operating Profit + Depreciation + Amortization) / Total Revenue) × 100"
+    unit: percentage
+    target: ">= 20%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - operating_profit
+      - total_revenue
+    calculation_notes: |
+      Useful for comparing companies with different capital structures.
+      Requires depreciation data (not in current schema).
+
+  - id: working_capital_ratio
+    name: Working Capital Ratio (Current Ratio)
+    description: Current assets divided by current liabilities
+    formula: "Current Assets / Current Liabilities"
+    unit: ratio
+    target: "1.5 - 2.0"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - current_assets
+      - current_liabilities
+    calculation_notes: |
+      < 1.0: Potential liquidity issues
+      1.5-2.0: Healthy liquidity
+      > 3.0: Excess cash not being invested
+
+  - id: debt_to_equity_ratio
+    name: Debt-to-Equity Ratio
+    description: Total debt divided by shareholders' equity
+    formula: "Total Debt / Total Equity"
+    unit: ratio
+    target: "< 1.5"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - total_debt
+      - total_equity
+    calculation_notes: |
+      Measures financial leverage.
+      Higher ratio = more risk but potential for higher returns.
+
+  - id: interest_coverage_ratio
+    name: Interest Coverage Ratio
+    description: Operating profit divided by interest expense
+    formula: "Operating Profit / Interest Expense"
+    unit: ratio
+    target: ">= 3.0"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - operating_profit
+      - interest_expense
+    calculation_notes: |
+      Shows ability to service debt.
+      < 1.5: Difficulty paying interest
+
+  - id: asset_turnover
+    name: Asset Turnover Ratio
+    description: Revenue divided by total assets
+    formula: "Total Revenue / Total Assets"
+    unit: ratio
+    target: ">= 1.0"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - total_revenue
+      - total_assets
+    calculation_notes: |
+      Measures efficiency of asset utilization.
+      Varies by industry - capital intensive industries typically lower.
+
+  - id: fixed_asset_turnover
+    name: Fixed Asset Turnover
+    description: Revenue divided by fixed assets
+    formula: "Total Revenue / Fixed Assets"
+    unit: ratio
+    target: ">= 2.0"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - total_revenue
+      - fixed_assets
+    calculation_notes: |
+      Critical for capital-intensive manufacturing.
+      Shows how well equipment investments generate revenue.
+
+  - id: job_profitability
+    name: Job Profitability
+    description: Profit margin per individual job
+    formula: "((Invoice Amount - Job Costs) / Invoice Amount) × 100"
+    unit: percentage
+    target: ">= 30%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - invoice.yaml
+      - job-cost.yaml
+    required_entities:
+      - Invoice
+      - JobCost
+    required_fields:
+      - total_amount
+      - job_id
+      - total_cost
+    calculation_notes: |
+      Essential for pricing decisions.
+      Track by customer, product type, run size.
+
+  - id: average_order_value
+    name: Average Order Value (AOV)
+    description: Average revenue per customer order
+    formula: "Total Revenue / Number of Orders"
+    unit: currency
+    target: "Trend upward"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - invoice.yaml
+    required_entities:
+      - Invoice
+    required_fields:
+      - total_amount
+      - customer_id
+    calculation_notes: |
+      Track trends over time.
+      Segment by customer type and product category.
+
+  - id: revenue_per_employee
+    name: Revenue per Employee
+    description: Total revenue divided by employee count
+    formula: "Total Revenue / Total Headcount"
+    unit: currency
+    target: ">= $150,000"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+      - employee.yaml
+    required_entities:
+      - FinancialStatement
+      - Employee
+    required_fields:
+      - total_revenue
+      - employment_status
+    calculation_notes: |
+      Productivity indicator.
+      Use FTE count, not headcount, for part-time workers.
+
+  - id: tangible_net_worth
+    name: Tangible Net Worth
+    description: Total equity minus intangible assets
+    formula: "Total Equity - Intangible Assets"
+    unit: currency
+    target: "Positive and growing"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - total_equity
+      - total_assets
+    calculation_notes: |
+      Conservative measure of net worth.
+      Important for loan covenants.
+
+  - id: effective_tax_rate
+    name: Effective Tax Rate
+    description: Tax expense as percentage of pre-tax income
+    formula: "(Tax Expense / (Net Income + Tax Expense)) × 100"
+    unit: percentage
+    target: "Optimize legally"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - financial-statement.yaml
+    required_entities:
+      - FinancialStatement
+    required_fields:
+      - tax_expense
+      - net_income
+    calculation_notes: |
+      Compare to statutory rate to identify tax planning opportunities.
+
+related_schemas:
+  - financial-statement.yaml
+  - invoice.yaml
+  - job-cost.yaml
+  - employee.yaml
+
+notes: |
+  Financial KPIs are the language of business performance.
+  ROE, ROA, and ROCE are "big three" return metrics watched by investors.
+  Margins (gross, operating, net, EBITDA) show profitability at different levels.
+  Turnover ratios (asset, fixed asset) show efficiency of capital deployment.
+  All require accurate financial statements with proper period-end closings.

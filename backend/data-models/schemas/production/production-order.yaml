@@ -1,0 +1,391 @@
+version: '0.1'
+metadata:
+  domain: production
+  priority: high
+  estimatedEffort: 1-week
+  blocksKPIs: 8+
+  status: draft
+
+entity:
+  name: ProductionOrder
+  description: |
+    Internal production order for MRP/MES planning (distinct from customer Job).
+    One customer Job may spawn multiple Production Orders for different operations.
+    Essential for material planning, capacity scheduling, and work order tracking.
+    Blocks 8+ MRP, scheduling, and capacity planning KPIs.
+  
+  tables:
+    - name: production_orders
+      description: Production order master data
+      
+  properties:
+    # Core Identity
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    order_number:
+      type: varchar(50)
+      description: Human-readable production order number
+      constraints:
+        - not_null
+        - unique: [tenant_id, order_number]
+        - indexed
+    
+    # Relationships
+    job_id:
+      type: uuid
+      description: Parent customer job (1 job → many production orders)
+      constraints:
+        - not_null
+        - foreign_key: jobs.id
+        - indexed
+    
+    operation_sequence:
+      type: integer
+      description: Sequence number within job (1=first operation, 2=second, etc.)
+      constraints:
+        - not_null
+        - check: operation_sequence > 0
+    
+    # Asset Assignment
+    site_id:
+      type: uuid
+      description: Site where this order will be produced
+      constraints:
+        - foreign_key: sites.site_id
+        - indexed
+    
+    line_id:
+      type: uuid
+      description: Production line assignment
+      constraints:
+        - foreign_key: production_lines.line_id
+        - indexed
+    
+    work_center_id:
+      type: uuid
+      description: Work center assignment
+      constraints:
+        - foreign_key: work_centers.work_center_id
+        - indexed
+    
+    equipment_id:
+      type: uuid
+      description: Specific equipment assignment (may be null if line-level only)
+      constraints:
+        - foreign_key: equipment.id
+        - indexed
+    
+    # Operation Details
+    operation_type:
+      type: enum
+      description: Type of production operation
+      values:
+        - prepress (platemaking, proofing)
+        - printing (press operation)
+        - cutting (trimming, die-cutting)
+        - folding (bindery operation)
+        - stitching (saddle stitch, wire-o)
+        - binding (perfect binding, case binding)
+        - coating (varnish, lamination)
+        - packaging (boxing, palletizing)
+      constraints:
+        - not_null
+        - indexed
+    
+    operation_description:
+      type: text
+      description: Detailed operation instructions
+    
+    # Quantity Planning
+    quantity_planned:
+      type: integer
+      description: Planned production quantity
+      constraints:
+        - not_null
+        - check: quantity_planned > 0
+    
+    quantity_produced:
+      type: integer
+      description: Actual quantity produced
+      constraints:
+        - default: 0
+        - check: quantity_produced >= 0
+    
+    quantity_good:
+      type: integer
+      description: Good units (passed quality)
+      constraints:
+        - default: 0
+        - check: quantity_good >= 0
+        - check: quantity_good <= quantity_produced
+    
+    quantity_scrap:
+      type: integer
+      description: Scrapped units
+      constraints:
+        - default: 0
+        - check: quantity_scrap >= 0
+    
+    # Scheduling
+    planned_start_date:
+      type: timestamp
+      description: Planned start date/time
+      constraints:
+        - not_null
+        - indexed
+    
+    planned_end_date:
+      type: timestamp
+      description: Planned completion date/time
+      constraints:
+        - not_null
+        - check: planned_end_date >= planned_start_date
+    
+    actual_start_date:
+      type: timestamp
+      description: Actual start date/time (null if not started)
+    
+    actual_end_date:
+      type: timestamp
+      description: Actual completion date/time (null if not completed)
+    
+    duration_planned_hours:
+      type: decimal
+      description: Planned duration in hours
+      constraints:
+        - not_null
+        - check: duration_planned_hours > 0
+    
+    duration_actual_hours:
+      type: decimal
+      description: Actual duration in hours
+      constraints:
+        - check: duration_actual_hours > 0
+    
+    # Status
+    status:
+      type: enum
+      description: Production order status
+      values:
+        - planned (created, not released)
+        - released (ready for production)
+        - in_progress (actively running)
+        - completed (finished)
+        - on_hold (temporarily paused)
+        - cancelled (no longer needed)
+      constraints:
+        - not_null
+        - default: planned
+        - indexed
+    
+    priority:
+      type: integer
+      description: Priority for scheduling (1=highest)
+      constraints:
+        - not_null
+        - default: 5
+        - check: priority >= 1 AND priority <= 10
+    
+    # Predecessor/Successor for operation sequencing
+    predecessor_order_id:
+      type: uuid
+      description: Previous operation that must complete first
+      constraints:
+        - foreign_key: production_orders.id
+    
+    # Material Requirements
+    material_requirements:
+      type: jsonb
+      description: Materials needed for this operation
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            material_id: uuid
+            quantity_required: decimal
+            unit: string
+            allocated: boolean
+      constraints:
+        - default: "[]"
+    
+    # Labor Requirements
+    labor_requirements:
+      type: jsonb
+      description: Labor/skills needed
+      schema:
+        type: object
+        properties:
+          operators_required: integer
+          skill_level: string
+          estimated_hours: decimal
+      constraints:
+        - default: "{}"
+    
+    # Standard Costs (from standard_cost table)
+    standard_material_cost:
+      type: decimal
+      description: Standard material cost for this order
+      constraints:
+        - check: standard_material_cost >= 0
+    
+    standard_labor_cost:
+      type: decimal
+      description: Standard labor cost for this order
+      constraints:
+        - check: standard_labor_cost >= 0
+    
+    standard_overhead_cost:
+      type: decimal
+      description: Standard overhead cost for this order
+      constraints:
+        - check: standard_overhead_cost >= 0
+    
+    # Actual Costs (rolled up from actuals)
+    actual_material_cost:
+      type: decimal
+      description: Actual material cost incurred
+      constraints:
+        - default: 0
+        - check: actual_material_cost >= 0
+    
+    actual_labor_cost:
+      type: decimal
+      description: Actual labor cost incurred
+      constraints:
+        - default: 0
+        - check: actual_labor_cost >= 0
+    
+    actual_overhead_cost:
+      type: decimal
+      description: Actual overhead cost allocated
+      constraints:
+        - default: 0
+        - check: actual_overhead_cost >= 0
+    
+    # Notes
+    production_notes:
+      type: text
+      description: Special instructions, issues encountered
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    updated_at:
+      type: timestamp
+      constraints:
+        - not_null
+        - default: CURRENT_TIMESTAMP
+    
+    created_by:
+      type: uuid
+      constraints:
+        - foreign_key: users.id
+    
+    released_by:
+      type: uuid
+      description: User who released order to production
+      constraints:
+        - foreign_key: users.id
+    
+    released_at:
+      type: timestamp
+      description: When order was released to production
+
+  indexes:
+    - name: idx_prod_order_tenant
+      columns: [tenant_id]
+      type: btree
+    
+    - name: idx_prod_order_job
+      columns: [tenant_id, job_id, operation_sequence]
+      type: btree
+    
+    - name: idx_prod_order_status
+      columns: [tenant_id, status, planned_start_date]
+      type: btree
+    
+    - name: idx_prod_order_site_line
+      columns: [tenant_id, site_id, line_id]
+      type: btree
+    
+    - name: idx_prod_order_equipment
+      columns: [tenant_id, equipment_id, status]
+      type: btree
+    
+    - name: idx_prod_order_scheduled
+      columns: [tenant_id, planned_start_date, planned_end_date]
+      type: btree
+    
+    - name: idx_prod_order_priority
+      columns: [tenant_id, priority, planned_start_date]
+      type: btree
+
+  kpisEnabled:
+    critical:
+      - schedule_adherence
+      - production_order_cycle_time
+      - capacity_utilization
+    
+    high:
+      - order_completion_rate
+      - on_time_start_percentage
+      - material_availability
+      - labor_efficiency
+    
+    medium:
+      - cost_variance_by_order
+      - operation_yield
+
+  relatedEntities:
+    - job.yaml (parent customer job)
+    - asset-hierarchy.yaml (site/line/work center assignment)
+    - equipment.yaml (equipment assignment)
+    - material-consumption.yaml (actual material usage)
+    - production-run.yaml (actual execution records)
+    - standard-cost.yaml (planned costs)
+
+  migrationNotes: |
+    Production Order is the MRP/MES planning entity - distinct from customer Job.
+    
+    Relationship to Job:
+    - 1 customer Job (e.g., "Print 10,000 brochures") → multiple Production Orders
+    - Production Orders represent discrete operations: prepress, printing, folding, binding
+    - Each operation can be scheduled independently on different lines/work centers
+    
+    Material Planning:
+    - material_requirements drives MRP calculations
+    - Links to material-consumption for actual vs planned variance
+    
+    Scheduling:
+    - predecessor_order_id creates operation dependencies (must finish cutting before folding)
+    - planned_start/end dates feed finite capacity scheduling
+    - Equipment assignment can cascade from line → work_center → equipment
+    
+    Costing:
+    - Standard costs from standard_cost table (target)
+    - Actual costs rolled up from labor-tracking, material-consumption
+    - Variance = actual - standard (for cost control)
+    
+    Blue-Green Deployment:
+    - New table, safe to add
+    - Can coexist with current job.yaml + production-run.yaml
+    - Backfill: create 1 production order per job initially
+    - Later: split complex jobs into multi-operation orders

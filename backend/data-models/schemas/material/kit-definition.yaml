@@ -1,0 +1,217 @@
+version: '0.1'
+metadata:
+  domain: material
+  subdomain: inventory
+  priority: medium
+  estimatedEffort: 1-week
+  status: draft
+
+entity:
+  name: KitDefinition
+  description: |
+    Master definition for unassembled and assembled kits.
+    Enables flexible kit fulfillment with optional components and version differentiation.
+    Critical for packaging companies selling product bundles (box + label + insert).
+    
+    Supports unassembled kits where component availability determines kit versions:
+    - Required components block kit availability if short
+    - Optional components create alternate kit versions if short
+    
+    Example: Kit needs Box (4 available, required) + Brochure (3 available, optional)
+    - Version 1 (with brochure): 3 kits available
+    - Version 2 (without brochure): 1 kit available
+    - Total kit availability: 4 kits
+  
+  tables:
+    - name: kit_definitions
+      description: Master kit definition
+    - name: kit_components
+      description: Components that comprise the kit
+    - name: kit_availability_snapshot
+      description: Cached kit availability by version (for performance)
+      
+  kpis_enabled:
+    high:
+      - kit_fulfillment_rate
+      - kit_version_accuracy
+    medium:
+      - kit_component_shortage_rate
+      - inventory_accuracy
+      
+  properties:
+    # Kit Definition Properties
+    id:
+      type: uuid
+      description: UUIDv7 primary key
+      constraints:
+        - primary_key
+        - default: uuid_generate_v7()
+    
+    tenant_id:
+      type: uuid
+      description: Multi-tenant isolation
+      constraints:
+        - not_null
+        - foreign_key: tenants.id
+        - indexed
+    
+    kit_material_id:
+      type: uuid
+      description: The kit SKU from materials table
+      constraints:
+        - not_null
+        - foreign_key: materials.id
+        - unique: [tenant_id, kit_material_id]
+    
+    kit_type:
+      type: enum
+      description: Type of kit
+      values:
+        - unassembled
+        - assembled
+      constraints:
+        - not_null
+        - default: unassembled
+    
+    assembly_required:
+      type: boolean
+      description: Must kit be assembled before shipping?
+      constraints:
+        - not_null
+        - default: false
+    
+    default_assembly_location_id:
+      type: uuid
+      description: Default location for kit assembly operations
+      constraints:
+        - foreign_key: storage_locations.id
+        - nullable
+    
+    is_active:
+      type: boolean
+      description: Is kit definition currently active?
+      constraints:
+        - not_null
+        - default: true
+    
+    # Audit Fields
+    created_at:
+      type: timestamp
+      description: Record creation timestamp
+      constraints:
+        - not_null
+        - default: now()
+    
+    updated_at:
+      type: timestamp
+      description: Record last update timestamp
+      constraints:
+        - not_null
+        - default: now()
+    
+    created_by:
+      type: uuid
+      description: User who created the record
+      constraints:
+        - not_null
+        - foreign_key: users.id
+    
+    updated_by:
+      type: uuid
+      description: User who last updated the record
+      constraints:
+        - foreign_key: users.id
+        - nullable
+    
+    notes:
+      type: text
+      description: Additional notes about the kit
+      constraints:
+        - nullable
+
+relationships:
+  - type: one-to-many
+    target: KitComponent
+    description: Kit has multiple components
+    
+  - type: many-to-one
+    target: Material
+    description: Kit references material as kit SKU
+    
+  - type: many-to-one
+    target: StorageLocation
+    description: Kit has default assembly location
+
+indexes:
+  - name: idx_kit_definitions_tenant
+    columns: [tenant_id]
+    type: btree
+    
+  - name: idx_kit_definitions_material
+    columns: [tenant_id, kit_material_id]
+    type: btree
+    unique: true
+    
+  - name: idx_kit_definitions_active
+    columns: [tenant_id, is_active]
+    type: btree
+    where: is_active = true
+
+validation_rules:
+  - rule: kit_material_exists
+    description: Kit material must exist in materials table
+    implementation: FOREIGN KEY constraint
+    
+  - rule: assembly_location_exists
+    description: Assembly location must exist if specified
+    implementation: FOREIGN KEY constraint
+
+sample_data:
+  - kit_material_id: ref:materials.corrugated_box_kit
+    kit_type: unassembled
+    assembly_required: false
+    is_active: true
+    notes: "Basic shipping kit with optional brochure"
+    
+  - kit_material_id: ref:materials.welcome_package
+    kit_type: assembled
+    assembly_required: true
+    default_assembly_location_id: ref:storage_locations.assembly_area
+    is_active: true
+    notes: "Must be assembled before shipping - includes branded materials"
+
+business_rules:
+  - rule: "Kit availability is calculated based on component inventory and requirement flags"
+  - rule: "Required components block kit availability if inventory is zero"
+  - rule: "Optional components create alternate kit versions if inventory is zero"
+  - rule: "Kit sales deduct component inventory, not kit inventory (for unassembled kits)"
+  - rule: "Kit assembly transactions convert component inventory to assembled kit inventory"
+
+related_schemas:
+  - materials.yaml
+  - kit-component.yaml
+  - inventory-transaction.yaml (future)
+  - storage-location.yaml (future)
+
+migration_considerations:
+  - Low transaction volume table
+  - One record per kit SKU
+  - Kit availability view needs refresh triggers on component inventory changes
+  - Consider materialized view for kit_availability_snapshot with hourly refresh
+
+implementation_priority:
+  phase: 1
+  description: Core inventory with basic kit definitions
+  dependencies:
+    - materials.yaml must be implemented first
+    - kit-component.yaml must be implemented together
+  estimated_effort: 2-3 days
+
+notes: |
+  Kit management is critical for packaging companies that sell bundles.
+  The is_required_for_inventory flag on components enables flexible fulfillment:
+  - Required components (default): shortage blocks all kit sales
+  - Optional components: shortage only blocks specific kit versions
+  
+  This allows businesses to maximize sales even with partial component availability.
+  Example: Ship basic kit without optional brochure if brochure is out of stock.
