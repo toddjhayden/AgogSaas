@@ -25,12 +25,13 @@ export class HealthMonitorService {
   private natsUrl: string;
 
   constructor() {
+    // Use DATABASE_URL connection string (set by docker-compose)
+    const connectionString = process.env.DATABASE_URL || 'postgresql://agogsaas_user:changeme@localhost:5433/agogsaas';
     this.pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'wms',
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     });
     this.natsUrl = process.env.NATS_URL || 'nats://localhost:4222';
   }
@@ -90,7 +91,8 @@ export class HealthMonitorService {
   private async checkFrontend(): Promise<ComponentHealth> {
     const startTime = Date.now();
     try {
-      const response = await axios.get('http://localhost:3002/', {
+      // Check frontend at correct port (3000)
+      const response = await axios.get('http://localhost:3000/', {
         timeout: 5000,
       });
       const responseTime = Date.now() - startTime;
@@ -170,7 +172,7 @@ export class HealthMonitorService {
     try {
       const nc = await natsConnect({ servers: this.natsUrl });
       await nc.publish(
-        'wms.monitoring.health',
+        'agog.monitoring.health',
         JSON.stringify(health)
       );
       await nc.close();

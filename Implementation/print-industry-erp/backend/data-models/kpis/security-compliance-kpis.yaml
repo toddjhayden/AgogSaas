@@ -1,0 +1,177 @@
+version: '0.1'
+metadata:
+  domain: security_compliance
+  category: Security & Compliance Performance
+  total_kpis: 11
+  languages:
+    - en-US
+    - zh-CN
+
+kpis:
+  - id: chain_of_custody_compliance
+    name:
+      en-US: "Chain of Custody Compliance Rate"
+      zh-CN: "监管链合规率"
+    description:
+      en-US: "Percentage of secure item transfers with complete documentation"
+      zh-CN: "具有完整文档的安全物品转移百分比"
+    formula: "(Transfers with Complete Documentation / Total Secure Transfers) × 100"
+    unit: percentage
+    target: "100%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - chain-of-custody.yaml
+    calculation_notes: |
+      Complete documentation = signature/biometric + witness + tamper seal.
+      Required for pharmaceutical, precious metals, currency.
+
+  - id: unauthorized_access_attempts
+    name:
+      en-US: "Unauthorized Access Attempts"
+      zh-CN: "未授权访问尝试次数"
+    description:
+      en-US: "Number of failed access attempts to restricted zones per month"
+      zh-CN: "每月限制区域的访问失败尝试次数"
+    formula: "COUNT(access_attempts WHERE authorized = false)"
+    unit: count
+    target: "< 10 per month"
+    priority: critical
+    calculation_notes: |
+      Triggers investigation if > 10 attempts.
+      Pattern analysis for security threats.
+
+  - id: security_incident_resolution_time
+    name:
+      en-US: "Security Incident Average Resolution Time"
+      zh-CN: "安全事件平均解决时间"
+    description:
+      en-US: "Average time from incident detection to resolution"
+      zh-CN: "从事件检测到解决的平均时间"
+    formula: "AVG(resolved_at - detected_at)"
+    unit: hours
+    target: "< 2 hours"
+    priority: critical
+    calculation_notes: |
+      Incidents = unauthorized access, tamper detection, environmental alerts.
+      Critical incidents (breach) require < 15 min response.
+
+  - id: biometric_authentication_failure_rate
+    name:
+      en-US: "Biometric Authentication Failure Rate"
+      zh-CN: "生物识别认证失败率"
+    description:
+      en-US: "Percentage of legitimate biometric authentications that fail"
+      zh-CN: "合法生物识别认证失败的百分比"
+    formula: "(Failed Legitimate Attempts / Total Legitimate Attempts) × 100"
+    unit: percentage
+    target: "< 2%"
+    priority: high
+    calculation_notes: |
+      High failure rate = poor sensor quality or configuration.
+      Legitimate = authorized user with system issues.
+
+  - id: tamper_detection_rate
+    name:
+      en-US: "Tamper Detection Rate"
+      zh-CN: "篡改检测率"
+    description:
+      en-US: "Percentage of tamper-evident seals verified upon transfer"
+      zh-CN: "转移时验证的防篡改封条百分比"
+    formula: "(Tamper Seals Verified / Total Secure Transfers) × 100"
+    unit: percentage
+    target: "100%"
+    priority: critical
+    calculation_notes: |
+      All vault and high-security transfers require seal verification.
+      Missing verification = compliance failure.
+
+  - id: security_zone_violation_rate
+    name:
+      en-US: "Security Zone Violation Rate"
+      zh-CN: "安全区域违规率"
+    description:
+      en-US: "Number of security zone violations per 1000 access events"
+      zh-CN: "每1000次访问事件的安全区域违规次数"
+    formula: "(Violations / Total Access Events) × 1000"
+    unit: per_thousand
+    target: "< 1 per 1000"
+    priority: high
+    calculation_notes: |
+      Violations = tailgating, propped doors, wrong zone access.
+
+  - id: audit_trail_completeness
+    name:
+      en-US: "Audit Trail Completeness"
+      zh-CN: "审计跟踪完整性"
+    description:
+      en-US: "Percentage of transactions with complete audit trails"
+      zh-CN: "具有完整审计跟踪的交易百分比"
+    formula: "(Transactions with Complete Audit / Total Transactions) × 100"
+    unit: percentage
+    target: "100%"
+    priority: critical
+    calculation_notes: |
+      Complete = who, what, when, where, why documented.
+      Required for SOC 2, GDPR, PCI DSS compliance.
+
+  - id: security_training_compliance
+    name:
+      en-US: "Security Training Compliance Rate"
+      zh-CN: "安全培训合规率"
+    description:
+      en-US: "Percentage of employees current on security training"
+      zh-CN: "当前完成安全培训的员工百分比"
+    formula: "(Employees with Current Training / Total Employees) × 100"
+    unit: percentage
+    target: ">= 95%"
+    priority: high
+    calculation_notes: |
+      Current = training completed within last 12 months.
+      Required for SOC 2 compliance.
+
+  - id: vault_access_dual_control_compliance
+    name:
+      en-US: "Vault Dual Control Compliance"
+      zh-CN: "金库双人控制合规性"
+    description:
+      en-US: "Percentage of vault accesses with two-person verification"
+      zh-CN: "具有双人验证的金库访问百分比"
+    formula: "(Dual Control Accesses / Total Vault Accesses) × 100"
+    unit: percentage
+    target: "100%"
+    priority: critical
+    calculation_notes: |
+      Vault (tier 5) requires two authorized personnel.
+      Single-person access = automatic incident.
+
+  - id: environmental_monitoring_uptime
+    name:
+      en-US: "Environmental Monitoring System Uptime"
+      zh-CN: "环境监控系统正常运行时间"
+    description:
+      en-US: "Percentage of time environmental sensors operational"
+      zh-CN: "环境传感器正常运行的时间百分比"
+    formula: "(Operational Time / Total Time) × 100"
+    unit: percentage
+    target: ">= 99.9%"
+    priority: critical
+    calculation_notes: |
+      Monitors temperature, humidity for sensitive materials.
+      Critical for pharmaceutical, food-safe packaging.
+
+  - id: gdpr_data_request_response_time
+    name:
+      en-US: "GDPR Data Request Response Time"
+      zh-CN: "GDPR数据请求响应时间"
+    description:
+      en-US: "Average time to fulfill GDPR data subject requests"
+      zh-CN: "完成GDPR数据主体请求的平均时间"
+    formula: "AVG(fulfilled_at - requested_at)"
+    unit: days
+    target: "< 20 days"
+    priority: critical
+    calculation_notes: |
+      GDPR requires response within 30 days.
+      Target 20 days for buffer.
+      Includes data export, deletion requests.

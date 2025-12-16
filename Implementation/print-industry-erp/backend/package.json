@@ -8,20 +8,21 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",
+    "test:memory": "ts-node scripts/test-phase4-memory.ts",
+    "import:agog-memories": "ts-node scripts/import-agog-memories.ts",
     "lint": "eslint src --ext .ts",
-    "migrate:up": "node scripts/migrate-up.js",
-    "migrate:down": "node scripts/migrate-down.js"
+    "migrate": "echo 'Migrations applied via docker-entrypoint-initdb.d'"
   },
   "keywords": ["graphql", "ai", "orchestration", "monitoring"],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "apollo-server": "^3.13.0",
+    "axios": "^1.6.2",
     "dotenv": "^16.3.1",
     "graphql": "^16.8.1",
     "pg": "^8.11.3",
-    "nats": "^2.18.0",
-    "openai": "^4.20.1"
+    "nats": "^2.18.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.4",

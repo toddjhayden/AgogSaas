@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rollback Decision - AgogSaaS</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #c94b4b 0%, #4b134f 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      max-width: 900px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    .alert-header {
+      background: #f56565;
+      color: white;
+      padding: 20px;
+      border-radius: 8px 8px 0 0;
+      margin: -40px -40px 30px -40px;
+      text-align: center;
+    }
+
+    .alert-header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .alert-header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section h2 {
+      color: #2d3748;
+      font-size: 20px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+    }
+
+    .impact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .impact-item {
+      background: #fff5f5;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #f56565;
+    }
+
+    .impact-label {
+      color: #742a2a;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+
+    .impact-value {
+      color: #2d3748;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .reason-box {
+      background: #f7fafc;
+      padding: 20px;
+      border-radius: 8px;
+      border: 2px dashed #cbd5e0;
+      margin-bottom: 20px;
+    }
+
+    .reason-box h3 {
+      color: #4a5568;
+      margin-bottom: 10px;
+    }
+
+    .reason-box textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 15px;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+    }
+
+    .reason-box textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .data-loss-warning {
+      background: #fef5e7;
+      border: 2px solid #f39c12;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .data-loss-warning h3 {
+      color: #7d6608;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .data-loss-warning ul {
+      margin-left: 20px;
+      color: #7d6608;
+    }
+
+    .data-loss-warning li {
+      margin-bottom: 8px;
+    }
+
+    .checklist {
+      list-style: none;
+    }
+
+    .checklist li {
+      padding: 12px;
+      margin-bottom: 8px;
+      background: #f7fafc;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+    }
+
+    .checklist input[type="checkbox"] {
+      margin-right: 12px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .checklist label {
+      cursor: pointer;
+      user-select: none;
+      flex: 1;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+      margin-top: 30px;
+    }
+
+    button {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-cancel {
+      background: #718096;
+      color: white;
+    }
+
+    .btn-cancel:hover {
+      background: #4a5568;
+    }
+
+    .btn-rollback {
+      background: #f56565;
+      color: white;
+    }
+
+    .btn-rollback:hover:not(:disabled) {
+      background: #e53e3e;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+    }
+
+    .btn-rollback:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+    }
+
+    .info-box {
+      background: #ebf8ff;
+      border-left: 4px solid #3182ce;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+
+    .info-box p {
+      color: #2c5282;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 600px) {
+      .impact-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .button-group {
+        flex-direction: column-reverse;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="alert-header">
+      <h1>🚨 ROLLBACK DECISION REQUIRED</h1>
+      <p>Critical decision point - review carefully</p>
+    </div>
+
+    <div class="section">
+      <h2>Deployment Status</h2>
+      <div class="impact-grid">
+        <div class="impact-item">
+          <div class="impact-label">Current Environment</div>
+          <div class="impact-value">Green (v1.3.0)</div>
+        </div>
+        <div class="impact-item">
+          <div class="impact-label">Rollback Target</div>
+          <div class="impact-value">Blue (v1.2.3)</div>
+        </div>
+        <div class="impact-item">
+          <div class="impact-label">Regions Affected</div>
+          <div class="impact-value">US-EAST, EU-CENTRAL</div>
+        </div>
+        <div class="impact-item">
+          <div class="impact-label">Active Users</div>
+          <div class="impact-value">2,139 users</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Rollback Reason</h2>
+      <div class="reason-box">
+        <h3>Describe the issue requiring rollback:</h3>
+        <textarea id="rollbackReason" placeholder="Example: Error rate spiked to 15% in EU-CENTRAL. Database queries timing out. Users reporting order creation failures."></textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>⚠️ Data Loss Impact</h2>
+      <div class="data-loss-warning">
+        <h3>
+          <span style="font-size: 24px">⚠️</span>
+          POTENTIAL DATA LOSS
+        </h3>
+        <p style="margin-bottom: 15px">
+          <strong>Transactions created in Green will be LOST if not replicated to Blue.</strong>
+        </p>
+        <ul>
+          <li><strong>Replication Status:</strong> Green → Blue sync enabled (lag: ~5 seconds)</li>
+          <li><strong>Time in Green:</strong> 3 hours 45 minutes</li>
+          <li><strong>Estimated Transactions:</strong> ~847 orders, ~1,234 inventory updates</li>
+          <li><strong>Edge Facilities:</strong> 20 facilities dual-writing to Blue + Green (no data loss)</li>
+        </ul>
+      </div>
+
+      <div class="info-box">
+        <p>
+          <strong>ℹ️ Good News:</strong> Because we enabled bidirectional replication during deployment,
+          Blue database has been receiving all Green transactions. Rollback will have <strong>zero data loss</strong>
+          if replication is current.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pre-Rollback Checklist</h2>
+      <ul class="checklist">
+        <li>
+          <input type="checkbox" id="check1" onchange="updateRollbackButton()">
+          <label for="check1">Verified replication lag < 10 seconds (check Grafana)</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check2" onchange="updateRollbackButton()">
+          <label for="check2">Notified on-call team via PagerDuty</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check3" onchange="updateRollbackButton()">
+          <label for="check3">Confirmed Blue environment is healthy</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check4" onchange="updateRollbackButton()">
+          <label for="check4">Documented rollback reason (above)</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check5" onchange="updateRollbackButton()">
+          <label for="check5">Customer success team notified (will send apology emails)</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check6" onchange="updateRollbackButton()">
+          <label for="check6">Post-rollback investigation scheduled</label>
+        </li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Rollback Procedure</h2>
+      <div class="info-box">
+        <p>
+          <strong>Automated Steps:</strong>
+        </p>
+        <ol style="margin-left: 20px; margin-top: 10px; color: #2c5282;">
+          <li>Switch load balancer traffic: Green → Blue (30 seconds)</li>
+          <li>Wait for replication to complete (up to 60 seconds)</li>
+          <li>Verify Blue serving traffic successfully</li>
+          <li>Notify all stakeholders via Slack/Email</li>
+          <li>Keep Green running for investigation</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn-cancel" onclick="handleCancel()">❌ Cancel (Keep Green Active)</button>
+      <button class="btn-rollback" id="rollbackBtn" disabled onclick="handleRollback()">🚨 EXECUTE ROLLBACK TO BLUE</button>
+    </div>
+  </div>
+
+  <script>
+    function updateRollbackButton() {
+      const checkboxes = document.querySelectorAll('.checklist input[type="checkbox"]');
+      const reason = document.getElementById('rollbackReason').value.trim();
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      const hasReason = reason.length > 20;
+
+      document.getElementById('rollbackBtn').disabled = !(allChecked && hasReason);
+    }
+
+    document.getElementById('rollbackReason').addEventListener('input', updateRollbackButton);
+
+    function handleRollback() {
+      const reason = document.getElementById('rollbackReason').value.trim();
+
+      if (confirm('⚠️ FINAL CONFIRMATION\n\nExecute rollback to Blue (v1.2.3)?\n\nThis will:\n- Switch all traffic to Blue\n- Affect 2,139 active users\n- Keep Green running for investigation\n\nProceed?')) {
+        alert('🚨 ROLLBACK EXECUTING\n\nStep 1/5: Switching load balancer to Blue...\nStep 2/5: Waiting for replication...\nStep 3/5: Verifying Blue health...\nStep 4/5: Notifying stakeholders...\nStep 5/5: Logging incident...\n\n✅ ROLLBACK COMPLETE\n\nMonitor: http://localhost:3002');
+
+        // In production, trigger rollback automation
+        console.log('ROLLBACK EXECUTED');
+        console.log('Reason:', reason);
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Executed by:', navigator.userAgent);
+
+        // Simulate rollback execution
+        setTimeout(() => {
+          window.location.href = 'deployment-approval.html';
+        }, 3000);
+      }
+    }
+
+    function handleCancel() {
+      if (confirm('Cancel rollback and keep Green active?\n\nIssue will need to be resolved in Green environment.')) {
+        window.location.href = 'regional-rollout.html';
+      }
+    }
+  </script>
+</body>
+</html>

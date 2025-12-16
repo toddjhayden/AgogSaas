@@ -46,7 +46,7 @@ COMMENT ON TABLE system_errors IS 'Layer 2: Tracks system errors and their resol
 COMMENT ON TABLE health_history IS 'Layer 2: Historical health check results for system components';
 
 -- Layer 4: Memory System Tables
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Using Ollama nomic-embed-text (768 dimensions)
 
 CREATE TABLE IF NOT EXISTS memories (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -54,14 +54,22 @@ CREATE TABLE IF NOT EXISTS memories (
   agent_id VARCHAR(50) NOT NULL,
   memory_type VARCHAR(50) NOT NULL,
   content TEXT NOT NULL,
-  embedding vector(1536),
+  embedding vector(768),  -- Ollama nomic-embed-text dimensions
   metadata JSONB,
+  accessed_at TIMESTAMP,
+  access_count INTEGER DEFAULT 0,
+  relevance_score DECIMAL(5,4),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_memories_agent ON memories(agent_id);
 CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
+CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_memories_embedding ON memories USING ivfflat (embedding vector_cosine_ops);
 
-COMMENT ON TABLE memories IS 'Layer 4: Agent memory storage with semantic search';
+COMMENT ON TABLE memories IS 'Layer 4: Agent memory storage with semantic search via Ollama';
+COMMENT ON COLUMN memories.embedding IS 'Vector embedding (768 dimensions) via Ollama nomic-embed-text';
+COMMENT ON COLUMN memories.accessed_at IS 'Last time this memory was retrieved';
+COMMENT ON COLUMN memories.access_count IS 'Number of times this memory has been accessed';
+COMMENT ON COLUMN memories.relevance_score IS 'User-provided relevance score for this memory';

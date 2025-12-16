@@ -1,0 +1,139 @@
+# Ingress for Blue-Green Traffic Management
+# nginx Ingress Controller with TLS termination
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agogsaas-ingress-blue
+  namespace: agogsaas-blue
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+spec:
+  tls:
+  - hosts:
+    - api.agogsaas.com
+    - app.agogsaas.com
+    secretName: agogsaas-tls
+  rules:
+  - host: api.agogsaas.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 4000
+  - host: app.agogsaas.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agogsaas-ingress-green
+  namespace: agogsaas-green
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+  labels:
+    active: "false"  # Set to "true" to switch traffic to green
+spec:
+  tls:
+  - hosts:
+    - api-green.agogsaas.com
+    - app-green.agogsaas.com
+    secretName: agogsaas-tls-green
+  rules:
+  - host: api-green.agogsaas.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 4000
+  - host: app-green.agogsaas.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+---
+# Regional Ingress (for multi-region setup)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agogsaas-regional-ingress
+  namespace: agogsaas-blue
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+  - hosts:
+    - us-east.agogsaas.com
+    - eu-central.agogsaas.com
+    - apac.agogsaas.com
+    secretName: agogsaas-regional-tls
+  rules:
+  - host: us-east.agogsaas.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 4000
+  - host: eu-central.agogsaas.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 4000
+  - host: apac.agogsaas.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 4000

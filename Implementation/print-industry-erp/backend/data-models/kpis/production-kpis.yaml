@@ -1,0 +1,550 @@
+version: '0.1'
+metadata:
+  domain: production
+  category: Production Efficiency & Quality
+  total_kpis: 21
+
+kpis:
+  - id: oee
+    name: Overall Equipment Effectiveness (OEE)
+    description: Composite metric of availability × performance × quality
+    formula: "(Actual Production Time / Planned Production Time) × (Actual Output / Theoretical Max Output) × (Good Units / Total Units)"
+    unit: percentage
+    target: ">= 85%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+    required_entities:
+      - ProductionRun
+    required_fields:
+      - actual_start_time
+      - actual_end_time
+      - planned_start_time
+      - planned_end_time
+      - quantity_produced
+      - quantity_good
+      - speed_theoretical
+      - speed_actual
+    calculation_notes: |
+      Availability = (Actual Production Time - Downtime) / Planned Production Time
+      Performance = (Actual Output Rate / Theoretical Max Rate)
+      Quality = (Good Units / Total Units Produced)
+      OEE = Availability × Performance × Quality
+
+  - id: first_pass_yield
+    name: First Pass Yield (FPY)
+    description: Percentage of units produced correctly without rework
+    formula: "(Good Units First Time / Total Units Started) × 100"
+    unit: percentage
+    target: ">= 95%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - quality-defect.yaml
+    required_entities:
+      - ProductionRun
+      - QualityDefect
+    required_fields:
+      - quantity_produced
+      - quantity_good
+      - quantity_rework
+    calculation_notes: |
+      FPY considers only units that passed inspection first time.
+      Excludes reworked units even if they eventually passed.
+
+  - id: setup_time
+    name: Setup Time / Makeready Time
+    description: Average time to prepare equipment for production run
+    formula: "AVG(actual_start_time - scheduled_start_time)"
+    unit: minutes
+    target: "<= 30 minutes"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+    required_entities:
+      - ProductionRun
+    required_fields:
+      - scheduled_start_time
+      - actual_start_time
+      - setup_category
+    calculation_notes: |
+      Setup includes: plate/blanket changes, ink mixing, registration adjustments.
+      Track by setup category for targeted improvement.
+
+  - id: cycle_time
+    name: Cycle Time
+    description: Total time from job start to completion
+    formula: "actual_end_time - actual_start_time"
+    unit: hours
+    target: "Meet estimated time"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+    required_entities:
+      - ProductionRun
+    required_fields:
+      - actual_start_time
+      - actual_end_time
+    calculation_notes: |
+      Includes all time: setup, production, quality checks, cleanup.
+
+  - id: takt_time
+    name: Takt Time
+    description: Available production time divided by customer demand
+    formula: "Available Production Time / Required Units"
+    unit: seconds_per_unit
+    target: "< Cycle Time"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - job.yaml
+    required_entities:
+      - ProductionRun
+      - Job
+    required_fields:
+      - quantity_required
+      - available_production_hours
+    calculation_notes: |
+      Determines production pace needed to meet demand.
+      If cycle time > takt time, cannot meet demand without overtime.
+
+  - id: capacity_utilization
+    name: Capacity Utilization Rate
+    description: Actual production as percentage of maximum capacity
+    formula: "(Actual Production Hours / Available Capacity Hours) × 100"
+    unit: percentage
+    target: "75-85% (sweet spot)"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - equipment-status-log.yaml
+    required_entities:
+      - ProductionRun
+      - EquipmentStatusLog
+    required_fields:
+      - actual_production_time
+      - available_capacity_hours
+      - equipment_id
+    calculation_notes: |
+      Too high (>90%) risks quality issues and burnout.
+      Too low (<60%) indicates inefficiency or insufficient orders.
+
+  - id: speed_variance
+    name: Speed Variance
+    description: Difference between actual and theoretical production speed
+    formula: "((speed_actual - speed_theoretical) / speed_theoretical) × 100"
+    unit: percentage
+    target: ">= -5% (within 5% of theoretical)"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+    required_entities:
+      - ProductionRun
+    required_fields:
+      - speed_actual
+      - speed_theoretical
+    calculation_notes: |
+      Negative variance indicates slower than expected.
+      Investigate causes: operator skill, material issues, equipment condition.
+
+  - id: scrap_rate
+    name: Scrap Rate
+    description: Percentage of production that must be discarded
+    formula: "(Quantity Scrapped / Total Quantity Produced) × 100"
+    unit: percentage
+    target: "<= 3%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - quality-defect.yaml
+    required_entities:
+      - ProductionRun
+      - QualityDefect
+    required_fields:
+      - quantity_scrapped
+      - quantity_produced
+      - defect_type
+      - resolution_action
+    calculation_notes: |
+      Track by defect type to identify root causes.
+      High scrap rates increase COGS significantly.
+
+  - id: rework_rate
+    name: Rework Rate
+    description: Percentage of production requiring rework
+    formula: "(Quantity Reworked / Total Quantity Produced) × 100"
+    unit: percentage
+    target: "<= 5%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - quality-defect.yaml
+    required_entities:
+      - ProductionRun
+      - QualityDefect
+    required_fields:
+      - quantity_rework
+      - quantity_produced
+      - rework_time_minutes
+      - resolution_action
+    calculation_notes: |
+      Rework adds significant cost: material, labor, schedule delays.
+      Track rework time to calculate true cost impact.
+
+  - id: defect_rate
+    name: Defect Rate
+    description: Number of defects per production run or per thousand units
+    formula: "(Total Defects / Total Units Produced) × 1000"
+    unit: defects_per_thousand
+    target: "<= 10 defects per 1000 units"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - quality-defect.yaml
+      - production-run.yaml
+    required_entities:
+      - QualityDefect
+      - ProductionRun
+    required_fields:
+      - quantity_affected
+      - quantity_produced
+      - defect_type
+      - severity
+    calculation_notes: |
+      Track by defect type and severity for root cause analysis.
+
+  - id: material_yield_rate
+    name: Material Yield Rate
+    description: Percentage of material that becomes sellable product
+    formula: "(Good Output Weight/Quantity / Total Material Input) × 100"
+    unit: percentage
+    target: ">= 90%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - material-consumption.yaml
+      - production-run.yaml
+    required_entities:
+      - MaterialConsumption
+      - ProductionRun
+    required_fields:
+      - quantity_consumed
+      - quantity_waste
+      - quantity_produced
+      - quantity_good
+    calculation_notes: |
+      Low yield indicates excessive waste, setup scrap, or quality issues.
+      Critical for high-value materials (specialty papers, metallic inks).
+
+  - id: material_utilization_percentage
+    name: Material Utilization Percentage
+    description: Percentage of raw material converted to good output (packaging industry standard)
+    formula: "(Total Area/Weight of Good Output / Total Area/Weight of Raw Material Input) × 100"
+    unit: percentage
+    target: ">= 85%"
+    priority: critical
+    validation_status: can_calculate
+    required_schemas:
+      - material-consumption.yaml
+      - production-run.yaml
+      - job.yaml
+    required_entities:
+      - MaterialConsumption
+      - ProductionRun
+      - Job
+    required_fields:
+      - quantity_consumed
+      - quantity_waste
+      - quantity_good
+      - unit_of_measure
+    calculation_notes: |
+      Packaging industry standard metric (universal across corrugated, labels, flexible packaging).
+      Must be tracked by Job and Shift for accurate cost analysis.
+      Formula accounts for area (sq ft, sq m) or weight (kg, lbs) depending on material type.
+
+      Calculation by material type:
+      - Sheet/Roll stock: (Good sheets × sheet size) / (Total sheets consumed × sheet size)
+      - Weight-based: (Good output weight) / (Total material weight consumed)
+
+      Low utilization indicates:
+      - Excessive trim waste (die-cutting, guillotine trimming)
+      - High makeready waste (setup scrap to achieve quality)
+      - Process issues (web breaks, registration problems)
+      - Poor nesting/layout optimization
+
+  - id: trim_waste_percentage
+    name: Trim Waste Percentage
+    description: Percentage of material wasted due to trimming operations
+    formula: "(Trim Waste Weight/Area / Total Material Input) × 100"
+    unit: percentage
+    target: "<= 8%"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - material-consumption.yaml
+      - production-run.yaml
+    required_entities:
+      - MaterialConsumption
+      - ProductionRun
+    required_fields:
+      - quantity_waste
+      - waste_reason
+      - quantity_consumed
+      - unit_of_measure
+    calculation_notes: |
+      Critical for die-cutting operations in corrugated, labels, and cartons.
+
+      Trim waste occurs during:
+      - Die-cutting (skeleton/matrix waste)
+      - Guillotine trimming (edge trim)
+      - Rotary cutting (web edge trim)
+      - Slitting operations
+
+      Calculate as: SUM(quantity_waste WHERE waste_reason = 'trim') / SUM(quantity_consumed)
+
+      Optimization strategies:
+      - Improve die layout/nesting efficiency
+      - Reduce trim margins where spec allows
+      - Reuse trim for smaller jobs when possible
+      - Track by job complexity (complex dies = higher trim %)
+
+      Industry benchmarks:
+      - Simple rectangular cuts: 3-5% trim waste
+      - Complex die shapes: 8-12% trim waste
+      - Irregular shapes: 12-15% trim waste
+
+  - id: makeready_waste_quantity
+    name: Makeready Waste (Setup Waste)
+    description: Material wasted during setup/changeover to achieve quality standards
+    formula: "SUM(quantity_waste WHERE waste_reason = 'makeready')"
+    unit: weight_or_area
+    target: "<= 50 kg per setup (varies by equipment)"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - material-consumption.yaml
+      - production-run.yaml
+      - equipment-status-log.yaml
+    required_entities:
+      - MaterialConsumption
+      - ProductionRun
+      - EquipmentStatusLog
+    required_fields:
+      - quantity_waste
+      - waste_reason
+      - equipment_id
+      - actual_start_time
+    calculation_notes: |
+      Makeready waste occurs during setup phase before production quality is achieved.
+
+      Includes waste from:
+      - Color/registration adjustments (print setup)
+      - Die-cutter alignment (cutting setup)
+      - Folder/gluer adjustments (finishing setup)
+      - Tension/tracking adjustments (web-based processes)
+
+      Track by:
+      - Equipment type (press, die-cutter, folder-gluer)
+      - Job complexity (number of colors, die complexity)
+      - Operator experience level
+      - Time since last similar job
+
+      Calculate as: SUM(quantity_waste WHERE waste_reason = 'makeready') per setup event
+      Link to equipment_status_log to correlate with setup duration
+
+      Reduction strategies:
+      - Standard setup procedures (reduce trial-and-error)
+      - Quick-change tooling (reduce mechanical adjustments)
+      - Digital presets (automated settings recall)
+      - Operator training (reduce learning curve)
+
+      Industry benchmarks vary widely by equipment:
+      - Digital press: 10-20 sheets (minimal)
+      - Offset press: 100-500 sheets (higher)
+      - Flexo press: 200-1000 linear feet (web breaks during setup)
+      - Die-cutter: 50-200 sheets (alignment waste)
+
+  - id: on_time_delivery
+    name: On-Time Delivery Rate
+    description: Percentage of jobs delivered by promised date
+    formula: "(Jobs Delivered On Time / Total Jobs Delivered) × 100"
+    unit: percentage
+    target: ">= 95%"
+    priority: high
+    validation_status: partial
+    required_schemas:
+      - job.yaml
+      - production-run.yaml
+    required_entities:
+      - Job
+      - ProductionRun
+    required_fields:
+      - promised_delivery_date
+      - actual_delivery_date
+      - status
+    calculation_notes: |
+      Consider "on time" as within promised date (not early, not late).
+      Track reasons for late deliveries to improve scheduling.
+
+  - id: schedule_adherence
+    name: Schedule Adherence
+    description: Percentage of production runs starting and completing on schedule
+    formula: "(Runs Completed On Schedule / Total Runs Scheduled) × 100"
+    unit: percentage
+    target: ">= 90%"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - production-run.yaml
+    required_entities:
+      - ProductionRun
+    required_fields:
+      - planned_start_time
+      - actual_start_time
+      - planned_end_time
+      - actual_end_time
+      - status
+    calculation_notes: |
+      Measures scheduling accuracy and production predictability
+      Consider on-schedule if start/end within tolerance window (e.g., +/- 30 minutes)
+      Track reasons for schedule misses: material delays, equipment breakdowns, labor shortages
+      Critical for multi-stage production where delays cascade
+
+  - id: throughput
+    name: Throughput Rate
+    description: Units produced per time period
+    formula: "Total Units Produced / Total Production Time"
+    unit: units_per_hour
+    target: "Varies by equipment"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - production-run.yaml
+    required_entities:
+      - ProductionRun
+    required_fields:
+      - quantity_produced
+      - actual_start_time
+      - actual_end_time
+    calculation_notes: |
+      Raw production rate - different from OEE Performance component
+      Compare to theoretical max speed for performance analysis
+      Track by equipment, shift, operator for bottleneck identification
+      Essential for capacity planning and quote turnaround estimation
+
+  - id: manufacturing_cycle_time
+    name: Manufacturing Cycle Time
+    description: Average time from job start to job completion (all operations)
+    formula: "AVG(actual_delivery_date - created_at)"
+    unit: days
+    target: "<= 5 days"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - job.yaml
+    required_entities:
+      - Job
+    required_fields:
+      - created_at
+      - actual_delivery_date
+      - status
+    calculation_notes: |
+      End-to-end cycle time including all production operations, setup, and queue time
+      Different from individual operation cycle time
+      Includes: order entry, prepress, production, finishing, QC, packing
+      Critical for lead time quoting and capacity planning
+      Track by job type and complexity for accurate estimation
+
+  - id: press_utilization
+    name: Press Utilization Rate (Print Industry)
+    description: Percentage of scheduled time press is actually printing
+    formula: "(Actual Printing Time / Scheduled Production Time) × 100"
+    unit: percentage
+    target: ">= 70%"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - equipment-status-log.yaml
+      - production-run.yaml
+    required_entities:
+      - EquipmentStatusLog
+      - ProductionRun
+    required_fields:
+      - status
+      - duration_minutes
+      - is_productive_time
+      - equipment_id
+    calculation_notes: |
+      Excludes setup, maintenance, idle time.
+      Print industry specific - high capital equipment cost demands high utilization.
+
+  - id: makeready_time
+    name: Makeready Time (Print Industry)
+    description: Time to prepare press for production (plates, inks, registration)
+    formula: "SUM(duration_minutes WHERE status = 'setup')"
+    unit: minutes
+    target: "<= 30 minutes per job"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - equipment-status-log.yaml
+    required_entities:
+      - ProductionRun
+      - EquipmentStatusLog
+    required_fields:
+      - actual_start_time
+      - scheduled_start_time
+      - setup_category
+      - duration_minutes
+    calculation_notes: |
+      Critical for short-run profitability.
+      Track by setup type: plate change, blanket change, ink change, full setup.
+
+  - id: color_accuracy
+    name: Color Accuracy (Delta E) (Print Industry)
+    description: Color variation from target measured in Delta E units
+    formula: "SQRT((L2-L1)² + (a2-a1)² + (b2-b1)²)"
+    unit: delta_e
+    target: "<= 2.0 Delta E (excellent match)"
+    priority: medium
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - quality-defect.yaml
+    required_entities:
+      - ProductionRun
+      - QualityDefect
+    required_fields:
+      - color_measurements
+      - target_color_values
+      - defect_type
+    calculation_notes: |
+      Delta E < 1.0: Not perceptible by human eye
+      Delta E 1-2: Perceptible through close observation
+      Delta E 2-10: Noticeable at a glance
+      Delta E > 10: Colors perceived as different
+      Requires spectrophotometer measurements.
+
+related_schemas:
+  - production-run.yaml
+  - quality-defect.yaml
+  - material-consumption.yaml
+  - equipment-status-log.yaml
+  - job.yaml
+
+notes: |
+  Production KPIs form the foundation of manufacturing excellence.
+  Many KPIs are interdependent: improving FPY reduces scrap and rework rates.
+  OEE is the gold standard composite metric but requires detailed production tracking.
+  Print industry specific metrics (press utilization, makeready, color accuracy) are
+  critical for profitability in high-capital-equipment environments.

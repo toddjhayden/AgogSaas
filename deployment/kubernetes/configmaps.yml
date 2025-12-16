@@ -1,0 +1,184 @@
+# ConfigMaps for Application Configuration
+
+---
+# Application Configuration (Blue)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: agogsaas-blue
+data:
+  region: "US-EAST"
+  other-regions: "EU-CENTRAL,APAC"
+  sync-interval: "30"
+  log-level: "info"
+---
+# Application Configuration (Green)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: agogsaas-green
+data:
+  region: "US-EAST"
+  other-regions: "EU-CENTRAL,APAC"
+  sync-interval: "30"
+  log-level: "info"
+---
+# PostgreSQL Configuration (Blue)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: agogsaas-blue
+data:
+  database: "agogsaas"
+  max-connections: "200"
+  wal-level: "logical"
+---
+# PostgreSQL Configuration (Green)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: agogsaas-green
+data:
+  database: "agogsaas"
+  max-connections: "200"
+  wal-level: "logical"
+---
+# PostgreSQL Init Scripts (Blue)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  namespace: agogsaas-blue
+data:
+  01-extensions.sql: |
+    -- Enable required PostgreSQL extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "vector";
+    CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+    CREATE EXTENSION IF NOT EXISTS "btree_gin";
+---
+# PostgreSQL Init Scripts (Green)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  namespace: agogsaas-green
+data:
+  01-extensions.sql: |
+    -- Enable required PostgreSQL extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "vector";
+    CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+    CREATE EXTENSION IF NOT EXISTS "btree_gin";
+---
+# NATS Configuration (Shared)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: agogsaas-blue
+data:
+  url: "nats://nats.default:4222"
+  cluster-name: "US-EAST"
+  max-payload: "1048576"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: agogsaas-green
+data:
+  url: "nats://nats.default:4222"
+  cluster-name: "US-EAST"
+  max-payload: "1048576"
+---
+# Ollama Configuration (Blue)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ollama-config
+  namespace: agogsaas-blue
+data:
+  url-blue: "http://ollama.agogsaas-blue:11434"
+  model: "nomic-embed-text"
+  embedding-dimension: "768"
+---
+# Ollama Configuration (Green)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ollama-config
+  namespace: agogsaas-green
+data:
+  url-green: "http://ollama.agogsaas-green:11434"
+  model: "nomic-embed-text"
+  embedding-dimension: "768"
+---
+# nginx Configuration for Blue-Green Switching
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: default
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /var/run/nginx.pid;
+
+    events {
+        worker_connections 4096;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log /var/log/nginx/access.log main;
+
+        sendfile on;
+        tcp_nopush on;
+        keepalive_timeout 65;
+        gzip on;
+
+        # Active environment: blue or green
+        upstream backend {
+            server backend.agogsaas-blue:4000;  # Change to agogsaas-green for green
+        }
+
+        upstream frontend {
+            server frontend.agogsaas-blue:80;  # Change to agogsaas-green for green
+        }
+
+        server {
+            listen 80;
+            server_name _;
+
+            location /graphql {
+                proxy_pass http://backend;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+            }
+
+            location / {
+                proxy_pass http://frontend;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_cache_bypass $http_upgrade;
+            }
+        }
+    }

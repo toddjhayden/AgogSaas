@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Fallback Activation - AgogSaaS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #ff6b6b 0%, #4ecdc4 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      max-width: 900px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    .disaster-header {
+      background: #ff6b6b;
+      color: white;
+      padding: 20px;
+      border-radius: 8px 8px 0 0;
+      margin: -40px -40px 30px -40px;
+      text-align: center;
+    }
+
+    .disaster-header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      color: #2d3748;
+      font-size: 20px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+    }
+
+    .section { margin-bottom: 30px; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .info-item {
+      background: #fff5f5;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #ff6b6b;
+    }
+
+    .info-label {
+      color: #742a2a;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+
+    .info-value {
+      color: #2d3748;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      color: #4a5568;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #cbd5e0;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #ff6b6b;
+      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .warning-box {
+      background: #fef5e7;
+      border: 2px solid #f39c12;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .warning-box h3 {
+      color: #7d6608;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .warning-box ul {
+      margin-left: 20px;
+      color: #7d6608;
+    }
+
+    .info-box {
+      background: #ebf8ff;
+      border-left: 4px solid: #3182ce;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+
+    .info-box p {
+      color: #2c5282;
+      line-height: 1.6;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+      margin-top: 30px;
+    }
+
+    button {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-cancel {
+      background: #718096;
+      color: white;
+    }
+
+    .btn-cancel:hover {
+      background: #4a5568;
+    }
+
+    .btn-activate {
+      background: #ff6b6b;
+      color: white;
+    }
+
+    .btn-activate:hover:not(:disabled) {
+      background: #ee5a52;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+    }
+
+    .btn-activate:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="disaster-header">
+      <h1>🚨 DISASTER RECOVERY - CLOUD FALLBACK ACTIVATION</h1>
+      <p>Emergency workspace for facility disaster scenarios</p>
+    </div>
+
+    <div class="section">
+      <h2>Facility Information</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Facility</div>
+          <div class="info-value" id="facilityName">LA Facility</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Facility ID</div>
+          <div class="info-value" id="facilityId">facility-la-001</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Last Sync</div>
+          <div class="info-value" id="lastSync">2 hours ago</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Data Loss</div>
+          <div class="info-value" id="dataLoss">Minimal (~2 hours)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Disaster Details</h2>
+
+      <div class="form-group">
+        <label for="disasterType">Disaster Type *</label>
+        <select id="disasterType" required>
+          <option value="">Select disaster type...</option>
+          <option value="fire">🔥 Fire - Building destroyed</option>
+          <option value="flood">🌊 Flood - Equipment damaged</option>
+          <option value="earthquake">🏚️ Earthquake - Structural damage</option>
+          <option value="power">⚡ Extended power outage</option>
+          <option value="hardware">💻 Hardware failure (server destroyed)</option>
+          <option value="other">📝 Other (specify below)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="disasterDescription">Description *</label>
+        <textarea id="disasterDescription" placeholder="Describe the disaster and why cloud fallback is needed..." required></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="expectedDuration">Expected Facility Downtime *</label>
+        <select id="expectedDuration" required>
+          <option value="">Select expected duration...</option>
+          <option value="1-3-days">1-3 days (temporary outage)</option>
+          <option value="1-2-weeks">1-2 weeks (equipment replacement)</option>
+          <option value="1-3-months">1-3 months (facility rebuild)</option>
+          <option value="3-6-months">3-6 months (major reconstruction)</option>
+          <option value="permanent">Permanent relocation</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>⚠️ Cloud Fallback Impact</h2>
+      <div class="warning-box">
+        <h3>
+          <span style="font-size: 24px">⚠️</span>
+          What Happens When You Activate Cloud Fallback
+        </h3>
+        <ul>
+          <li><strong>Workers switch to cloud workspace</strong> - Access via https://cloud.agog.com/workspace/facility-la-001</li>
+          <li><strong>Data restored from last sync</strong> - ~2 hours of transactions since last edge sync</li>
+          <li><strong>Operations continue in cloud</strong> - Orders, inventory, production all work normally</li>
+          <li><strong>Remote workers unaffected</strong> - They already use cloud, no change for them</li>
+          <li><strong>New edge provisioning required</strong> - When facility rebuilds, request new edge computer</li>
+        </ul>
+      </div>
+
+      <div class="info-box">
+        <p>
+          <strong>ℹ️ Good News:</strong> Your edge was syncing every 5 seconds. Last successful sync was 2 hours ago.
+          Maximum data loss: ~2 hours of transactions. Cloud workspace will have everything up to that point.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Activation Steps</h2>
+      <div class="info-box">
+        <p>
+          <strong>Automated Steps (takes ~5 minutes):</strong>
+        </p>
+        <ol style="margin-left: 20px; margin-top: 10px; color: #2c5282;">
+          <li>Mark facility as "cloud_fallback" mode</li>
+          <li>Restore latest edge data to cloud workspace (isolated schema)</li>
+          <li>Provision cloud access URLs for workers</li>
+          <li>Send email to all facility workers with new access instructions</li>
+          <li>Notify customer success team of disaster activation</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Approval</h2>
+      <div class="form-group">
+        <label for="approverName">Your Name *</label>
+        <input type="text" id="approverName" placeholder="Facility Manager Name" required />
+      </div>
+
+      <div class="form-group">
+        <label for="approverEmail">Your Email *</label>
+        <input type="email" id="approverEmail" placeholder="manager@customer.com" required />
+      </div>
+
+      <div class="form-group">
+        <label for="approverPhone">Your Phone *</label>
+        <input type="tel" id="approverPhone" placeholder="+1 (555) 123-4567" required />
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn-cancel" onclick="handleCancel()">❌ Cancel</button>
+      <button class="btn-activate" id="activateBtn" onclick="handleActivate()">🚨 ACTIVATE CLOUD FALLBACK</button>
+    </div>
+  </div>
+
+  <script>
+    function handleActivate() {
+      const disasterType = document.getElementById('disasterType').value;
+      const description = document.getElementById('disasterDescription').value;
+      const duration = document.getElementById('expectedDuration').value;
+      const approverName = document.getElementById('approverName').value;
+
+      if (!disasterType || !description || !duration || !approverName) {
+        alert('Please fill in all required fields');
+        return;
+      }
+
+      if (confirm('⚠️ FINAL CONFIRMATION\n\nActivate cloud fallback for LA facility?\n\nThis will:\n- Switch workers to cloud workspace\n- Restore last known data (~2 hours ago)\n- Send instructions to all facility workers\n- Notify AgogSaaS support team\n\nProceed?')) {
+        alert('✅ CLOUD FALLBACK ACTIVATED\n\nStep 1/5: Marking facility as cloud_fallback...\nStep 2/5: Restoring data to cloud workspace...\nStep 3/5: Provisioning cloud access...\nStep 4/5: Notifying workers...\nStep 5/5: Logging incident...\n\n✅ ACTIVATION COMPLETE\n\nWorkers access: https://cloud.agog.com/workspace/facility-la-001\n\nInstructions emailed to all facility staff.');
+
+        // In production, trigger cloud fallback automation
+        console.log('CLOUD FALLBACK ACTIVATED');
+        console.log('Facility:', document.getElementById('facilityId').textContent);
+        console.log('Disaster Type:', disasterType);
+        console.log('Description:', description);
+        console.log('Duration:', duration);
+        console.log('Approver:', approverName);
+        console.log('Timestamp:', new Date().toISOString());
+
+        // Simulate activation
+        setTimeout(() => {
+          window.location.href = '/monitoring/facilities/facility-la-001?mode=cloud_fallback';
+        }, 3000);
+      }
+    }
+
+    function handleCancel() {
+      if (confirm('Cancel cloud fallback activation?\n\nNote: If your facility is truly destroyed, you should activate cloud fallback so workers can continue operations.')) {
+        window.history.back();
+      }
+    }
+  </script>
+</body>
+</html>

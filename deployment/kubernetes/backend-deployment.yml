@@ -1,0 +1,259 @@
+# Backend API Deployment (Blue-Green)
+# Auto-scaling GraphQL API with health checks
+
+---
+# Blue Environment Backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: agogsaas-blue
+  labels:
+    app: backend
+    environment: blue
+    tier: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+      environment: blue
+  template:
+    metadata:
+      labels:
+        app: backend
+        environment: blue
+        tier: api
+    spec:
+      containers:
+      - name: backend
+        image: agogsaas/backend:latest
+        ports:
+        - containerPort: 4000
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "4000"
+        - name: ENVIRONMENT
+          value: "blue"
+        - name: REGION
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: region
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: url-blue
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url-blue
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nats-config
+              key: url
+        - name: OLLAMA_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ollama-config
+              key: url-blue
+        - name: OLLAMA_ENABLED
+          value: "true"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: secret
+        - name: GRAPHQL_PLAYGROUND
+          value: "false"
+        - name: GRAPHQL_INTROSPECTION
+          value: "false"
+        - name: CROSS_REGION_SYNC_ENABLED
+          value: "true"
+        - name: OTHER_REGIONS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: other-regions
+        - name: EDGE_SYNC_ENABLED
+          value: "true"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 4000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: registry-secret
+---
+# Blue Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: agogsaas-blue
+  labels:
+    app: backend
+    environment: blue
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4000
+    targetPort: 4000
+    protocol: TCP
+    name: http
+  selector:
+    app: backend
+    environment: blue
+---
+# Green Environment Backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: agogsaas-green
+  labels:
+    app: backend
+    environment: green
+    tier: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+      environment: green
+  template:
+    metadata:
+      labels:
+        app: backend
+        environment: green
+        tier: api
+    spec:
+      containers:
+      - name: backend
+        image: agogsaas/backend:latest
+        ports:
+        - containerPort: 4000
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "4000"
+        - name: ENVIRONMENT
+          value: "green"
+        - name: REGION
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: region
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: url-green
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url-green
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nats-config
+              key: url
+        - name: OLLAMA_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ollama-config
+              key: url-green
+        - name: OLLAMA_ENABLED
+          value: "true"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: secret
+        - name: GRAPHQL_PLAYGROUND
+          value: "false"
+        - name: GRAPHQL_INTROSPECTION
+          value: "false"
+        - name: CROSS_REGION_SYNC_ENABLED
+          value: "true"
+        - name: OTHER_REGIONS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: other-regions
+        - name: EDGE_SYNC_ENABLED
+          value: "true"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 4000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: registry-secret
+---
+# Green Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: agogsaas-green
+  labels:
+    app: backend
+    environment: green
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4000
+    targetPort: 4000
+    protocol: TCP
+    name: http
+  selector:
+    app: backend
+    environment: green

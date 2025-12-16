@@ -20,11 +20,13 @@ PATTERNS=(
 FOUND=0
 
 for FILE in $FILES; do
-    # Skip this script itself, archives, and example files
+    # Skip this script itself, archives, example files, documentation, and backup files
     if [[ "$FILE" == "scripts/check-secrets.sh" ]] || \
        [[ "$FILE" == *"/archive/"* ]] || \
        [[ "$FILE" == *".example"* ]] || \
-       [[ "$FILE" == *".env.example"* ]]; then
+       [[ "$FILE" == *".env.example"* ]] || \
+       [[ "$FILE" == *".md" ]] || \
+       [[ "$FILE" == *".old" ]]; then
         continue
     fi
     

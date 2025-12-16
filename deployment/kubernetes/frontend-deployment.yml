@@ -1,0 +1,175 @@
+# Frontend Deployment (Blue-Green)
+# Static React app served via nginx
+
+---
+# Blue Environment Frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: agogsaas-blue
+  labels:
+    app: frontend
+    environment: blue
+    tier: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+      environment: blue
+  template:
+    metadata:
+      labels:
+        app: frontend
+        environment: blue
+        tier: web
+    spec:
+      containers:
+      - name: frontend
+        image: agogsaas/frontend:latest
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        env:
+        - name: VITE_API_URL
+          value: "http://backend.agogsaas-blue:4000/graphql"
+        - name: VITE_ENVIRONMENT
+          value: "blue"
+        - name: VITE_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: region
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: registry-secret
+---
+# Blue Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: agogsaas-blue
+  labels:
+    app: frontend
+    environment: blue
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: frontend
+    environment: blue
+---
+# Green Environment Frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: agogsaas-green
+  labels:
+    app: frontend
+    environment: green
+    tier: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+      environment: green
+  template:
+    metadata:
+      labels:
+        app: frontend
+        environment: green
+        tier: web
+    spec:
+      containers:
+      - name: frontend
+        image: agogsaas/frontend:latest
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        env:
+        - name: VITE_API_URL
+          value: "http://backend.agogsaas-green:4000/graphql"
+        - name: VITE_ENVIRONMENT
+          value: "green"
+        - name: VITE_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: region
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: registry-secret
+---
+# Green Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: agogsaas-green
+  labels:
+    app: frontend
+    environment: green
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: frontend
+    environment: green

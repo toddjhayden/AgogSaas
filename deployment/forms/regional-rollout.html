@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Regional Rollout Monitor - AgogSaaS</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #1a202c;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #a0aec0;
+      margin-bottom: 30px;
+    }
+
+    .region-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .region-card {
+      background: #2d3748;
+      border-radius: 12px;
+      padding: 25px;
+      border-left: 6px solid;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .region-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .region-card.status-completed {
+      border-left-color: #48bb78;
+    }
+
+    .region-card.status-in-progress {
+      border-left-color: #ed8936;
+      animation: pulse 2s infinite;
+    }
+
+    .region-card.status-pending {
+      border-left-color: #718096;
+    }
+
+    .region-card.status-failed {
+      border-left-color: #f56565;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+
+    .region-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .region-name {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .region-status {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-completed {
+      background: #48bb78;
+      color: white;
+    }
+
+    .status-in-progress {
+      background: #ed8936;
+      color: white;
+    }
+
+    .status-pending {
+      background: #718096;
+      color: white;
+    }
+
+    .status-failed {
+      background: #f56565;
+      color: white;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .metric {
+      background: #1a202c;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: #a0aec0;
+      margin-bottom: 5px;
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .metric-value.good {
+      color: #48bb78;
+    }
+
+    .metric-value.warning {
+      color: #ed8936;
+    }
+
+    .metric-value.error {
+      color: #f56565;
+    }
+
+    .progress-bar {
+      background: #1a202c;
+      height: 30px;
+      border-radius: 15px;
+      overflow: hidden;
+      margin-top: 15px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      transition: width 1s;
+    }
+
+    .timeline {
+      background: #2d3748;
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+    }
+
+    .timeline h2 {
+      margin-bottom: 20px;
+    }
+
+    .timeline-item {
+      display: flex;
+      align-items: center;
+      padding: 15px 0;
+      border-bottom: 1px solid #4a5568;
+    }
+
+    .timeline-item:last-child {
+      border-bottom: none;
+    }
+
+    .timeline-time {
+      font-size: 14px;
+      color: #a0aec0;
+      min-width: 120px;
+    }
+
+    .timeline-event {
+      flex: 1;
+      padding-left: 20px;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+    }
+
+    button {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5a67d8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #e53e3e;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+    }
+
+    .btn-secondary {
+      background: #4a5568;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #2d3748;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🌍 Regional Rollout Monitor</h1>
+    <p class="subtitle">Deployment ID: deploy-2025-12-10-001 | Version: v1.3.0</p>
+
+    <div class="region-grid">
+      <!-- US-EAST Region -->
+      <div class="region-card status-completed">
+        <div class="region-header">
+          <div class="region-name">🇺🇸 US-EAST</div>
+          <span class="region-status status-completed">Completed</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-label">Error Rate</div>
+            <div class="metric-value good">0.02%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">P95 Latency</div>
+            <div class="metric-value good">45ms</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Active Users</div>
+            <div class="metric-value good">1,247</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Edge Facilities</div>
+            <div class="metric-value good">12/12 online</div>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 100%">100%</div>
+        </div>
+      </div>
+
+      <!-- EU-CENTRAL Region -->
+      <div class="region-card status-in-progress">
+        <div class="region-header">
+          <div class="region-name">🇪🇺 EU-CENTRAL</div>
+          <span class="region-status status-in-progress">In Progress</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-label">Error Rate</div>
+            <div class="metric-value good">0.05%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">P95 Latency</div>
+            <div class="metric-value warning">78ms</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Active Users</div>
+            <div class="metric-value good">892</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Edge Facilities</div>
+            <div class="metric-value good">8/8 online</div>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 67%">67%</div>
+        </div>
+      </div>
+
+      <!-- APAC Region -->
+      <div class="region-card status-pending">
+        <div class="region-header">
+          <div class="region-name">🌏 APAC</div>
+          <span class="region-status status-pending">Pending</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-label">Scheduled Start</div>
+            <div class="metric-value">T+48 hours</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Status</div>
+            <div class="metric-value">Awaiting EU-CENTRAL</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Edge Facilities</div>
+            <div class="metric-value">6/6 ready</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Pre-checks</div>
+            <div class="metric-value good">Passed</div>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 0%">0%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <h2>Deployment Timeline</h2>
+      <div class="timeline-item">
+        <div class="timeline-time">Dec 10, 14:00 UTC</div>
+        <div class="timeline-event">✅ <strong>US-EAST</strong> deployment approved</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-time">Dec 10, 14:05 UTC</div>
+        <div class="timeline-event">🚀 <strong>US-EAST</strong> traffic switched to Green</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-time">Dec 10, 14:30 UTC</div>
+        <div class="timeline-event">✅ <strong>US-EAST</strong> stabilization check #1 passed</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-time">Dec 11, 14:00 UTC</div>
+        <div class="timeline-event">✅ <strong>US-EAST</strong> 24-hour stabilization complete</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-time">Dec 11, 14:15 UTC</div>
+        <div class="timeline-event">🚀 <strong>EU-CENTRAL</strong> deployment started</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-time">Dec 11, 14:20 UTC</div>
+        <div class="timeline-event">🔄 <strong>EU-CENTRAL</strong> traffic cutover in progress (67%)</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-time">Dec 12, 14:00 UTC</div>
+        <div class="timeline-event">⏳ <strong>APAC</strong> deployment scheduled (pending EU-CENTRAL)</div>
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn-secondary" onclick="openGrafana()">📊 Open Grafana Dashboard</button>
+      <button class="btn-secondary" onclick="viewLogs()">📝 View Deployment Logs</button>
+      <button class="btn-primary" onclick="proceedToAPAC()">▶️ Proceed to APAC (if EU stable)</button>
+      <button class="btn-danger" onclick="initiateRollback()">⚠️ Initiate Rollback</button>
+    </div>
+  </div>
+
+  <script>
+    // Simulate real-time metrics updates
+    setInterval(() => {
+      // In production, fetch real metrics from API
+      const euLatency = document.querySelector('.region-card.status-in-progress .metric-value.warning');
+      if (euLatency) {
+        const currentLatency = parseInt(euLatency.textContent);
+        const newLatency = Math.max(45, currentLatency - Math.floor(Math.random() * 5));
+        euLatency.textContent = newLatency + 'ms';
+
+        if (newLatency <= 50) {
+          euLatency.classList.remove('warning');
+          euLatency.classList.add('good');
+        }
+      }
+
+      // Update progress
+      const euProgress = document.querySelector('.region-card.status-in-progress .progress-fill');
+      if (euProgress) {
+        const currentProgress = parseInt(euProgress.style.width);
+        if (currentProgress < 100) {
+          const newProgress = Math.min(100, currentProgress + Math.floor(Math.random() * 3));
+          euProgress.style.width = newProgress + '%';
+          euProgress.textContent = newProgress + '%';
+
+          if (newProgress === 100) {
+            const euCard = document.querySelector('.region-card.status-in-progress');
+            euCard.classList.remove('status-in-progress');
+            euCard.classList.add('status-completed');
+            euCard.querySelector('.region-status').classList.remove('status-in-progress');
+            euCard.querySelector('.region-status').classList.add('status-completed');
+            euCard.querySelector('.region-status').textContent = 'Completed';
+          }
+        }
+      }
+    }, 5000);
+
+    function openGrafana() {
+      window.open('http://localhost:3002', '_blank');
+    }
+
+    function viewLogs() {
+      alert('Opening deployment logs...\n\nIn production, this would show:\n- Backend logs (EU-CENTRAL)\n- Database replication status\n- Edge facility connectivity\n- Error tracking');
+    }
+
+    function proceedToAPAC() {
+      if (confirm('Are you sure EU-CENTRAL is stable?\n\nThis will begin APAC deployment.')) {
+        alert('✅ APAC deployment starting...\n\nMonitoring all regions for next 24 hours.');
+      }
+    }
+
+    function initiateRollback() {
+      const reason = prompt('⚠️ EMERGENCY ROLLBACK\n\nThis will switch all regions back to Blue.\n\nProvide reason:');
+      if (reason) {
+        if (confirm('CONFIRM ROLLBACK?\n\nReason: ' + reason + '\n\nThis action cannot be undone.')) {
+          alert('🚨 ROLLBACK INITIATED\n\nSwitching traffic:\nEU-CENTRAL → Blue\nUS-EAST → Blue\n\nMonitor: http://localhost:3002');
+          window.location.href = 'rollback-decision.html';
+        }
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,304 @@
+# AgogSaaS Edge Deployment (Facility-Level)
+# Purpose: Offline-capable production data capture at manufacturing facilities
+# Hardware: $600-$3000 edge computer (Intel NUC, Dell OptiPlex, HP ProDesk)
+# Network: Auto-sync to regional cloud when online, fully functional when offline
+
+version: '3.8'
+
+networks:
+  edge-network:
+    driver: bridge
+
+volumes:
+  edge-postgres-data:
+  edge-nats-data:
+  edge-ollama-data:
+
+services:
+  # ============================================================================
+  # PostgreSQL - Edge Database (Offline-Capable)
+  # ============================================================================
+  postgres-edge:
+    image: pgvector/pgvector:pg16
+    container_name: edge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${EDGE_DB_NAME:-agog_edge}
+      POSTGRES_USER: ${EDGE_DB_USER:-edge_user}
+      POSTGRES_PASSWORD: ${EDGE_DB_PASSWORD}
+      FACILITY_ID: ${FACILITY_ID}
+      TENANT_ID: ${TENANT_ID}
+    volumes:
+      - edge-postgres-data:/var/lib/postgresql/data
+      - ../../Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "${EDGE_DB_PORT:-5432}:5432"
+    networks:
+      - edge-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EDGE_DB_USER:-edge_user} -d ${EDGE_DB_NAME:-agog_edge}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=edge"
+      - "agog.facility=${FACILITY_ID}"
+      - "agog.tenant=${TENANT_ID}"
+    # Resource limits for edge hardware
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================================================
+  # Backend API - Production Data Capture
+  # ============================================================================
+  backend-edge:
+    build:
+      context: ../../Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile.production
+    container_name: edge-backend
+    restart: unless-stopped
+    depends_on:
+      postgres-edge:
+        condition: service_healthy
+      nats-edge:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      ENVIRONMENT: edge
+      FACILITY_ID: ${FACILITY_ID}
+      TENANT_ID: ${TENANT_ID}
+      REGION: ${REGION:-US-EAST}
+      # Database
+      DATABASE_URL: postgresql://${EDGE_DB_USER:-edge_user}:${EDGE_DB_PASSWORD}@postgres-edge:5432/${EDGE_DB_NAME:-agog_edge}
+      # Message Queue
+      NATS_URL: nats://nats-edge:4222
+      # Cloud Sync Configuration
+      REGIONAL_CLOUD_URL: ${REGIONAL_CLOUD_URL}
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL:-30}
+      OFFLINE_MODE_ENABLED: "true"
+      # Ollama (Optional - only if edge has enough RAM)
+      OLLAMA_URL: ${OLLAMA_ENABLED:-false}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-false}
+      # Security
+      JWT_SECRET: ${JWT_SECRET}
+      # Health Monitoring
+      HEALTH_REPORT_INTERVAL: 30
+      HEALTH_REPORT_URL: ${REGIONAL_CLOUD_URL}/health/edge
+    ports:
+      - "4000:4000"
+    networks:
+      - edge-network
+    labels:
+      - "agog.tier=edge"
+      - "agog.facility=${FACILITY_ID}"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================================
+  # NATS - Message Queue for Cloud Sync
+  # ============================================================================
+  nats-edge:
+    image: nats:latest
+    container_name: edge-nats
+    restart: unless-stopped
+    command:
+      - "-js"
+      - "-sd"
+      - "/data"
+      - "-m"
+      - "8222"
+    volumes:
+      - edge-nats-data:/data
+    ports:
+      - "4222:4222"  # NATS client
+      - "8222:8222"  # Monitoring
+    networks:
+      - edge-network
+    labels:
+      - "agog.tier=edge"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ============================================================================
+  # Ollama - Phase 4 Memory (OPTIONAL - only for high-end edge hardware)
+  # ============================================================================
+  ollama-edge:
+    image: ollama/ollama:latest
+    container_name: edge-ollama
+    restart: unless-stopped
+    profiles:
+      - "with-ollama"  # Only start if --profile with-ollama is specified
+    volumes:
+      - edge-ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - edge-network
+    labels:
+      - "agog.tier=edge"
+      - "agog.optional=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 0"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ============================================================================
+  # Edge Sync Agent - Auto-sync to Regional Cloud
+  # ============================================================================
+  sync-agent:
+    build:
+      context: ../../Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile.production
+    container_name: edge-sync-agent
+    restart: unless-stopped
+    depends_on:
+      postgres-edge:
+        condition: service_healthy
+      nats-edge:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      SYNC_MODE: "true"
+      FACILITY_ID: ${FACILITY_ID}
+      TENANT_ID: ${TENANT_ID}
+      # Local Edge Database
+      EDGE_DATABASE_URL: postgresql://${EDGE_DB_USER:-edge_user}:${EDGE_DB_PASSWORD}@postgres-edge:5432/${EDGE_DB_NAME:-agog_edge}
+      # Regional Cloud
+      REGIONAL_CLOUD_URL: ${REGIONAL_CLOUD_URL}
+      REGIONAL_CLOUD_API_KEY: ${REGIONAL_CLOUD_API_KEY}
+      # Sync Configuration
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL:-30}
+      SYNC_BATCH_SIZE: ${SYNC_BATCH_SIZE:-1000}
+      SYNC_RETRY_ATTEMPTS: 3
+      SYNC_RETRY_DELAY_SECONDS: 60
+      # NATS for pub/sub
+      NATS_URL: nats://nats-edge:4222
+    networks:
+      - edge-network
+    labels:
+      - "agog.tier=edge"
+      - "agog.component=sync-agent"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    command: ["node", "dist/sync-agent.js"]
+
+  # ============================================================================
+  # Health Monitor - Reports to Cloud Every 30s
+  # ============================================================================
+  health-monitor:
+    build:
+      context: ../../Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile.production
+    container_name: edge-health-monitor
+    restart: unless-stopped
+    depends_on:
+      - backend-edge
+      - postgres-edge
+      - nats-edge
+    environment:
+      NODE_ENV: production
+      HEALTH_MONITOR_MODE: "true"
+      FACILITY_ID: ${FACILITY_ID}
+      TENANT_ID: ${TENANT_ID}
+      REGION: ${REGION:-US-EAST}
+      # Services to monitor
+      BACKEND_URL: http://backend-edge:4000
+      POSTGRES_URL: postgresql://${EDGE_DB_USER:-edge_user}:${EDGE_DB_PASSWORD}@postgres-edge:5432/${EDGE_DB_NAME:-agog_edge}
+      NATS_URL: nats://nats-edge:4222
+      # Cloud reporting
+      REGIONAL_CLOUD_URL: ${REGIONAL_CLOUD_URL}
+      HEALTH_REPORT_INTERVAL: 30
+      # Alert thresholds
+      CPU_ALERT_THRESHOLD: 80
+      MEMORY_ALERT_THRESHOLD: 85
+      DISK_ALERT_THRESHOLD: 90
+    networks:
+      - edge-network
+    labels:
+      - "agog.tier=edge"
+      - "agog.component=health-monitor"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    command: ["node", "dist/health-monitor.js"]
+
+# ============================================================================
+# EDGE DEPLOYMENT NOTES
+# ============================================================================
+#
+# HARDWARE REQUIREMENTS:
+# - Minimum: Intel i3/i5, 8GB RAM, 256GB SSD ($600-$1000)
+# - Recommended: Intel i5/i7, 16GB RAM, 512GB SSD ($1500-$2000)
+# - With Ollama: Intel i7/i9, 32GB RAM, 1TB SSD ($2500-$3000)
+#
+# NETWORK REQUIREMENTS:
+# - Internet connection for cloud sync (intermittent OK)
+# - Local network for production floor devices
+# - VPN recommended for secure cloud communication
+#
+# DEPLOYMENT:
+# 1. Copy .env.edge.example to .env
+# 2. Configure FACILITY_ID, TENANT_ID, REGIONAL_CLOUD_URL
+# 3. Run: docker-compose -f docker-compose.edge.yml up -d
+# 4. Monitor: docker-compose -f docker-compose.edge.yml logs -f
+#
+# WITH OLLAMA (High-end hardware only):
+# docker-compose -f docker-compose.edge.yml --profile with-ollama up -d
+#
+# OFFLINE OPERATION:
+# - System continues capturing production data when offline
+# - Auto-syncs to regional cloud when connection restored
+# - Local database persists all data
+# - Health monitor queues alerts for delivery when online
+#
+# MONITORING:
+# - Health status: http://localhost:4000/health
+# - NATS monitoring: http://localhost:8222
+# - Database: psql -h localhost -U edge_user -d agog_edge
+#

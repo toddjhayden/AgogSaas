@@ -1,0 +1,133 @@
+#!/bin/bash
+# AgogSaaS Smoke Test - All 4 Layers
+# Tests that all phases are operational
+
+set -e
+
+echo ""
+echo "================================================"
+echo "  AgogSaaS - Smoke Test (All 4 Layers)"
+echo "================================================"
+echo ""
+
+# Check if services are running
+echo "[Checking] Services status..."
+if ! docker ps | grep -q "agogsaas"; then
+    echo "[ERROR] Services not running! Run ./quick-start.sh first."
+    exit 1
+fi
+echo "[OK] Services are running"
+echo ""
+
+# Test Phase 1: Validation (Pre-commit hooks)
+echo "================================================"
+echo "Phase 1: VALIDATION (Pre-commit Hooks)"
+echo "================================================"
+if [ -f .git-hooks/pre-commit ]; then
+    echo "[OK] Pre-commit hook exists"
+    echo "[OK] Layer 1 (Validation) is configured"
+else
+    echo "[WARNING] Pre-commit hook not found"
+fi
+echo ""
+
+# Test Phase 2: Monitoring (Health endpoints)
+echo "================================================"
+echo "Phase 2: MONITORING (Health Dashboard)"
+echo "================================================"
+echo "[Testing] Backend health endpoint..."
+if curl -sf http://localhost:4001/health > /dev/null 2>&1; then
+    echo "[OK] Backend health endpoint responding"
+else
+    echo "[ERROR] Backend health endpoint not responding"
+fi
+
+echo "[Testing] PostgreSQL connection..."
+if docker exec agogsaas-postgres psql -U agogsaas_user -d agogsaas -c "SELECT 1" > /dev/null 2>&1; then
+    echo "[OK] PostgreSQL connected"
+else
+    echo "[WARNING] PostgreSQL connection check failed"
+fi
+
+echo "[Testing] Frontend monitoring dashboard..."
+if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+    echo "[OK] Frontend accessible at http://localhost:3000"
+    echo "[OK] Monitoring dashboard at http://localhost:3000/monitoring"
+else
+    echo "[WARNING] Frontend not responding"
+fi
+echo ""
+
+# Test Phase 3: Orchestration (NATS)
+echo "================================================"
+echo "Phase 3: ORCHESTRATION (NATS Jetstream)"
+echo "================================================"
+echo "[Testing] NATS health..."
+if curl -sf http://localhost:8223/healthz > /dev/null 2>&1; then
+    echo "[OK] NATS server healthy"
+else
+    echo "[ERROR] NATS server not responding"
+fi
+
+echo "[Testing] NATS streams..."
+if docker exec agogsaas-backend node -e "const nats = require('nats'); (async () => { try { const nc = await nats.connect({ servers: 'nats://nats:4222' }); const jsm = await nc.jetstreamManager(); await jsm.streams.list().next(); console.log('OK'); nc.close(); } catch(e) { console.error(e.message); process.exit(1); } })()" 2>&1 | grep -q "OK"; then
+    echo "[OK] NATS Jetstream operational"
+else
+    echo "[WARNING] Could not verify NATS streams"
+fi
+echo ""
+
+# Test Phase 4: Memory (Ollama + Vector DB)
+echo "================================================"
+echo "Phase 4: MEMORY (Ollama Embeddings)"
+echo "================================================"
+echo "[Testing] Ollama service..."
+if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
+    echo "[OK] Ollama service responding"
+else
+    echo "[ERROR] Ollama service not responding"
+fi
+
+echo "[Testing] nomic-embed-text model..."
+if docker exec agogsaas-ollama ollama list | grep -q "nomic-embed-text"; then
+    echo "[OK] nomic-embed-text model installed"
+else
+    echo "[WARNING] Model not installed - run: docker exec agogsaas-ollama ollama pull nomic-embed-text"
+fi
+
+echo "[Testing] pgvector extension..."
+if docker exec agogsaas-postgres psql -U agogsaas_user -d agogsaas -c "SELECT extname FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q "vector"; then
+    echo "[OK] pgvector extension enabled"
+else
+    echo "[WARNING] pgvector extension not found"
+fi
+
+echo "[Testing] memories table..."
+if docker exec agogsaas-postgres psql -U agogsaas_user -d agogsaas -c "\d memories" > /dev/null 2>&1; then
+    echo "[OK] memories table exists"
+else
+    echo "[WARNING] memories table not found - run migrations"
+fi
+echo ""
+
+echo "================================================"
+echo "  Smoke Test Summary"
+echo "================================================"
+echo ""
+echo "Services:"
+echo "  - PostgreSQL:  http://localhost:5433 (5432 used by WMS)"
+echo "  - NATS:        http://localhost:4223 (monitoring: :8223, 4222 used by WMS)"
+echo "  - Ollama:      http://localhost:11434"
+echo "  - Backend API: http://localhost:4001/graphql"
+echo "  - Frontend:    http://localhost:3000"
+echo "  - Monitoring:  http://localhost:3000/monitoring"
+echo ""
+echo "Layers:"
+echo "  Layer 1 (Validation):    Pre-commit hooks"
+echo "  Layer 2 (Monitoring):    Dashboard at /monitoring"
+echo "  Layer 3 (Orchestration): NATS Jetstream"
+echo "  Layer 4 (Memory):        Ollama + pgvector"
+echo ""
+echo "[TIP] Run detailed Phase 4 test:"
+echo "  docker exec agogsaas-backend npm run test:memory"
+echo ""

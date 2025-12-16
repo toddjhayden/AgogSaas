@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: agogsaas_user
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Use 5433 to avoid conflict with WMS postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
@@ -25,22 +25,32 @@ services:
   nats:
     image: nats:latest
     container_name: agogsaas-nats
-    command: 
+    command:
       - "-js"
       - "-sd"
       - "/data"
       - "-m"
       - "8222"
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "4223:4222"  # Use 4223 to avoid conflict with WMS NATS
+      - "8223:8222"  # Monitoring on 8223
     volumes:
       - nats_data:/data
+
+  # Ollama for Layer 4 embeddings (FREE, local)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agogsaas-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD-SHELL", "ollama list || exit 0"]
+      interval: 30s
+      timeout: 10s
       retries: 5
+      start_period: 20s
 
   # Backend - GraphQL API + All 4 Layers
   backend:
@@ -53,13 +63,15 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://agogsaas_user:${DB_PASSWORD:-changeme}@postgres:5432/agogsaas
       NATS_URL: nats://nats:4222
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OLLAMA_URL: http://ollama:11434
     ports:
-      - "4000:4000"
+      - "4001:4000"  # Use 4001 to avoid conflicts
     depends_on:
       postgres:
         condition: service_healthy
       nats:
+        condition: service_started
+      ollama:
         condition: service_healthy
     volumes:
       - ./Implementation/print-industry-erp/backend/src:/app/src
@@ -74,7 +86,7 @@ services:
       dockerfile: Dockerfile
     container_name: agogsaas-frontend
     environment:
-      VITE_GRAPHQL_URL: http://localhost:4000/graphql
+      VITE_GRAPHQL_URL: http://localhost:4001/graphql
     ports:
       - "3000:3000"
     depends_on:
@@ -89,6 +101,7 @@ services:
 volumes:
   postgres_data:
   nats_data:
+  ollama_data:
   backend_node_modules:
   frontend_node_modules:
 

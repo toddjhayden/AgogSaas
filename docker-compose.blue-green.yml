@@ -1,0 +1,400 @@
+# Docker Compose: Blue-Green Deployment Simulation
+# This simulates production blue-green architecture for local development
+# Purpose: Build customer confidence by demonstrating the real system
+
+version: '3.8'
+
+# Shared network for all services
+networks:
+  agogsaas-network:
+    driver: bridge
+
+# Shared volumes
+volumes:
+  postgres-blue-data:
+  postgres-green-data:
+  postgres-global-data:
+  redis-blue-data:
+  redis-green-data:
+
+services:
+  # ============================================================================
+  # BLUE ENVIRONMENT (Currently Live)
+  # ============================================================================
+
+  postgres-blue:
+    image: postgres:16
+    container_name: agogsaas-postgres-blue
+    environment:
+      POSTGRES_DB: agogsaas
+      POSTGRES_USER: agogsaas_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      ENVIRONMENT: blue
+    volumes:
+      - postgres-blue-data:/var/lib/postgresql/data
+      - ./Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5433:5432"  # Blue on 5433 (avoid WMS conflict)
+    networks:
+      - agogsaas-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.environment=blue"
+      - "agog.tier=regional-cloud"
+
+  redis-blue:
+    image: redis:7-alpine
+    container_name: agogsaas-redis-blue
+    volumes:
+      - redis-blue-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.environment=blue"
+
+  backend-blue:
+    build:
+      context: ./Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile
+    container_name: agogsaas-backend-blue
+    depends_on:
+      postgres-blue:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      ollama:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      ENVIRONMENT: blue
+      DATABASE_URL: postgresql://agogsaas_user:${DB_PASSWORD}@postgres-blue:5432/agogsaas
+      NATS_URL: nats://nats:4222
+      OLLAMA_URL: http://ollama:11434
+      JWT_SECRET: ${JWT_SECRET}
+      GRAPHQL_PLAYGROUND: "true"
+    volumes:
+      - ./Implementation/print-industry-erp/backend/src:/app/src
+      - ./Implementation/print-industry-erp/backend/migrations:/app/migrations
+    ports:
+      - "4001:4000"  # Blue backend on 4001
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.environment=blue"
+      - "agog.tier=regional-cloud"
+    restart: unless-stopped
+
+  frontend-blue:
+    build:
+      context: ./Implementation/print-industry-erp/frontend
+      dockerfile: Dockerfile
+    container_name: agogsaas-frontend-blue
+    depends_on:
+      - backend-blue
+    environment:
+      VITE_API_URL: http://localhost:4001/graphql
+      VITE_ENVIRONMENT: blue
+    volumes:
+      - ./Implementation/print-industry-erp/frontend/src:/app/src
+    ports:
+      - "3000:3000"  # Blue frontend on 3000
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.environment=blue"
+    restart: unless-stopped
+
+  # ============================================================================
+  # GREEN ENVIRONMENT (Deployment Target)
+  # ============================================================================
+
+  postgres-green:
+    image: postgres:16
+    container_name: agogsaas-postgres-green
+    environment:
+      POSTGRES_DB: agogsaas
+      POSTGRES_USER: agogsaas_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      ENVIRONMENT: green
+    volumes:
+      - postgres-green-data:/var/lib/postgresql/data
+      - ./Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5434:5432"  # Green on 5434
+    networks:
+      - agogsaas-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.environment=green"
+      - "agog.tier=regional-cloud"
+
+  redis-green:
+    image: redis:7-alpine
+    container_name: agogsaas-redis-green
+    volumes:
+      - redis-green-data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.environment=green"
+
+  backend-green:
+    build:
+      context: ./Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile
+    container_name: agogsaas-backend-green
+    depends_on:
+      postgres-green:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      ollama:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      ENVIRONMENT: green
+      DATABASE_URL: postgresql://agogsaas_user:${DB_PASSWORD}@postgres-green:5432/agogsaas
+      NATS_URL: nats://nats:4222
+      OLLAMA_URL: http://ollama:11434
+      JWT_SECRET: ${JWT_SECRET}
+      GRAPHQL_PLAYGROUND: "true"
+    volumes:
+      - ./Implementation/print-industry-erp/backend/src:/app/src
+      - ./Implementation/print-industry-erp/backend/migrations:/app/migrations
+    ports:
+      - "4002:4000"  # Green backend on 4002
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.environment=green"
+      - "agog.tier=regional-cloud"
+    restart: unless-stopped
+
+  frontend-green:
+    build:
+      context: ./Implementation/print-industry-erp/frontend
+      dockerfile: Dockerfile
+    container_name: agogsaas-frontend-green
+    depends_on:
+      - backend-green
+    environment:
+      VITE_API_URL: http://localhost:4002/graphql
+      VITE_ENVIRONMENT: green
+    volumes:
+      - ./Implementation/print-industry-erp/frontend/src:/app/src
+    ports:
+      - "3001:3000"  # Green frontend on 3001
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.environment=green"
+    restart: unless-stopped
+
+  # ============================================================================
+  # SHARED INFRASTRUCTURE (Used by Both Blue and Green)
+  # ============================================================================
+
+  nats:
+    image: nats:latest
+    container_name: agogsaas-nats
+    command: "-js -m 8222"
+    ports:
+      - "4223:4222"  # NATS client port (avoid WMS conflict on 4222)
+      - "8223:8222"  # Monitoring HTTP port
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.tier=shared-infrastructure"
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agogsaas-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - agogsaas-network
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "agog.tier=shared-infrastructure"
+    restart: unless-stopped
+
+  # ============================================================================
+  # GLOBAL ANALYTICS (Tier 3 - Executive Dashboards)
+  # ============================================================================
+
+  postgres-global:
+    image: postgres:16
+    container_name: agogsaas-postgres-global
+    environment:
+      POSTGRES_DB: agog_global_analytics
+      POSTGRES_USER: agogsaas_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      ENVIRONMENT: global
+    volumes:
+      - postgres-global-data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"  # Global analytics on 5435
+    networks:
+      - agogsaas-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agog_global_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=global-analytics"
+    restart: unless-stopped
+
+  # ============================================================================
+  # EDGE SIMULATION (Tier 1 - Simulates On-Premises Facility)
+  # ============================================================================
+
+  postgres-edge-la:
+    image: postgres:16
+    container_name: agogsaas-postgres-edge-la
+    environment:
+      POSTGRES_DB: agog_edge_la
+      POSTGRES_USER: edge_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      FACILITY_ID: facility-la-001
+      TENANT_ID: tenant-foo
+    volumes:
+      - ./Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5436:5432"  # Edge LA on 5436
+    networks:
+      - agogsaas-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edge_user -d agog_edge_la"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=edge"
+      - "agog.facility=la"
+      - "agog.tenant=foo"
+    restart: unless-stopped
+
+  edge-api-la:
+    build:
+      context: ./Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile
+    container_name: agogsaas-edge-api-la
+    depends_on:
+      postgres-edge-la:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      ENVIRONMENT: edge
+      FACILITY_ID: facility-la-001
+      TENANT_ID: tenant-foo
+      DATABASE_URL: postgresql://edge_user:${DB_PASSWORD}@postgres-edge-la:5432/agog_edge_la
+      CLOUD_BLUE_URL: http://backend-blue:4000
+      CLOUD_GREEN_URL: http://backend-green:4000
+      DUAL_WRITE_ENABLED: "false"  # Set to "true" during blue-green deployment
+    volumes:
+      - ./Implementation/print-industry-erp/backend/src:/app/src
+    ports:
+      - "4010:4000"  # Edge LA API on 4010
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.tier=edge"
+      - "agog.facility=la"
+    restart: unless-stopped
+
+  # ============================================================================
+  # LOAD BALANCER (Simulates Traffic Routing)
+  # ============================================================================
+
+  nginx:
+    image: nginx:alpine
+    container_name: agogsaas-loadbalancer
+    depends_on:
+      - backend-blue
+      - backend-green
+      - frontend-blue
+      - frontend-green
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/blue-green.conf:/etc/nginx/conf.d/blue-green.conf:ro
+    ports:
+      - "80:80"    # HTTP
+      - "443:443"  # HTTPS (if SSL configured)
+    networks:
+      - agogsaas-network
+    labels:
+      - "agog.tier=load-balancer"
+    restart: unless-stopped
+    environment:
+      # Control which environment is "live"
+      # Change this to switch traffic: blue | green
+      ACTIVE_ENVIRONMENT: blue
+
+  # ============================================================================
+  # MONITORING & OBSERVABILITY
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agogsaas-prometheus
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - agogsaas-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    labels:
+      - "agog.tier=monitoring"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agogsaas-grafana
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infrastructure/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3002:3000"  # Grafana on 3002 (avoid conflict with frontend)
+    networks:
+      - agogsaas-network
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    labels:
+      - "agog.tier=monitoring"
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
+  prometheus-data:
+  grafana-data:

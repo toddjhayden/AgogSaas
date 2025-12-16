@@ -14,6 +14,9 @@
 - **Changelog Maintenance** - Keep CHANGELOG.md current with each release
 - **Branch Management** - Ensure feature branches are up-to-date with main
 - **Release Tracking** - Monitor what's ready, what's blocked, what's in progress
+- **Blue-Green Deployments** - Orchestrate multi-region rollouts (US-EAST → EU-CENTRAL → APAC)
+- **Disaster Recovery** - Execute rollback procedures when deployments fail
+- **Edge Coordination** - Ensure edge agents dual-write during deployments
 
 ### Scope
 - All merges to `main` branch
@@ -21,6 +24,10 @@
 - Git conflicts and merge strategies
 - Release tagging and versioning
 - Branch hygiene (delete stale branches)
+- Blue-Green deployments (deploy to Green, cutover, monitor, rollback if needed)
+- Multi-region rollouts (sequential: US-EAST → EU-CENTRAL → APAC with 24hr stabilization)
+- Edge agent dual-write coordination (during deployment, edges write to Blue AND Green)
+- Disaster recovery execution (database PITR, regional failover, edge offline scenarios)
 
 ---
 
@@ -335,6 +342,244 @@ When cutting release:
 3. Increment version number (Semantic Versioning)
 4. Create git tag
 5. Push tag to trigger deployment
+
+---
+
+## 🌐 Blue-Green Deployment Workflow (CRITICAL)
+
+**AgogSaaS deploys across 3 regions sequentially** - you MUST orchestrate this carefully.
+
+### Deployment Architecture
+
+**Regions:** US-EAST, EU-CENTRAL, APAC (each with Blue + Green environments)
+**Rollout:** Sequential (US → EU → APAC) with 24hr stabilization between regions
+**Edge Facilities:** 20+ facilities must dual-write during deployment
+
+### Pre-Deployment Checklist
+
+Before ANY deployment, verify:
+
+1. ✅ **Migrations backward-compatible** - Green schema must work with Blue code for 48 hours
+   - Safe: Add nullable columns, add tables, add indexes
+   - UNSAFE: Rename/drop columns, change types (BREAKS ROLLBACK!)
+
+2. ✅ **Smoke tests pass in Green** - Run `tests/smoke/smoke-test.sh` on Green environment
+
+3. ✅ **Edge dual-write enabled** - Edge agents configured to write to Blue AND Green
+   ```bash
+   # Check edge dual-write status
+   curl http://edge-la-001.local:4010/status | jq '.dual_write_enabled'
+   # Expected: true
+   ```
+
+4. ✅ **Replication Green → Blue** - Ensures zero data loss on rollback
+   ```bash
+   # Verify replication lag < 10 seconds
+   ./scripts/dr/check-replication-lag.sh --region us-east
+   ```
+
+5. ✅ **On-call engineer available** - PagerDuty escalation policy updated for next 48 hours
+
+6. ✅ **Customer notifications sent** - Scheduled maintenance window communicated
+
+### Deployment Sequence
+
+#### Step 1: Deploy to US-EAST Green
+
+```bash
+# 1. Open deployment approval form
+# deployment/forms/deployment-approval.html
+# Human must approve before proceeding
+
+# 2. Deploy to Green
+kubectl set image deployment/backend-green backend=agog-backend:v1.3.0 -n us-east-prod
+
+# 3. Wait for rollout
+kubectl rollout status deployment/backend-green -n us-east-prod
+
+# 4. Run smoke tests on Green
+./tests/smoke/smoke-test.sh http://green.us-east.agog.com
+
+# 5. Monitor for 30 minutes (errors, latency, edge connectivity)
+```
+
+#### Step 2: Switch Traffic to Green (US-EAST)
+
+```bash
+# 1. Switch load balancer
+./infrastructure/scripts/switch-to-green.sh --region us-east
+
+# 2. Verify traffic routing
+curl https://api.us-east.agog.com/health | jq '.environment'
+# Expected: "green"
+
+# 3. Monitor metrics (Grafana dashboard)
+open http://grafana.agog.com/d/blue-green-comparison
+```
+
+#### Step 3: 24-Hour Stabilization (US-EAST)
+
+**Monitor for 24 hours before proceeding to EU-CENTRAL:**
+
+- Error rate < 0.1%
+- P95 latency < 100ms
+- All edge facilities connected
+- No customer escalations
+- Replication lag < 5 seconds
+
+**If issues detected:**
+```bash
+# Emergency rollback
+./infrastructure/scripts/switch-to-blue.sh --region us-east
+
+# Fill out rollback form
+# deployment/forms/rollback-decision.html
+```
+
+#### Step 4: Deploy to EU-CENTRAL Green
+
+Repeat Steps 1-3 for EU-CENTRAL, then wait 24 hours.
+
+#### Step 5: Deploy to APAC Green
+
+Repeat Steps 1-3 for APAC, then wait 24 hours.
+
+#### Step 6: Stop Dual-Write (All Regions)
+
+**After all regions stable for 24 hours:**
+
+```bash
+# Stop bidirectional replication
+./scripts/deployment/stop-dual-write.sh --all-regions
+
+# Edge agents switch to single-write mode
+for region in us-east eu-central apac; do
+  ./scripts/edge/disable-dual-write.sh --region $region
+done
+```
+
+### Disaster Recovery Procedures
+
+#### Scenario 1: Green Deployment Failed (High Error Rate)
+
+**Detection:**
+- Grafana alert: Error rate > 5%
+- PagerDuty notification
+
+**Response:**
+```bash
+# 1. Immediate rollback to Blue
+./infrastructure/scripts/switch-to-blue.sh --region us-east
+
+# 2. Verify Blue serving traffic
+curl https://api.us-east.agog.com/health | jq '.environment'
+# Expected: "blue"
+
+# 3. Fill out rollback decision form
+# deployment/forms/rollback-decision.html
+
+# 4. Keep Green running for investigation
+kubectl logs deployment/backend-green -n us-east-prod --tail=500
+```
+
+**RTO:** 2 minutes (automated)
+**RPO:** 0 seconds (Blue has all transactions via replication)
+
+#### Scenario 2: Regional Cloud Failure (US-EAST Down)
+
+**Detection:**
+- Route53 health check fails 3x (30 seconds)
+- All US-EAST services unreachable
+
+**Response (AUTOMATED):**
+1. DNS failover routes traffic to EU-CENTRAL (30 seconds)
+2. Edge facilities (LA, NYC, etc.) reconnect to EU-CENTRAL (15 seconds)
+3. PagerDuty alert to on-call engineer
+
+**Manual Recovery:**
+```bash
+# When US-EAST returns, gradual failback
+./scripts/dr/gradual-failback.sh --region us-east --increments 10,50,100
+```
+
+**RTO:** 15 minutes (automated failover: 1 min, manual failback: 14 min)
+**RPO:** 5 seconds (last transaction before failure)
+
+#### Scenario 3: Database Corruption
+
+**Detection:**
+- PostgreSQL error: "corrupted page detected"
+- Backend errors: "relation 'orders' does not exist"
+
+**Response:**
+```bash
+# 1. Run DR drill script (PITR restore)
+./scripts/dr/drill-database-pitr.sh --region us-east --restore-time "5 minutes ago"
+
+# 2. Switch to recovered database
+kubectl set env deployment/backend-blue \
+  DATABASE_URL="postgresql://...@postgres-blue-recovery.internal:5432/agogsaas"
+
+# 3. Verify serving traffic
+curl https://api.us-east.agog.com/graphql -d '{"query":"{ __typename }"}'
+```
+
+**RTO:** 45 minutes (PITR restore: 30 min, verification: 15 min)
+**RPO:** 5 minutes (PostgreSQL WAL archiving interval)
+
+#### Scenario 4: Edge Facility Offline (Extended)
+
+**Detection:**
+- Edge health check timeout > 60 seconds
+- Facility reports internet outage
+
+**Response (AUTOMATIC):**
+1. Cloud marks facility as "offline" (read-only for remote workers)
+2. Edge buffers changes locally
+3. When internet returns, edge syncs buffered changes to cloud
+
+**Manual Steps:**
+```bash
+# If edge hardware failed, provision replacement
+./scripts/edge/provision-edge.sh \
+  --facility-id facility-la-001 \
+  --restore-from-cloud us-east \
+  --full-sync
+```
+
+**RTO:**
+- Hot spare: 30 minutes
+- Shipped replacement: 24-48 hours
+- Temporary cloud-only: 5 minutes
+
+**RPO:** 5 seconds (last successful sync before outage)
+
+### Monthly DR Drills
+
+**CRITICAL:** Run these drills every month to keep team practiced.
+
+```bash
+# Regional failover drill
+./scripts/dr/drill-regional-failover.sh
+
+# Database PITR drill
+./scripts/dr/drill-database-pitr.sh
+
+# Edge offline drill
+./scripts/dr/test-edge-offline.sh
+```
+
+**Success Criteria:**
+- RTO targets met (15 min regional, 45 min database, 30 min edge)
+- Zero data loss (RPO < 5 minutes)
+- Team executes without errors
+
+### References
+
+- [ADR 003: 3-Tier Database](../../project-spirit/adr/003-3-tier-database-offline-resilience.md)
+- [ADR 004: Disaster Recovery Plan](../../project-spirit/adr/004-disaster-recovery-plan.md)
+- [Blue-Green Deployment Guide](../../README_BLUE_GREEN_DEPLOYMENT.md)
+- [Conflict Resolution Strategy](../../docs/CONFLICT_RESOLUTION_STRATEGY.md)
 
 ---
 

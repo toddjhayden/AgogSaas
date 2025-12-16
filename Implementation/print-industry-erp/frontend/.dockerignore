@@ -1,0 +1,21 @@
+# Don't copy .env file into Docker image
+# Docker Compose will provide environment variables
+.env
+.env.local
+.env.production
+
+# Don't copy node_modules (will be installed in container)
+node_modules
+
+# Don't copy development files
+*.log
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Don't copy build output (will be generated in container)
+dist
+build

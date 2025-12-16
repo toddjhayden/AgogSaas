@@ -24,18 +24,19 @@ interface SearchOptions {
 
 export class MCPMemoryClient {
   private pool: Pool;
-  private embeddingApiKey: string;
+  private ollamaUrl: string;
 
   constructor() {
+    // Use DATABASE_URL connection string (set by docker-compose)
+    const connectionString = process.env.DATABASE_URL || 'postgresql://agogsaas_user:changeme@localhost:5433/agogsaas';
     this.pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'wms',
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     });
 
-    this.embeddingApiKey = process.env.OPENAI_API_KEY || '';
+    this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
   }
 
   /**
@@ -138,33 +139,38 @@ export class MCPMemoryClient {
   }
 
   /**
-   * Generate embedding using OpenAI API
+   * Generate embedding using Ollama (FREE, local)
+   * Uses nomic-embed-text model (768 dimensions)
    */
   private async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.embeddingApiKey) {
-      console.warn('[MCP] No OpenAI API key, returning zero vector');
-      return Array(1536).fill(0);
+    if (!this.ollamaUrl) {
+      console.warn('[MCP] No Ollama URL, returning zero vector');
+      return Array(768).fill(0);
     }
 
     try {
       const response = await axios.post(
-        'https://api.openai.com/v1/embeddings',
+        `${this.ollamaUrl}/api/embeddings`,
         {
-          model: 'text-embedding-3-small',
-          input: text.substring(0, 8000), // Limit to 8K tokens
+          model: 'nomic-embed-text',
+          prompt: text.substring(0, 8000), // Limit to 8K tokens
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.embeddingApiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: 30000, // 30 second timeout
         }
       );
 
-      return response.data.data[0].embedding;
-    } catch (error) {
-      console.error('[MCP] Failed to generate embedding:', error);
-      return Array(1536).fill(0);
+      return response.data.embedding;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        console.error('[MCP] Model not found. Pull it with: docker exec agogsaas-ollama ollama pull nomic-embed-text');
+      } else {
+        console.error('[MCP] Failed to generate embedding:', error.message);
+      }
+      return Array(768).fill(0);
     }
   }
 

@@ -16,15 +16,40 @@ AI-powered Enterprise Resource Planning system for the packaging industry with 4
 
 ## Quick Start
 
-```bash
-# Copy environment file
-cp .env.example .env
-# Edit .env with your configuration
+**Automated Setup (Recommended):**
 
-# Start all services
+```bash
+# Windows
+quick-start.bat
+
+# Linux/Mac
+./quick-start.sh
+```
+
+The script will:
+1. Check your `.env` configuration
+2. Start all services (PostgreSQL, NATS, Backend, Frontend, Monitoring)
+3. Run database migrations
+4. Set up NATS streams
+5. Show you where to access everything
+
+**Manual Setup:**
+
+```bash
+# 1. Configure environment
+cp .env.example .env
+# Edit .env: Add DB_PASSWORD and OPENAI_API_KEY
+
+# 2. Start services
 docker-compose up -d
 
-# Access
+# 3. Run migrations
+docker-compose exec backend npm run migrate
+
+# 4. Setup NATS
+docker-compose exec backend node scripts/setup-nats-streams.js
+
+# Access:
 # - App: http://localhost:3000
 # - Monitoring: http://localhost:3000/monitoring
 # - API: http://localhost:4000/graphql

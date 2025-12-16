@@ -1,0 +1,68 @@
+@echo off
+REM AgogSaaS Quick Start Script
+REM This script performs first-time setup and starts all services
+
+echo.
+echo ================================================
+echo   AgogSaaS - Quick Start
+echo   Packaging Industry ERP with 4-Layer AI
+echo ================================================
+echo.
+
+REM Check if .env exists
+if not exist .env (
+    echo [ERROR] .env file not found!
+    echo Please copy .env.example to .env and configure your credentials.
+    exit /b 1
+)
+
+REM Check if OpenAI API key is set (optional - only for Layer 4)
+findstr /C:"OPENAI_API_KEY=" .env | findstr /V "^#" >nul
+if %errorlevel% neq 0 (
+    echo [INFO] OpenAI API key not set (Layer 4 Memory disabled)
+    echo Layers 1-3 (Validation, Monitoring, Orchestration) will work fine.
+    echo.
+)
+
+echo [1/6] Stopping any running containers...
+docker-compose down
+
+echo.
+echo [2/6] Starting services (PostgreSQL, NATS, Ollama, Backend, Frontend, Monitoring)...
+docker-compose up -d
+
+echo.
+echo [3/6] Waiting for services to be ready...
+timeout /t 10 /nobreak >nul
+
+echo.
+echo [4/6] Database migrations (auto-applied on first start)...
+echo Migrations are automatically applied by PostgreSQL init scripts
+
+echo.
+echo [5/6] Setting up NATS streams...
+docker-compose exec -T backend node scripts/setup-nats-streams.js
+
+echo.
+echo [6/6] Pulling Ollama embedding model (Layer 4 - Memory)...
+echo This may take a few minutes on first run (~274MB download)...
+docker exec agogsaas-ollama ollama pull nomic-embed-text
+
+echo.
+echo ================================================
+echo   Setup Complete!
+echo ================================================
+echo.
+echo Services running at:
+echo   - GraphQL API:         http://localhost:4000/graphql
+echo   - Frontend:            http://localhost:3000
+echo   - Monitoring Dashboard: http://localhost:3000/monitoring
+echo   - PostgreSQL:          localhost:5432
+echo   - NATS:                localhost:4222
+echo.
+echo View logs:   docker-compose logs -f
+echo Stop all:    docker-compose down
+echo.
+echo [TIP] Open monitoring dashboard to see agent activity:
+echo       http://localhost:3000/monitoring
+echo.

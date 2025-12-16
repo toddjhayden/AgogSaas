@@ -98,18 +98,27 @@ docs(standards): Update agent onboarding guide
 agogsaas/
 ├── Implementation/
 │   └── print-industry-erp/
-│       ├── backend/           # GraphQL API + AI layers
-│       ├── frontend/          # React web application
-│       ├── database/          # Database schemas & migrations
-│       ├── data-models/       # YAML schema definitions
-│       └── src/               # Implementation code
-├── .claude/agents/            # AI agent definitions (YOU ARE HERE)
-├── Standards/                 # Development standards (READ THESE)
-├── project-architecture/      # System design
-├── project-spirit/            # Vision and business value
-├── docs/                      # Documentation
-├── CONSTRAINTS.md             # Hard rules (MUST FOLLOW)
-└── docker-compose.yml         # All services containerized
+│       ├── backend/                    # GraphQL API + AI layers
+│       │   ├── src/                    # Backend implementation
+│       │   │   ├── modules/            # Feature modules (monitoring)
+│       │   │   ├── orchestration/      # Layer 3: Orchestration
+│       │   │   └── mcp/                # Layer 4: Memory system
+│       │   ├── database/               # Database schemas
+│       │   ├── data-models/            # YAML schema definitions
+│       │   ├── migrations/             # SQL migrations
+│       │   └── scripts/                # Setup scripts
+│       └── frontend/                   # React web application
+│           └── src/                    # Frontend implementation
+│               ├── pages/              # Pages (MonitoringDashboard)
+│               └── components/         # Reusable components
+├── .claude/agents/                     # AI agent definitions (YOU ARE HERE)
+├── Standards/                          # Development standards (READ THESE)
+├── project-architecture/               # System design
+├── project-spirit/                     # Vision and business value
+├── docs/                               # Documentation
+├── .git-hooks/                         # Layer 1: Pre-commit hooks
+├── CONSTRAINTS.md                      # Hard rules (MUST FOLLOW)
+└── docker-compose.yml                  # All services containerized
 ```
 
 ---
@@ -222,14 +231,15 @@ nats pub agog.deliverables.cynthia.research.customer-search "$(cat CYNTHIA_RESEA
 - `Standards/data/database-standards.md` - PostgreSQL patterns
 - `Standards/data/modeling-standards.md` - Schema design
 - `Standards/api/graphql-standards.md` - API patterns
-- `Implementation/print-industry-erp/database/` - Existing schemas
+- `Implementation/print-industry-erp/backend/database/` - Existing schemas
+- `Implementation/print-industry-erp/backend/data-models/` - YAML schemas
 
 **Generate:**
-1. YAML schema first (`data-models/schemas/`)
-2. TypeScript interfaces (`backend/src/types/`)
-3. GraphQL schema (`backend/src/modules/*/schema/*.graphql`)
-4. Resolvers (`backend/src/modules/*/resolvers/`)
-5. Migrations (`backend/migrations/V*.sql`)
+1. YAML schema first (`Implementation/print-industry-erp/backend/data-models/`)
+2. TypeScript interfaces (`Implementation/print-industry-erp/backend/src/types/`)
+3. GraphQL schema (`Implementation/print-industry-erp/backend/src/modules/*/schema/*.graphql`)
+4. Resolvers (`Implementation/print-industry-erp/backend/src/modules/*/resolvers/`)
+5. Migrations (`Implementation/print-industry-erp/backend/migrations/V*.sql`)
 
 **Always:**
 - Use `uuid_generate_v7()` not `gen_random_uuid()`
@@ -244,10 +254,10 @@ nats pub agog.deliverables.cynthia.research.customer-search "$(cat CYNTHIA_RESEA
 - `Implementation/print-industry-erp/frontend/src/` - Existing components
 
 **Generate:**
-1. TypeScript types from GraphQL schema (`frontend/src/types/`)
-2. React components (`frontend/src/components/`)
-3. Pages (`frontend/src/pages/`)
-4. GraphQL queries (`frontend/src/graphql/`)
+1. TypeScript types from GraphQL schema (`Implementation/print-industry-erp/frontend/src/types/`)
+2. React components (`Implementation/print-industry-erp/frontend/src/components/`)
+3. Pages (`Implementation/print-industry-erp/frontend/src/pages/`)
+4. GraphQL queries (`Implementation/print-industry-erp/frontend/src/graphql/`)
 
 **Always:**
 - TypeScript strict mode
@@ -289,8 +299,8 @@ nats pub agog.deliverables.cynthia.research.customer-search "$(cat CYNTHIA_RESEA
 **Research:**
 - Existing patterns in codebase
 - Similar implementations
-- Schema definitions in `data-models/`
-- API contracts in `modules/*/schema/`
+- Schema definitions in `Implementation/print-industry-erp/backend/data-models/`
+- API contracts in `Implementation/print-industry-erp/backend/src/modules/*/schema/`
 
 **Document:**
 - Requirements analysis

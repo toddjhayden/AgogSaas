@@ -45,7 +45,9 @@ Everything we create must work for:
 **Checks**: Security, linting, type checking, unit tests
 
 ### Layer 2: MONITORING (Real-Time Dashboard)
-**Location**: `http://localhost:3000/monitoring`
+**Location Backend**: `Implementation/print-industry-erp/backend/src/modules/monitoring/`
+**Location Frontend**: `Implementation/print-industry-erp/frontend/src/pages/MonitoringDashboard.tsx`
+**Dashboard URL**: `http://localhost:3000/monitoring`
 **Purpose**: Visibility into health, errors, agent activity
 **Components**: Health checks, error tracking, agent logs
 
@@ -60,9 +62,10 @@ Everything we create must work for:
 - Orchestrator only keeps completion notices in context
 
 ### Layer 4: MEMORY (Semantic Search)
-**Location**: `backend/src/mcp/`, PostgreSQL pgvector
+**Location**: `Implementation/print-industry-erp/backend/src/mcp/mcp-client.service.ts`
+**Database**: PostgreSQL with pgvector extension
 **Purpose**: Agents learn from past work
-**Technology**: OpenAI embeddings + pgvector similarity search
+**Technology**: Ollama (nomic-embed-text) embeddings + pgvector similarity search
 
 **Before starting work:**
 ```typescript
@@ -82,6 +85,125 @@ await mcpClient.storeMemory({
   metadata: { agog_standards: ["uuid_generate_v7", "tenant_id"] }
 });
 ```
+
+---
+
+## 🌐 3-Tier Edge-to-Cloud Architecture (CRITICAL)
+
+**AgogSaaS operates across 3 database tiers globally** - agents MUST understand this:
+
+### Tier 1: Edge Databases (Manufacturing Facilities)
+**Location**: PostgreSQL at EACH facility (LA, Frankfurt, Shanghai, etc.)
+**Purpose**: Offline-capable manufacturing operations
+**Key Properties**:
+- Workers create orders/update inventory even when internet DOWN
+- Changes buffered locally, sync to cloud every 5 seconds (when online)
+- **Edge Priority**: When edge reconnects, edge data overwrites cloud (physical reality wins)
+
+**Example Facilities:**
+- Foo Inc LA: Edge database → syncs to US-EAST cloud
+- Foo Inc Frankfurt: Edge database → syncs to EU-CENTRAL cloud
+- Foo Inc Shanghai: Edge database → syncs to APAC cloud
+
+### Tier 2: Regional Cloud (US-EAST, EU-CENTRAL, APAC)
+**Location**: AWS/GCP Kubernetes clusters (3 regions)
+**Purpose**: Aggregate facilities, serve remote workers
+**Key Properties**:
+- **Blue + Green environments** in EACH region (6 total databases globally)
+- Receives edge syncs (5-second lag normal)
+- Serves remote workers (Philippines → US-EAST, Poland → EU-CENTRAL)
+- **Data sovereignty**: EU data stays EU-CENTRAL (GDPR), China stays APAC (sovereignty laws)
+
+### Tier 3: Global Analytics
+**Location**: Global aggregation database
+**Purpose**: Executive dashboards (CEO in Dubai queries LA + Frankfurt + Shanghai)
+**Key Properties**:
+- **GraphQL Federation** queries all regions real-time
+- Pre-aggregated KPIs (hourly/daily rollups)
+- Read-only (no write operations)
+
+### Agent Coding Requirements
+
+#### 1. Backward-Compatible Migrations (Blue-Green Deployment)
+**Context**: Green database runs NEW code + NEW schema, Blue runs OLD code + OLD schema for 24-48 hours.
+
+**Safe Migrations:**
+```sql
+-- ✅ SAFE: Add nullable column (old code ignores, new code uses)
+ALTER TABLE orders ADD COLUMN priority VARCHAR(20) NULL;
+
+-- ✅ SAFE: Add new table (old code doesn't use)
+CREATE TABLE order_priorities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    name VARCHAR(20) NOT NULL
+);
+
+-- ✅ SAFE: Add index (old code benefits too)
+CREATE INDEX idx_orders_priority ON orders(priority);
+```
+
+**UNSAFE Migrations (BREAKS ROLLBACK):**
+```sql
+-- ❌ UNSAFE: Rename column (old code breaks)
+ALTER TABLE orders RENAME COLUMN status TO order_status;
+
+-- ❌ UNSAFE: Drop column (old code breaks)
+ALTER TABLE orders DROP COLUMN customer_id;
+
+-- ❌ UNSAFE: Change type (old code may break)
+ALTER TABLE orders ALTER COLUMN quantity TYPE DECIMAL(10,2);
+```
+
+#### 2. Edge Dual-Write (During Deployment)
+**Context**: During blue-green deployment, edge agents write to BOTH Blue and Green simultaneously.
+
+**Your resolver pattern:**
+```typescript
+async createOrder(args, context) {
+  const { tenant_id } = context.user;
+
+  // Check if dual-write mode enabled
+  const dualWriteEnabled = process.env.DUAL_WRITE_ENABLED === 'true';
+
+  if (dualWriteEnabled) {
+    // Write to Blue
+    await bluePool.query('INSERT INTO orders ...', [tenant_id, ...]);
+
+    // Write to Green
+    await greenPool.query('INSERT INTO orders ...', [tenant_id, ...]);
+  } else {
+    // Normal single-write mode
+    await pool.query('INSERT INTO orders ...', [tenant_id, ...]);
+  }
+}
+```
+
+#### 3. Conflict Resolution (Edge Priority)
+**Rule**: If edge offline, cloud users CANNOT edit edge-owned records.
+
+**Your query pattern:**
+```typescript
+async updateOrder(args, context) {
+  const { tenant_id, user_location } = context.user;
+
+  // Check if edge facility is online
+  const edgeStatus = await getEdgeFacilityStatus(args.facilityId);
+
+  if (!edgeStatus.online && user_location === 'cloud') {
+    throw new Error('Cannot edit order - facility offline. Edge has priority when reconnects.');
+  }
+
+  // Proceed with update
+  return await pool.query('UPDATE orders ... WHERE tenant_id = $1', [tenant_id, ...]);
+}
+```
+
+### Architecture References
+
+- **[ADR 003: 3-Tier Database](../project-spirit/adr/003-3-tier-database-offline-resilience.md)** - Edge offline resilience
+- **[ADR 004: Disaster Recovery](../project-spirit/adr/004-disaster-recovery-plan.md)** - Tested DR procedures
+- **[Conflict Resolution Strategy](../docs/CONFLICT_RESOLUTION_STRATEGY.md)** - Edge-priority patterns
+- **[Blue-Green Deployment Guide](../README_BLUE_GREEN_DEPLOYMENT.md)** - Deployment procedures
 
 ---
 
@@ -254,8 +376,9 @@ Before suggesting or creating:
 1. **Search** `.claude/agents/AGOG_AGENT_ONBOARDING.md` for standards
 2. **Check** `CONSTRAINTS.md` for hard rules
 3. **Review** `Standards/` for patterns
-4. **Search** `Implementation/` for existing code
-5. **Query** Layer 4 memories for past learnings
+4. **Search** `Implementation/print-industry-erp/backend/` for existing backend code
+5. **Search** `Implementation/print-industry-erp/frontend/` for existing frontend code
+6. **Query** Layer 4 memories for past learnings
 
 ### 3. AGOG-Specific Patterns
 
@@ -309,10 +432,28 @@ agogsaas/
 │   ├── README.md                       # 4-layer workflow guide
 │   └── print-industry-erp/
 │       ├── backend/                    # GraphQL API + 4 layers
-│       ├── frontend/                   # React + monitoring dashboard
-│       ├── database/                   # Schemas & migrations
-│       ├── data-models/                # YAML schemas
-│       └── src/                        # Implementation code
+│       │   ├── src/                    # Backend implementation code
+│       │   │   ├── index.ts            # Main entry point
+│       │   │   ├── modules/            # Feature modules (monitoring, etc.)
+│       │   │   ├── orchestration/      # Layer 3: Agent orchestration
+│       │   │   └── mcp/                # Layer 4: Memory system
+│       │   ├── database/               # Database schemas
+│       │   ├── data-models/            # YAML schema definitions
+│       │   ├── migrations/             # SQL migrations
+│       │   ├── scripts/                # Setup scripts (NATS, etc.)
+│       │   ├── Dockerfile
+│       │   ├── package.json
+│       │   └── tsconfig.json
+│       └── frontend/                   # React web application
+│           ├── src/                    # Frontend implementation code
+│           │   ├── App.tsx             # Main app component
+│           │   ├── main.tsx            # Entry point
+│           │   ├── pages/              # Page components (MonitoringDashboard, etc.)
+│           │   ├── components/         # Reusable components
+│           │   └── graphql/            # GraphQL queries
+│           ├── Dockerfile
+│           ├── package.json
+│           └── index.html
 ├── Standards/                          # Development standards
 │   ├── code/                           # Coding standards
 │   ├── data/                           # Database standards
@@ -321,6 +462,10 @@ agogsaas/
 ├── project-architecture/               # System design
 ├── project-spirit/                     # Vision & decisions
 ├── docs/                               # Documentation
+│   ├── PHASE4_COMPLETE.md              # Phase 4 completion report
+│   └── PHASE4_MEMORY_SYSTEM.md         # Phase 4 documentation
+├── .git-hooks/                         # Layer 1: Pre-commit validation
+│   └── pre-commit                      # Git hooks for validation
 ├── CONSTRAINTS.md                      # Hard rules (MUST follow)
 ├── TODO.md                             # Current tasks
 ├── README.md                           # Project overview

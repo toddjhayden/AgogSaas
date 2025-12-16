@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deployment Approval - AgogSaaS</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #2d3748;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #718096;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section h2 {
+      color: #4a5568;
+      font-size: 18px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .info-item {
+      background: #f7fafc;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+
+    .info-label {
+      color: #718096;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+
+    .info-value {
+      color: #2d3748;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .checklist {
+      list-style: none;
+    }
+
+    .checklist li {
+      padding: 12px;
+      margin-bottom: 8px;
+      background: #f7fafc;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+    }
+
+    .checklist input[type="checkbox"] {
+      margin-right: 12px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .checklist label {
+      cursor: pointer;
+      user-select: none;
+      flex: 1;
+    }
+
+    .alert {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .alert-warning {
+      background: #fef5e7;
+      border-left: 4px solid #f39c12;
+      color: #7d6608;
+    }
+
+    .alert-info {
+      background: #ebf8ff;
+      border-left: 4px solid #3182ce;
+      color: #2c5282;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+      margin-top: 30px;
+    }
+
+    button {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-reject {
+      background: #e53e3e;
+      color: white;
+    }
+
+    .btn-reject:hover {
+      background: #c53030;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(229, 62, 62, 0.4);
+    }
+
+    .btn-approve {
+      background: #48bb78;
+      color: white;
+    }
+
+    .btn-approve:hover:not(:disabled) {
+      background: #38a169;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+    }
+
+    .btn-approve:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+    }
+
+    .changes-list {
+      max-height: 200px;
+      overflow-y: auto;
+      background: #f7fafc;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+
+    .change-item {
+      padding: 8px;
+      border-bottom: 1px solid #e2e8f0;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+    }
+
+    .change-item:last-child {
+      border-bottom: none;
+    }
+
+    @media (max-width: 600px) {
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Deployment Approval Required</h1>
+    <p class="subtitle">Multi-Region Blue-Green Deployment</p>
+
+    <div class="section">
+      <h2>Deployment Information</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Version</div>
+          <div class="info-value">v1.3.0</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Deployment ID</div>
+          <div class="info-value">deploy-2025-12-10-001</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Target Regions</div>
+          <div class="info-value">US-EAST → EU-CENTRAL → APAC</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Rollout Strategy</div>
+          <div class="info-value">Sequential (24hr stabilization)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Changes Summary</h2>
+      <div class="alert alert-info">
+        <strong>15 commits</strong> since last deployment (v1.2.3)
+      </div>
+      <div class="changes-list">
+        <div class="change-item">✨ feat: Add edge offline conflict resolution (3-tier architecture)</div>
+        <div class="change-item">🔧 fix: Improve replication lag monitoring</div>
+        <div class="change-item">📚 docs: Update disaster recovery procedures</div>
+        <div class="change-item">✅ test: Add DR drill automation scripts</div>
+        <div class="change-item">🔒 security: Patch CVE-2025-1234 in dependencies</div>
+        <div class="change-item">⚡ perf: Optimize edge database sync (5s → 2s avg)</div>
+        <div class="change-item">🐛 fix: Edge dual-write during blue-green deployment</div>
+        <div class="change-item">✨ feat: Add global analytics federation layer</div>
+        <div class="change-item">... 7 more commits</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Pre-Deployment Checklist</h2>
+      <div class="alert alert-warning">
+        <strong>⚠️ Important:</strong> All items must be checked before approval
+      </div>
+      <ul class="checklist">
+        <li>
+          <input type="checkbox" id="check1" onchange="updateApprovalButton()">
+          <label for="check1">Smoke tests passed in Green environment (all regions)</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check2" onchange="updateApprovalButton()">
+          <label for="check2">Database migrations are backward-compatible</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check3" onchange="updateApprovalButton()">
+          <label for="check3">Edge agents configured for dual-write (Blue + Green)</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check4" onchange="updateApprovalButton()">
+          <label for="check4">Rollback procedure documented and understood</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check5" onchange="updateApprovalButton()">
+          <label for="check5">On-call engineer available for next 48 hours</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check6" onchange="updateApprovalButton()">
+          <label for="check6">Customer notifications sent (scheduled maintenance window)</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check7" onchange="updateApprovalButton()">
+          <label for="check7">Monitoring dashboards open and ready</label>
+        </li>
+        <li>
+          <input type="checkbox" id="check8" onchange="updateApprovalButton()">
+          <label for="check8">PagerDuty escalation policies updated</label>
+        </li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Deployment Timeline</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">US-EAST Deployment</div>
+          <div class="info-value">Now (T+0)</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">US-EAST Stabilization</div>
+          <div class="info-value">24 hours</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">EU-CENTRAL Deployment</div>
+          <div class="info-value">T+24 hours</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">APAC Deployment</div>
+          <div class="info-value">T+48 hours</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn-reject" onclick="handleReject()">❌ Reject Deployment</button>
+      <button class="btn-approve" id="approveBtn" disabled onclick="handleApprove()">✅ Approve & Deploy</button>
+    </div>
+  </div>
+
+  <script>
+    function updateApprovalButton() {
+      const checkboxes = document.querySelectorAll('.checklist input[type="checkbox"]');
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      document.getElementById('approveBtn').disabled = !allChecked;
+    }
+
+    function handleApprove() {
+      if (confirm('Are you sure you want to APPROVE this deployment?\n\nThis will begin sequential rollout to US-EAST → EU-CENTRAL → APAC')) {
+        alert('✅ DEPLOYMENT APPROVED\n\nStarting US-EAST deployment...\nMonitor at: http://localhost:3002 (Grafana)');
+
+        // In production, this would trigger deployment automation
+        console.log('Deployment approved by:', navigator.userAgent);
+        console.log('Timestamp:', new Date().toISOString());
+
+        // Simulate deployment start
+        setTimeout(() => {
+          window.location.href = 'regional-rollout.html';
+        }, 2000);
+      }
+    }
+
+    function handleReject() {
+      const reason = prompt('Please provide reason for rejection:');
+      if (reason) {
+        alert('❌ DEPLOYMENT REJECTED\n\nReason: ' + reason + '\n\nNotifying release team...');
+        console.log('Deployment rejected. Reason:', reason);
+      }
+    }
+  </script>
+</body>
+</html>

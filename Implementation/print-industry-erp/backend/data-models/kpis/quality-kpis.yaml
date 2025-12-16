@@ -1,0 +1,369 @@
+version: '0.1'
+metadata:
+  domain: quality
+  category: Quality Control & Customer Satisfaction
+  total_kpis: 10
+
+kpis:
+  - id: first_pass_yield
+    name: First Pass Yield (FPY)
+    description: Percentage of units produced correctly without rework
+    formula: "(Good Units First Time / Total Units Started) × 100"
+    unit: percentage
+    target: ">= 95%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - quality-defect.yaml
+    required_entities:
+      - ProductionRun
+      - QualityDefect
+    required_fields:
+      - quantity_produced
+      - quantity_good
+      - quantity_rework
+    calculation_notes: |
+      Gold standard quality metric
+      Excludes reworked units even if eventually acceptable
+
+  - id: first_pass_print_approval_rate
+    name: First-Pass Print Approval Rate
+    description: Percentage of print jobs approved by customer on first proof/sample
+    formula: "(Jobs Approved First Proof / Total Jobs Submitted for Approval) × 100"
+    unit: percentage
+    target: ">= 90%"
+    priority: critical
+    validation_status: can_calculate
+    required_schemas:
+      - job.yaml
+      - quality-inspection.yaml
+    required_entities:
+      - Job
+      - QualityInspection
+    required_fields:
+      - inspection_type
+      - overall_result
+      - disposition
+      - job_id
+    calculation_notes: |
+      Critical for commercial print, labels, and flexible packaging where brand appearance is paramount.
+
+      Distinct from manufacturing First Pass Yield:
+      - FPY = units produced correctly (internal quality)
+      - First-Pass Print Approval = customer accepts appearance (external quality)
+
+      Track approvals for:
+      - First article inspection (FAI) - initial setup sample
+      - Color match approval - customer sign-off on color
+      - Final proof approval - complete job appearance
+
+      Calculate as: COUNT(inspections WHERE inspection_type = 'first_article'
+                     AND overall_result = 'pass' AND no prior rejections)
+                     / COUNT(all first_article inspections)
+
+      Rejection reasons to track:
+      - Color mismatch (Delta E out of tolerance)
+      - Registration issues (misalignment)
+      - Print defects (spots, streaks, voids)
+      - Substrate issues (wrinkles, dirt)
+      - Finishing problems (die-cut accuracy, fold quality)
+
+      Impact of low approval rate:
+      - Delays (reproof cycle adds 1-3 days)
+      - Material waste (rejected proofs)
+      - Labor cost (setup rework)
+      - Customer satisfaction issues
+      - Risk of losing repeat business
+
+      Improvement strategies:
+      - Digital color proofing (reduce surprise on press)
+      - G7 color calibration (predictable color reproduction)
+      - Standard operating procedures for setup
+      - Better customer communication during pre-press
+
+  - id: registration_accuracy
+    name: Registration Accuracy
+    description: Deviation from perfect alignment between colors/printing units (measured in microns)
+    formula: "AVG(ABS(measured_deviation_from_target))"
+    unit: microns
+    target: "<= 100 microns"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - quality-inspection.yaml
+      - production-run.yaml
+    required_entities:
+      - QualityInspection
+      - QualityTestResult
+      - ProductionRun
+    required_fields:
+      - characteristic
+      - measured_value
+      - target_value
+      - unit_of_measure
+    calculation_notes: |
+      Registration accuracy is critical for multi-color printing (offset, flexo, gravure).
+
+      What is registration:
+      - Alignment of multiple printing units/colors
+      - Measured as deviation from perfect overlay
+      - Typically measured in microns (μm) or thousandths of an inch
+
+      Measurement points:
+      - Front-to-back registration (sheet flip accuracy)
+      - Color-to-color registration (cyan, magenta, yellow, black alignment)
+      - Die-to-print registration (cutting accuracy to printed image)
+
+      Calculate from quality_test_results WHERE characteristic LIKE '%registration%'
+      Average absolute deviation across all measurement points per job/shift.
+
+      Tolerances by application:
+      - Fine line work, small text: ±50 microns (0.002 inches)
+      - Standard 4-color process: ±100 microns (0.004 inches)
+      - Coarse work, single color: ±200 microns (0.008 inches)
+
+      Causes of poor registration:
+      - Paper/substrate dimensional instability (moisture, tension)
+      - Mechanical wear (gripper bars, impression cylinders)
+      - Speed variations (web tension fluctuations)
+      - Temperature/humidity changes
+
+      Track by:
+      - Equipment (identify problem machines)
+      - Substrate type (some materials more stable)
+      - Environmental conditions (temp/humidity)
+      - Operator (training indicator)
+
+      Industry benchmarks:
+      - High-end commercial print: 25-50 microns
+      - Standard offset/flexo: 75-125 microns
+      - Corrugated post-print: 150-250 microns (less critical)
+
+  - id: defect_rate
+    name: Defect Rate
+    description: Defects per thousand units produced
+    formula: "(Total Defects / Total Units) × 1000"
+    unit: defects_per_thousand
+    target: "<= 10 DPM"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - quality-defect.yaml
+      - production-run.yaml
+    required_entities:
+      - QualityDefect
+      - ProductionRun
+    required_fields:
+      - quantity_affected
+      - quantity_produced
+      - defect_type
+      - severity
+    calculation_notes: |
+      Track by defect type and severity
+      Six Sigma target: 3.4 DPM
+
+  - id: scrap_rate
+    name: Scrap Rate
+    description: Percentage of production scrapped
+    formula: "(Quantity Scrapped / Total Produced) × 100"
+    unit: percentage
+    target: "<= 3%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - quality-defect.yaml
+    required_entities:
+      - ProductionRun
+      - QualityDefect
+    required_fields:
+      - quantity_scrapped
+      - quantity_produced
+      - resolution_action
+    calculation_notes: |
+      Direct cost impact - material + labor wasted
+      Track by root cause
+
+  - id: rework_rate
+    name: Rework Rate
+    description: Percentage of production requiring rework
+    formula: "(Quantity Reworked / Total Produced) × 100"
+    unit: percentage
+    target: "<= 5%"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - production-run.yaml
+      - quality-defect.yaml
+    required_entities:
+      - ProductionRun
+      - QualityDefect
+    required_fields:
+      - quantity_rework
+      - quantity_produced
+      - rework_time_minutes
+      - rework_cost
+    calculation_notes: |
+      Rework adds cost: additional labor + delays
+      Track rework time to calculate true cost
+
+  - id: customer_rejection_rate
+    name: Customer Rejection Rate
+    description: Percentage of deliveries rejected by customers
+    formula: "(Rejected Deliveries / Total Deliveries) × 100"
+    unit: percentage
+    target: "<= 1%"
+    priority: critical
+    validation_status: cannot_calculate
+    required_schemas:
+      - customer-rejection.yaml
+    required_entities:
+      - CustomerRejection
+    required_fields:
+      - job_id
+      - rejection_type
+      - severity
+      - quantity_rejected
+      - quantity_total
+    calculation_notes: |
+      Most serious quality metric - external customer impact
+      Track by reason and severity
+
+  - id: customer_satisfaction_score
+    name: Customer Satisfaction Score (CSAT)
+    description: Average customer satisfaction rating
+    formula: "SUM(satisfaction_ratings) / COUNT(surveys)"
+    unit: score_1_to_5
+    target: ">= 4.5 / 5.0"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - customer-rejection.yaml
+    required_entities:
+      - CustomerRejection
+    required_fields:
+      - customer_satisfied
+      - resolution_type
+    calculation_notes: |
+      Survey after issue resolution
+      Track trends over time
+
+  - id: net_promoter_score
+    name: Net Promoter Score (NPS)
+    description: Likelihood customers will recommend company
+    formula: "% Promoters (9-10) - % Detractors (0-6)"
+    unit: score
+    target: ">= 50"
+    priority: high
+    validation_status: cannot_calculate
+    required_schemas:
+      - customer-rejection.yaml
+    required_entities:
+      - CustomerRejection
+    required_fields:
+      - nps_score
+      - customer_satisfied
+    calculation_notes: |
+      Scale: 0-10
+      Promoters: 9-10
+      Passives: 7-8 (not counted)
+      Detractors: 0-6
+      NPS = % Promoters - % Detractors
+
+  - id: cost_of_quality
+    name: Cost of Quality (COQ)
+    description: Total cost of quality failures (scrap, rework, returns, prevention, appraisal)
+    formula: "Prevention Costs + Appraisal Costs + Internal Failure Costs + External Failure Costs"
+    unit: currency
+    target: "< 2% of revenue"
+    priority: high
+    validation_status: can_calculate
+    required_schemas:
+      - quality-defect.yaml
+      - production-run.yaml
+      - job-cost.yaml
+      - customer-rejection.yaml
+      - maintenance-record.yaml
+    required_entities:
+      - QualityDefect
+      - ProductionRun
+      - JobCost
+      - CustomerRejection
+      - MaintenanceRecord
+    required_fields:
+      - quantity_affected
+      - defect_type
+      - severity
+      - material_cost
+      - labor_cost
+      - total_cost
+      - maintenance_cost
+      - rework_cost
+      - resolution_cost
+      - credit_amount
+    calculation_notes: |
+      Four COQ categories (Crosby/Juran model):
+
+      1. Prevention Costs: Training, process improvement, quality planning
+         - Quality training programs
+         - Process documentation and standards development
+         - Preventive maintenance (from maintenance-record where type='preventive')
+
+      2. Appraisal Costs: Inspection, testing, audits
+         - In-process inspection labor
+         - Final inspection and testing
+         - Quality audits and calibration
+
+      3. Internal Failure Costs: Defects caught before delivery
+         - Scrap material cost (from quality-defect + material cost)
+         - Rework labor cost (from production-run rework time)
+         - Downtime due to quality issues
+
+      4. External Failure Costs: Defects caught by customer
+         - Customer returns (from customer-rejection)
+         - Warranty claims and replacements
+         - Complaint handling and customer service costs
+
+      Calculate as percentage of revenue for benchmarking
+      Typical target: Prevention 5-10%, Appraisal 20-25%, Failures 65-70%
+      Goal: Shift spending from failures to prevention over time
+
+  - id: customer_ppm
+    name: Customer PPM (Parts Per Million Defective)
+    description: Defects reported by customers per million units shipped
+    formula: "(Customer Rejected Units / Total Units Shipped) × 1,000,000"
+    unit: parts_per_million
+    target: "<= 100 PPM"
+    priority: critical
+    validation_status: can_calculate
+    required_schemas:
+      - customer-rejection.yaml
+      - job.yaml
+    required_entities:
+      - CustomerRejection
+      - Job
+    required_fields:
+      - quantity_rejected
+      - quantity_total
+      - rejection_type
+      - severity
+    calculation_notes: |
+      Customer-facing quality metric - measures escaped defects
+      More stringent than internal defect rate
+      Industry benchmarks: World-class < 10 PPM, Good < 100 PPM, Acceptable < 500 PPM
+      Track by customer, product type, and defect category
+      High PPM indicates inspection process gaps
+      Essential for automotive, medical, and aerospace customers who require PPM reporting
+
+related_schemas:
+  - quality-defect.yaml
+  - customer-rejection.yaml
+  - production-run.yaml
+
+notes: |
+  Quality KPIs prevent costly external failures (customer rejections).
+  FPY is leading indicator - predicts customer satisfaction.
+  Internal quality costs (scrap, rework) are visible and measurable.
+  External costs (lost customers, reputation) are much higher but harder to quantify.
+  Invest in prevention and appraisal to reduce failure costs.
