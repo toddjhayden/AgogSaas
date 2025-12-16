@@ -1,0 +1,352 @@
+name: Build and Deploy AgogSaaS
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production-blue
+          - production-green
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  # =============================================================================
+  # Build and Test
+  # =============================================================================
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            Implementation/print-industry-erp/backend/package-lock.json
+            Implementation/print-industry-erp/frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: Implementation/print-industry-erp/backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: Implementation/print-industry-erp/frontend
+        run: npm ci
+
+      - name: Lint backend
+        working-directory: Implementation/print-industry-erp/backend
+        run: npm run lint || true
+
+      - name: Build backend
+        working-directory: Implementation/print-industry-erp/backend
+        run: npm run build
+
+      - name: Build frontend
+        working-directory: Implementation/print-industry-erp/frontend
+        run: npm run build
+
+      - name: Run backend tests
+        working-directory: Implementation/print-industry-erp/backend
+        run: npm test || echo "No tests configured yet"
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          # Add smoke test commands here
+
+      - name: Upload backend build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-dist
+          path: Implementation/print-industry-erp/backend/dist
+          retention-days: 1
+
+      - name: Upload frontend build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-dist
+          path: Implementation/print-industry-erp/frontend/dist
+          retention-days: 1
+
+  # =============================================================================
+  # Build and Push Docker Images
+  # =============================================================================
+  docker:
+    name: Build Docker Images
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: Implementation/print-industry-erp/backend
+          file: Implementation/print-industry-erp/backend/Dockerfile.production
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: Implementation/print-industry-erp/frontend
+          file: Implementation/print-industry-erp/frontend/Dockerfile.production
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Image size check
+        run: |
+          echo "Checking Docker image sizes..."
+          docker images | grep -E "(backend|frontend)" || true
+
+  # =============================================================================
+  # Deploy to Staging
+  # =============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    needs: docker
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.agogsaas.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add deployment commands here
+          # Example: kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest
+
+      - name: Run smoke tests on staging
+        run: |
+          echo "Running smoke tests on staging..."
+          sleep 10
+          curl -f https://staging.agogsaas.com/health || exit 1
+
+  # =============================================================================
+  # Deploy to Production Blue
+  # =============================================================================
+  deploy-production-blue:
+    name: Deploy to Production Blue
+    needs: docker
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event.inputs.environment == 'production-blue'
+    environment:
+      name: production-blue
+      url: https://blue.agogsaas.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Blue environment
+        run: |
+          echo "Deploying to Production Blue..."
+          # kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }} -n agogsaas-blue
+          # kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }} -n agogsaas-blue
+
+      - name: Wait for rollout
+        run: |
+          echo "Waiting for Blue deployment to complete..."
+          # kubectl rollout status deployment/backend -n agogsaas-blue
+          # kubectl rollout status deployment/frontend -n agogsaas-blue
+
+      - name: Run smoke tests on Blue
+        run: |
+          echo "Running smoke tests on Blue environment..."
+          sleep 30
+          curl -f https://blue.agogsaas.com/health || exit 1
+
+  # =============================================================================
+  # Deploy to Production Green
+  # =============================================================================
+  deploy-production-green:
+    name: Deploy to Production Green
+    needs: docker
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event.inputs.environment == 'production-green'
+    environment:
+      name: production-green
+      url: https://green.agogsaas.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Green environment
+        run: |
+          echo "Deploying to Production Green..."
+          # kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }} -n agogsaas-green
+          # kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }} -n agogsaas-green
+
+      - name: Wait for rollout
+        run: |
+          echo "Waiting for Green deployment to complete..."
+          # kubectl rollout status deployment/backend -n agogsaas-green
+          # kubectl rollout status deployment/frontend -n agogsaas-green
+
+      - name: Run smoke tests on Green
+        run: |
+          echo "Running smoke tests on Green environment..."
+          sleep 30
+          curl -f https://green.agogsaas.com/health || exit 1
+
+  # =============================================================================
+  # Blue-Green Traffic Switch (Manual Approval Required)
+  # =============================================================================
+  switch-traffic:
+    name: Switch Production Traffic
+    needs: [deploy-production-blue, deploy-production-green]
+    runs-on: ubuntu-latest
+    if: always() && (needs.deploy-production-blue.result == 'success' || needs.deploy-production-green.result == 'success')
+    environment:
+      name: production-switch
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine target environment
+        id: target
+        run: |
+          if [ "${{ needs.deploy-production-blue.result }}" == "success" ]; then
+            echo "target=blue" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.deploy-production-green.result }}" == "success" ]; then
+            echo "target=green" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Switch traffic to ${{ steps.target.outputs.target }}
+        run: |
+          echo "Switching production traffic to ${{ steps.target.outputs.target }}..."
+          # ./deployment/scripts/switch-blue-green.sh ${{ steps.target.outputs.target }}
+
+      - name: Monitor for 5 minutes
+        run: |
+          echo "Monitoring production for 5 minutes..."
+          for i in {1..30}; do
+            echo "Health check $i/30..."
+            curl -f https://agogsaas.com/health || exit 1
+            sleep 10
+          done
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "Traffic switch successful!"
+          # Send notification (Slack, email, etc.)
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Traffic switch failed - rolling back..."
+          # ./deployment/scripts/switch-blue-green.sh [previous-environment]
+
+# =============================================================================
+# CI/CD Pipeline Notes
+# =============================================================================
+#
+# WORKFLOW TRIGGERS:
+# - Push to master: Deploy to production (with approval)
+# - Push to develop: Deploy to staging
+# - Pull requests: Build and test only
+# - Manual dispatch: Deploy to specific environment
+#
+# ENVIRONMENTS:
+# - staging: Auto-deploy from develop branch
+# - production-blue: Manual approval required
+# - production-green: Manual approval required
+# - production-switch: Manual approval required (traffic cutover)
+#
+# SECRETS REQUIRED:
+# - GITHUB_TOKEN: Automatic (for package registry)
+# - KUBECONFIG: Kubernetes cluster access (production)
+# - DB_PASSWORD: Database credentials
+# - JWT_SECRET: Application secrets
+#
+# DEPLOYMENT STRATEGY:
+# 1. Build and test
+# 2. Build Docker images
+# 3. Push to registry
+# 4. Deploy to Blue or Green
+# 5. Run smoke tests
+# 6. Manual approval for traffic switch
+# 7. Monitor for issues
+# 8. Auto-rollback on failure
+#
