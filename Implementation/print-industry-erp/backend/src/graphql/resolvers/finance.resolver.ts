@@ -1,0 +1,1299 @@
+import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
+import { Pool } from 'pg';
+
+/**
+ * Finance GraphQL Resolver
+ *
+ * Handles financial operations:
+ * - Financial Periods (month-end close)
+ * - Chart of Accounts (GL master)
+ * - Exchange Rates (multi-currency)
+ * - Journal Entries (GL postings)
+ * - GL Balances (account balances by period)
+ * - Invoices (AR/AP)
+ * - Payments (AR/AP)
+ * - Cost Allocations (job costing)
+ * - Financial Reports (Trial Balance, P&L, Balance Sheet, AR/AP Aging)
+ */
+
+@Resolver('Finance')
+export class FinanceResolver {
+  constructor(private readonly db: Pool) {}
+
+  // =====================================================
+  // FINANCIAL PERIOD QUERIES
+  // =====================================================
+
+  @Query('financialPeriod')
+  async getFinancialPeriod(@Args('id') id: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM financial_periods WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Financial period ${id} not found`);
+    }
+
+    return this.mapFinancialPeriodRow(result.rows[0]);
+  }
+
+  @Query('financialPeriods')
+  async getFinancialPeriods(
+    @Args('tenantId') tenantId: string,
+    @Args('year') year: number | null,
+    @Args('status') status: string | null,
+    @Context() context: any
+  ) {
+    let whereClause = `tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (year) {
+      whereClause += ` AND period_year = $${paramIndex++}`;
+      params.push(year);
+    }
+
+    if (status) {
+      whereClause += ` AND status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    const result = await this.db.query(
+      `SELECT * FROM financial_periods
+       WHERE ${whereClause}
+       ORDER BY period_year DESC, period_month DESC`,
+      params
+    );
+
+    return result.rows.map(this.mapFinancialPeriodRow);
+  }
+
+  @Query('currentPeriod')
+  async getCurrentPeriod(@Args('tenantId') tenantId: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM financial_periods
+       WHERE tenant_id = $1 AND status = 'OPEN'
+       ORDER BY period_year DESC, period_month DESC
+       LIMIT 1`,
+      [tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error('No open financial period found');
+    }
+
+    return this.mapFinancialPeriodRow(result.rows[0]);
+  }
+
+  // =====================================================
+  // CHART OF ACCOUNTS QUERIES
+  // =====================================================
+
+  @Query('account')
+  async getAccount(@Args('id') id: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM chart_of_accounts WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Account ${id} not found`);
+    }
+
+    return this.mapChartOfAccountsRow(result.rows[0]);
+  }
+
+  @Query('chartOfAccounts')
+  async getChartOfAccounts(
+    @Args('tenantId') tenantId: string,
+    @Args('accountType') accountType: string | null,
+    @Args('activeOnly') activeOnly: boolean = true,
+    @Context() context: any
+  ) {
+    let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (accountType) {
+      whereClause += ` AND account_type = $${paramIndex++}`;
+      params.push(accountType);
+    }
+
+    if (activeOnly) {
+      whereClause += ` AND is_active = TRUE`;
+    }
+
+    const result = await this.db.query(
+      `SELECT * FROM chart_of_accounts
+       WHERE ${whereClause}
+       ORDER BY account_number`,
+      params
+    );
+
+    return result.rows.map(this.mapChartOfAccountsRow);
+  }
+
+  // =====================================================
+  // EXCHANGE RATE QUERIES
+  // =====================================================
+
+  @Query('exchangeRate')
+  async getExchangeRate(
+    @Args('fromCurrency') fromCurrency: string,
+    @Args('toCurrency') toCurrency: string,
+    @Args('rateDate') rateDate: string,
+    @Context() context: any
+  ) {
+    const tenantId = context.req.user.tenantId;
+
+    const result = await this.db.query(
+      `SELECT * FROM exchange_rates
+       WHERE tenant_id = $1
+       AND from_currency_code = $2
+       AND to_currency_code = $3
+       AND rate_date = $4
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      [tenantId, fromCurrency, toCurrency, rateDate]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Exchange rate not found for ${fromCurrency} to ${toCurrency} on ${rateDate}`);
+    }
+
+    return this.mapExchangeRateRow(result.rows[0]);
+  }
+
+  @Query('exchangeRates')
+  async getExchangeRates(
+    @Args('tenantId') tenantId: string,
+    @Args('fromCurrency') fromCurrency: string | null,
+    @Args('toCurrency') toCurrency: string | null,
+    @Args('startDate') startDate: string | null,
+    @Args('endDate') endDate: string | null,
+    @Context() context: any
+  ) {
+    let whereClause = `tenant_id = $1`;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (fromCurrency) {
+      whereClause += ` AND from_currency_code = $${paramIndex++}`;
+      params.push(fromCurrency);
+    }
+
+    if (toCurrency) {
+      whereClause += ` AND to_currency_code = $${paramIndex++}`;
+      params.push(toCurrency);
+    }
+
+    if (startDate) {
+      whereClause += ` AND rate_date >= $${paramIndex++}`;
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClause += ` AND rate_date <= $${paramIndex++}`;
+      params.push(endDate);
+    }
+
+    const result = await this.db.query(
+      `SELECT * FROM exchange_rates
+       WHERE ${whereClause}
+       ORDER BY rate_date DESC, from_currency_code, to_currency_code`,
+      params
+    );
+
+    return result.rows.map(this.mapExchangeRateRow);
+  }
+
+  // =====================================================
+  // JOURNAL ENTRY QUERIES
+  // =====================================================
+
+  @Query('journalEntry')
+  async getJournalEntry(@Args('id') id: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM journal_entries WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Journal entry ${id} not found`);
+    }
+
+    return this.mapJournalEntryRow(result.rows[0]);
+  }
+
+  @Query('journalEntries')
+  async getJournalEntries(
+    @Args('tenantId') tenantId: string,
+    @Args('facilityId') facilityId: string | null,
+    @Args('status') status: string | null,
+    @Args('startDate') startDate: string | null,
+    @Args('endDate') endDate: string | null,
+    @Args('limit') limit: number = 100,
+    @Args('offset') offset: number = 0,
+    @Context() context: any
+  ) {
+    let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (facilityId) {
+      whereClause += ` AND facility_id = $${paramIndex++}`;
+      params.push(facilityId);
+    }
+
+    if (status) {
+      whereClause += ` AND status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    if (startDate) {
+      whereClause += ` AND entry_date >= $${paramIndex++}`;
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClause += ` AND entry_date <= $${paramIndex++}`;
+      params.push(endDate);
+    }
+
+    const result = await this.db.query(
+      `SELECT * FROM journal_entries
+       WHERE ${whereClause}
+       ORDER BY entry_date DESC, journal_entry_number DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    return result.rows.map(this.mapJournalEntryRow);
+  }
+
+  // =====================================================
+  // GL BALANCE QUERIES
+  // =====================================================
+
+  @Query('glBalance')
+  async getGLBalance(
+    @Args('accountId') accountId: string,
+    @Args('year') year: number,
+    @Args('month') month: number,
+    @Args('currencyCode') currencyCode: string = 'USD',
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `SELECT * FROM gl_balances
+       WHERE account_id = $1
+       AND period_year = $2
+       AND period_month = $3
+       AND currency_code = $4`,
+      [accountId, year, month, currencyCode]
+    );
+
+    if (result.rows.length === 0) {
+      // Return zero balance if not found
+      return {
+        accountId,
+        periodYear: year,
+        periodMonth: month,
+        currencyCode,
+        beginningBalance: 0,
+        debitAmount: 0,
+        creditAmount: 0,
+        netChange: 0,
+        endingBalance: 0
+      };
+    }
+
+    return this.mapGLBalanceRow(result.rows[0]);
+  }
+
+  @Query('glBalances')
+  async getGLBalances(
+    @Args('tenantId') tenantId: string,
+    @Args('year') year: number,
+    @Args('month') month: number,
+    @Args('accountType') accountType: string | null,
+    @Args('currencyCode') currencyCode: string = 'USD',
+    @Context() context: any
+  ) {
+    let whereClause = `b.tenant_id = $1 AND b.period_year = $2 AND b.period_month = $3 AND b.currency_code = $4`;
+    const params: any[] = [tenantId, year, month, currencyCode];
+    let paramIndex = 5;
+
+    if (accountType) {
+      whereClause += ` AND a.account_type = $${paramIndex++}`;
+      params.push(accountType);
+    }
+
+    const result = await this.db.query(
+      `SELECT b.*, a.account_number, a.account_name
+       FROM gl_balances b
+       INNER JOIN chart_of_accounts a ON a.id = b.account_id
+       WHERE ${whereClause}
+       ORDER BY a.account_number`,
+      params
+    );
+
+    return result.rows.map(this.mapGLBalanceRow);
+  }
+
+  // =====================================================
+  // INVOICE QUERIES
+  // =====================================================
+
+  @Query('invoice')
+  async getInvoice(@Args('id') id: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM invoices WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Invoice ${id} not found`);
+    }
+
+    return this.mapInvoiceRow(result.rows[0]);
+  }
+
+  @Query('invoices')
+  async getInvoices(
+    @Args('tenantId') tenantId: string,
+    @Args('invoiceType') invoiceType: string | null,
+    @Args('customerId') customerId: string | null,
+    @Args('vendorId') vendorId: string | null,
+    @Args('status') status: string | null,
+    @Args('startDate') startDate: string | null,
+    @Args('endDate') endDate: string | null,
+    @Args('limit') limit: number = 100,
+    @Args('offset') offset: number = 0,
+    @Context() context: any
+  ) {
+    let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (invoiceType) {
+      whereClause += ` AND invoice_type = $${paramIndex++}`;
+      params.push(invoiceType);
+    }
+
+    if (customerId) {
+      whereClause += ` AND customer_id = $${paramIndex++}`;
+      params.push(customerId);
+    }
+
+    if (vendorId) {
+      whereClause += ` AND vendor_id = $${paramIndex++}`;
+      params.push(vendorId);
+    }
+
+    if (status) {
+      whereClause += ` AND status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    if (startDate) {
+      whereClause += ` AND invoice_date >= $${paramIndex++}`;
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClause += ` AND invoice_date <= $${paramIndex++}`;
+      params.push(endDate);
+    }
+
+    const result = await this.db.query(
+      `SELECT * FROM invoices
+       WHERE ${whereClause}
+       ORDER BY invoice_date DESC, invoice_number DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    return result.rows.map(this.mapInvoiceRow);
+  }
+
+  // =====================================================
+  // PAYMENT QUERIES
+  // =====================================================
+
+  @Query('payment')
+  async getPayment(@Args('id') id: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM payments WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Payment ${id} not found`);
+    }
+
+    return this.mapPaymentRow(result.rows[0]);
+  }
+
+  @Query('payments')
+  async getPayments(
+    @Args('tenantId') tenantId: string,
+    @Args('paymentType') paymentType: string | null,
+    @Args('customerId') customerId: string | null,
+    @Args('vendorId') vendorId: string | null,
+    @Args('startDate') startDate: string | null,
+    @Args('endDate') endDate: string | null,
+    @Context() context: any
+  ) {
+    let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (paymentType) {
+      whereClause += ` AND payment_type = $${paramIndex++}`;
+      params.push(paymentType);
+    }
+
+    if (customerId) {
+      whereClause += ` AND customer_id = $${paramIndex++}`;
+      params.push(customerId);
+    }
+
+    if (vendorId) {
+      whereClause += ` AND vendor_id = $${paramIndex++}`;
+      params.push(vendorId);
+    }
+
+    if (startDate) {
+      whereClause += ` AND payment_date >= $${paramIndex++}`;
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClause += ` AND payment_date <= $${paramIndex++}`;
+      params.push(endDate);
+    }
+
+    const result = await this.db.query(
+      `SELECT * FROM payments
+       WHERE ${whereClause}
+       ORDER BY payment_date DESC, payment_number DESC`,
+      params
+    );
+
+    return result.rows.map(this.mapPaymentRow);
+  }
+
+  // =====================================================
+  // COST ALLOCATION QUERIES
+  // =====================================================
+
+  @Query('costAllocation')
+  async getCostAllocation(@Args('id') id: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM cost_allocations WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Cost allocation ${id} not found`);
+    }
+
+    return this.mapCostAllocationRow(result.rows[0]);
+  }
+
+  @Query('costAllocations')
+  async getCostAllocations(@Args('tenantId') tenantId: string, @Context() context: any) {
+    const result = await this.db.query(
+      `SELECT * FROM cost_allocations
+       WHERE tenant_id = $1 AND deleted_at IS NULL
+       ORDER BY allocation_code`,
+      [tenantId]
+    );
+
+    return result.rows.map(this.mapCostAllocationRow);
+  }
+
+  // =====================================================
+  // FINANCIAL REPORTS
+  // =====================================================
+
+  @Query('trialBalance')
+  async getTrialBalance(
+    @Args('tenantId') tenantId: string,
+    @Args('year') year: number,
+    @Args('month') month: number,
+    @Args('currencyCode') currencyCode: string = 'USD',
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `SELECT
+        a.account_number,
+        a.account_name,
+        a.account_type,
+        COALESCE(SUM(CASE WHEN a.normal_balance = 'DEBIT' THEN b.ending_balance ELSE 0 END), 0) as debit_amount,
+        COALESCE(SUM(CASE WHEN a.normal_balance = 'CREDIT' THEN b.ending_balance ELSE 0 END), 0) as credit_amount
+       FROM chart_of_accounts a
+       LEFT JOIN gl_balances b ON b.account_id = a.id
+         AND b.period_year = $2
+         AND b.period_month = $3
+         AND b.currency_code = $4
+       WHERE a.tenant_id = $1
+       AND a.is_active = TRUE
+       AND a.is_header = FALSE
+       AND a.deleted_at IS NULL
+       GROUP BY a.account_number, a.account_name, a.account_type
+       ORDER BY a.account_number`,
+      [tenantId, year, month, currencyCode]
+    );
+
+    return result.rows.map(row => ({
+      accountNumber: row.account_number,
+      accountName: row.account_name,
+      accountType: row.account_type,
+      debitAmount: parseFloat(row.debit_amount),
+      creditAmount: parseFloat(row.credit_amount)
+    }));
+  }
+
+  @Query('profitAndLoss')
+  async getProfitAndLoss(
+    @Args('tenantId') tenantId: string,
+    @Args('startDate') startDate: string,
+    @Args('endDate') endDate: string,
+    @Args('currencyCode') currencyCode: string = 'USD',
+    @Context() context: any
+  ) {
+    // TODO: Implement full P&L report with period-to-period calculations
+    // For now, return placeholder structure
+
+    const result = await this.db.query(
+      `SELECT
+        a.account_type as section,
+        a.account_number,
+        a.account_name,
+        COALESCE(SUM(l.credit_amount - l.debit_amount), 0) as amount
+       FROM chart_of_accounts a
+       LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+       LEFT JOIN journal_entries j ON j.id = l.journal_entry_id
+         AND j.status = 'POSTED'
+         AND j.entry_date >= $2
+         AND j.entry_date <= $3
+       WHERE a.tenant_id = $1
+       AND a.account_type IN ('REVENUE', 'EXPENSE', 'COST_OF_GOODS_SOLD')
+       AND a.is_header = FALSE
+       AND a.deleted_at IS NULL
+       GROUP BY a.account_type, a.account_number, a.account_name
+       ORDER BY a.account_type, a.account_number`,
+      [tenantId, startDate, endDate]
+    );
+
+    return result.rows.map(row => ({
+      section: row.section,
+      accountNumber: row.account_number,
+      accountName: row.account_name,
+      amount: parseFloat(row.amount),
+      percentOfRevenue: null // TODO: Calculate percentage
+    }));
+  }
+
+  @Query('balanceSheet')
+  async getBalanceSheet(
+    @Args('tenantId') tenantId: string,
+    @Args('asOfDate') asOfDate: string,
+    @Args('currencyCode') currencyCode: string = 'USD',
+    @Context() context: any
+  ) {
+    // TODO: Implement full balance sheet with cumulative balances
+    // For now, return placeholder structure
+
+    const result = await this.db.query(
+      `SELECT
+        a.account_type as section,
+        a.account_number,
+        a.account_name,
+        COALESCE(SUM(b.ending_balance), 0) as amount
+       FROM chart_of_accounts a
+       LEFT JOIN gl_balances b ON b.account_id = a.id
+         AND b.currency_code = $3
+       WHERE a.tenant_id = $1
+       AND a.account_type IN ('ASSET', 'LIABILITY', 'EQUITY')
+       AND a.is_header = FALSE
+       AND a.deleted_at IS NULL
+       GROUP BY a.account_type, a.account_number, a.account_name
+       ORDER BY a.account_type, a.account_number`,
+      [tenantId, asOfDate, currencyCode]
+    );
+
+    return result.rows.map(row => ({
+      section: row.section,
+      accountNumber: row.account_number,
+      accountName: row.account_name,
+      amount: parseFloat(row.amount),
+      percentOfAssets: null // TODO: Calculate percentage
+    }));
+  }
+
+  @Query('arAging')
+  async getARAging(
+    @Args('tenantId') tenantId: string,
+    @Args('asOfDate') asOfDate: string,
+    @Args('currencyCode') currencyCode: string = 'USD',
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `SELECT
+        i.customer_id,
+        c.customer_name,
+        SUM(CASE WHEN $2::date - i.due_date <= 0 THEN i.balance_due ELSE 0 END) as current,
+        SUM(CASE WHEN $2::date - i.due_date BETWEEN 1 AND 30 THEN i.balance_due ELSE 0 END) as days30,
+        SUM(CASE WHEN $2::date - i.due_date BETWEEN 31 AND 60 THEN i.balance_due ELSE 0 END) as days60,
+        SUM(CASE WHEN $2::date - i.due_date BETWEEN 61 AND 90 THEN i.balance_due ELSE 0 END) as days90,
+        SUM(CASE WHEN $2::date - i.due_date > 90 THEN i.balance_due ELSE 0 END) as over90,
+        SUM(i.balance_due) as total_due
+       FROM invoices i
+       INNER JOIN customers c ON c.id = i.customer_id
+       WHERE i.tenant_id = $1
+       AND i.invoice_type = 'CUSTOMER_INVOICE'
+       AND i.balance_due > 0
+       AND i.currency_code = $3
+       AND i.deleted_at IS NULL
+       GROUP BY i.customer_id, c.customer_name
+       ORDER BY total_due DESC`,
+      [tenantId, asOfDate, currencyCode]
+    );
+
+    return result.rows.map(row => ({
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      current: parseFloat(row.current),
+      days30: parseFloat(row.days30),
+      days60: parseFloat(row.days60),
+      days90: parseFloat(row.days90),
+      over90: parseFloat(row.over90),
+      totalDue: parseFloat(row.total_due)
+    }));
+  }
+
+  @Query('apAging')
+  async getAPAging(
+    @Args('tenantId') tenantId: string,
+    @Args('asOfDate') asOfDate: string,
+    @Args('currencyCode') currencyCode: string = 'USD',
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `SELECT
+        i.vendor_id,
+        v.vendor_name,
+        SUM(CASE WHEN $2::date - i.due_date <= 0 THEN i.balance_due ELSE 0 END) as current,
+        SUM(CASE WHEN $2::date - i.due_date BETWEEN 1 AND 30 THEN i.balance_due ELSE 0 END) as days30,
+        SUM(CASE WHEN $2::date - i.due_date BETWEEN 31 AND 60 THEN i.balance_due ELSE 0 END) as days60,
+        SUM(CASE WHEN $2::date - i.due_date BETWEEN 61 AND 90 THEN i.balance_due ELSE 0 END) as days90,
+        SUM(CASE WHEN $2::date - i.due_date > 90 THEN i.balance_due ELSE 0 END) as over90,
+        SUM(i.balance_due) as total_due
+       FROM invoices i
+       INNER JOIN vendors v ON v.id = i.vendor_id
+       WHERE i.tenant_id = $1
+       AND i.invoice_type = 'VENDOR_INVOICE'
+       AND i.balance_due > 0
+       AND i.currency_code = $3
+       AND i.deleted_at IS NULL
+       GROUP BY i.vendor_id, v.vendor_name
+       ORDER BY total_due DESC`,
+      [tenantId, asOfDate, currencyCode]
+    );
+
+    return result.rows.map(row => ({
+      vendorId: row.vendor_id,
+      vendorName: row.vendor_name,
+      current: parseFloat(row.current),
+      days30: parseFloat(row.days30),
+      days60: parseFloat(row.days60),
+      days90: parseFloat(row.days90),
+      over90: parseFloat(row.over90),
+      totalDue: parseFloat(row.total_due)
+    }));
+  }
+
+  // =====================================================
+  // MUTATIONS - FINANCIAL PERIOD
+  // =====================================================
+
+  @Mutation('createFinancialPeriod')
+  async createFinancialPeriod(@Args('input') input: any, @Context() context: any) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    const result = await this.db.query(
+      `INSERT INTO financial_periods (
+        tenant_id, period_year, period_month,
+        period_start_date, period_end_date, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *`,
+      [
+        tenantId,
+        input.periodYear,
+        input.periodMonth,
+        input.periodStartDate,
+        input.periodEndDate,
+        userId
+      ]
+    );
+
+    return this.mapFinancialPeriodRow(result.rows[0]);
+  }
+
+  @Mutation('closeFinancialPeriod')
+  async closeFinancialPeriod(@Args('id') id: string, @Context() context: any) {
+    const userId = context.req.user.id;
+
+    const result = await this.db.query(
+      `UPDATE financial_periods
+       SET status = 'CLOSED',
+           closed_by_user_id = $1,
+           closed_at = NOW(),
+           updated_at = NOW(),
+           updated_by = $1
+       WHERE id = $2
+       RETURNING *`,
+      [userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Financial period ${id} not found`);
+    }
+
+    // TODO: Run month-end close procedures (update GL balances, etc.)
+
+    return this.mapFinancialPeriodRow(result.rows[0]);
+  }
+
+  @Mutation('reopenFinancialPeriod')
+  async reopenFinancialPeriod(@Args('id') id: string, @Context() context: any) {
+    const userId = context.req.user.id;
+
+    const result = await this.db.query(
+      `UPDATE financial_periods
+       SET status = 'OPEN',
+           closed_by_user_id = NULL,
+           closed_at = NULL,
+           updated_at = NOW(),
+           updated_by = $1
+       WHERE id = $2
+       RETURNING *`,
+      [userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Financial period ${id} not found`);
+    }
+
+    return this.mapFinancialPeriodRow(result.rows[0]);
+  }
+
+  // =====================================================
+  // MUTATIONS - CHART OF ACCOUNTS
+  // =====================================================
+
+  @Mutation('createAccount')
+  async createAccount(@Args('input') input: any, @Context() context: any) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    const result = await this.db.query(
+      `INSERT INTO chart_of_accounts (
+        tenant_id, account_number, account_name, description,
+        account_type, account_subtype, parent_account_id,
+        normal_balance, functional_currency_code, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        tenantId,
+        input.accountNumber,
+        input.accountName,
+        input.description,
+        input.accountType,
+        input.accountSubtype,
+        input.parentAccountId,
+        input.normalBalance,
+        input.functionalCurrencyCode || 'USD',
+        userId
+      ]
+    );
+
+    return this.mapChartOfAccountsRow(result.rows[0]);
+  }
+
+  @Mutation('updateAccount')
+  async updateAccount(
+    @Args('id') id: string,
+    @Args('input') input: any,
+    @Context() context: any
+  ) {
+    const userId = context.req.user.id;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (input.accountName !== undefined) {
+      updates.push(`account_name = $${paramIndex++}`);
+      values.push(input.accountName);
+    }
+
+    if (input.description !== undefined) {
+      updates.push(`description = $${paramIndex++}`);
+      values.push(input.description);
+    }
+
+    if (input.isActive !== undefined) {
+      updates.push(`is_active = $${paramIndex++}`);
+      values.push(input.isActive);
+    }
+
+    updates.push(`updated_at = NOW()`);
+    updates.push(`updated_by = $${paramIndex++}`);
+    values.push(userId);
+    values.push(id);
+
+    const result = await this.db.query(
+      `UPDATE chart_of_accounts SET ${updates.join(', ')}
+       WHERE id = $${paramIndex} AND deleted_at IS NULL
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Account ${id} not found`);
+    }
+
+    return this.mapChartOfAccountsRow(result.rows[0]);
+  }
+
+  // =====================================================
+  // MUTATIONS - EXCHANGE RATE
+  // =====================================================
+
+  @Mutation('createExchangeRate')
+  async createExchangeRate(@Args('input') input: any, @Context() context: any) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    const result = await this.db.query(
+      `INSERT INTO exchange_rates (
+        tenant_id, from_currency_code, to_currency_code, rate_date,
+        exchange_rate, rate_type, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *`,
+      [
+        tenantId,
+        input.fromCurrencyCode,
+        input.toCurrencyCode,
+        input.rateDate,
+        input.exchangeRate,
+        input.rateType,
+        userId
+      ]
+    );
+
+    return this.mapExchangeRateRow(result.rows[0]);
+  }
+
+  // =====================================================
+  // MUTATIONS - JOURNAL ENTRY
+  // =====================================================
+
+  @Mutation('createJournalEntry')
+  async createJournalEntry(@Args('input') input: any, @Context() context: any) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    const client = await this.db.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Generate journal entry number
+      const jeNumber = `JE-${Date.now()}`;
+
+      // Determine period from posting date
+      const postingDate = new Date(input.postingDate);
+      const periodYear = postingDate.getFullYear();
+      const periodMonth = postingDate.getMonth() + 1;
+
+      // Create journal entry header
+      const headerResult = await client.query(
+        `INSERT INTO journal_entries (
+          tenant_id, facility_id, journal_entry_number, entry_type,
+          entry_date, posting_date, period_year, period_month,
+          description, reference, status, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'DRAFT', $11)
+        RETURNING *`,
+        [
+          tenantId,
+          input.facilityId,
+          jeNumber,
+          input.entryType,
+          input.entryDate,
+          input.postingDate,
+          periodYear,
+          periodMonth,
+          input.description,
+          input.reference,
+          userId
+        ]
+      );
+
+      const journalEntryId = headerResult.rows[0].id;
+
+      // Create journal entry lines
+      for (let i = 0; i < input.lines.length; i++) {
+        const line = input.lines[i];
+        await client.query(
+          `INSERT INTO journal_entry_lines (
+            tenant_id, journal_entry_id, line_number, account_id,
+            debit_amount, credit_amount, foreign_currency_code,
+            foreign_currency_amount, exchange_rate, line_description, created_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            tenantId,
+            journalEntryId,
+            i + 1,
+            line.accountId,
+            line.debitAmount,
+            line.creditAmount,
+            line.foreignCurrencyCode,
+            line.foreignCurrencyAmount,
+            line.exchangeRate,
+            line.lineDescription,
+            userId
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      return this.mapJournalEntryRow(headerResult.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  @Mutation('postJournalEntry')
+  async postJournalEntry(@Args('id') id: string, @Context() context: any) {
+    const userId = context.req.user.id;
+
+    // TODO: Validate debits = credits before posting
+    // TODO: Update GL balances
+
+    const result = await this.db.query(
+      `UPDATE journal_entries
+       SET status = 'POSTED',
+           posted_by = $1,
+           posted_at = NOW(),
+           updated_at = NOW(),
+           updated_by = $1
+       WHERE id = $2 AND deleted_at IS NULL
+       RETURNING *`,
+      [userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Journal entry ${id} not found`);
+    }
+
+    return this.mapJournalEntryRow(result.rows[0]);
+  }
+
+  @Mutation('reverseJournalEntry')
+  async reverseJournalEntry(
+    @Args('id') id: string,
+    @Args('reversalDate') reversalDate: string | null,
+    @Context() context: any
+  ) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    // TODO: Create reversing journal entry with opposite signs
+
+    throw new Error('Not yet implemented');
+  }
+
+  // =====================================================
+  // MUTATIONS - INVOICE (Simplified stubs - full implementation needed)
+  // =====================================================
+
+  @Mutation('createInvoice')
+  async createInvoice(@Args('input') input: any, @Context() context: any) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    // TODO: Full invoice creation with lines, tax calculation, GL posting
+    throw new Error('Not yet implemented');
+  }
+
+  @Mutation('updateInvoice')
+  async updateInvoice(
+    @Args('id') id: string,
+    @Args('input') input: any,
+    @Context() context: any
+  ) {
+    throw new Error('Not yet implemented');
+  }
+
+  @Mutation('voidInvoice')
+  async voidInvoice(@Args('id') id: string, @Context() context: any) {
+    throw new Error('Not yet implemented');
+  }
+
+  // =====================================================
+  // MUTATIONS - PAYMENT (Simplified stubs)
+  // =====================================================
+
+  @Mutation('createPayment')
+  async createPayment(@Args('input') input: any, @Context() context: any) {
+    throw new Error('Not yet implemented');
+  }
+
+  @Mutation('applyPayment')
+  async applyPayment(
+    @Args('paymentId') paymentId: string,
+    @Args('applications') applications: any[],
+    @Context() context: any
+  ) {
+    throw new Error('Not yet implemented');
+  }
+
+  // =====================================================
+  // MUTATIONS - COST ALLOCATION (Simplified stubs)
+  // =====================================================
+
+  @Mutation('createCostAllocation')
+  async createCostAllocation(@Args('input') input: any, @Context() context: any) {
+    throw new Error('Not yet implemented');
+  }
+
+  @Mutation('runCostAllocation')
+  async runCostAllocation(
+    @Args('id') id: string,
+    @Args('periodYear') periodYear: number,
+    @Args('periodMonth') periodMonth: number,
+    @Context() context: any
+  ) {
+    throw new Error('Not yet implemented');
+  }
+
+  // =====================================================
+  // MAPPERS
+  // =====================================================
+
+  private mapFinancialPeriodRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      periodYear: row.period_year,
+      periodMonth: row.period_month,
+      periodName: row.period_name,
+      periodStartDate: row.period_start_date,
+      periodEndDate: row.period_end_date,
+      status: row.status,
+      closedByUserId: row.closed_by_user_id,
+      closedAt: row.closed_at,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by
+    };
+  }
+
+  private mapChartOfAccountsRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      accountNumber: row.account_number,
+      accountName: row.account_name,
+      description: row.description,
+      accountType: row.account_type,
+      accountSubtype: row.account_subtype,
+      parentAccountId: row.parent_account_id,
+      accountLevel: row.account_level,
+      isHeader: row.is_header,
+      balanceSheetSection: row.balance_sheet_section,
+      incomeStatementSection: row.income_statement_section,
+      normalBalance: row.normal_balance,
+      functionalCurrencyCode: row.functional_currency_code,
+      allowForeignCurrency: row.allow_foreign_currency,
+      allowManualEntry: row.allow_manual_entry,
+      requiresDepartment: row.requires_department,
+      requiresProject: row.requires_project,
+      isActive: row.is_active,
+      dateOpened: row.date_opened,
+      dateClosed: row.date_closed,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by
+    };
+  }
+
+  private mapExchangeRateRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      fromCurrencyCode: row.from_currency_code,
+      toCurrencyCode: row.to_currency_code,
+      rateDate: row.rate_date,
+      exchangeRate: row.exchange_rate,
+      rateType: row.rate_type,
+      rateSource: row.rate_source,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by
+    };
+  }
+
+  private mapJournalEntryRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      facilityId: row.facility_id,
+      journalEntryNumber: row.journal_entry_number,
+      entryType: row.entry_type,
+      entryDate: row.entry_date,
+      postingDate: row.posting_date,
+      periodYear: row.period_year,
+      periodMonth: row.period_month,
+      sourceModule: row.source_module,
+      sourceDocumentId: row.source_document_id,
+      sourceDocumentNumber: row.source_document_number,
+      description: row.description,
+      reference: row.reference,
+      status: row.status,
+      postedBy: row.posted_by,
+      postedAt: row.posted_at,
+      reversalOfEntryId: row.reversal_of_entry_id,
+      reversedByEntryId: row.reversed_by_entry_id,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by
+    };
+  }
+
+  private mapGLBalanceRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      accountId: row.account_id,
+      periodYear: row.period_year,
+      periodMonth: row.period_month,
+      currencyCode: row.currency_code,
+      beginningBalance: row.beginning_balance,
+      debitAmount: row.debit_amount,
+      creditAmount: row.credit_amount,
+      netChange: row.net_change,
+      endingBalance: row.ending_balance,
+      updatedAt: row.updated_at
+    };
+  }
+
+  private mapInvoiceRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      facilityId: row.facility_id,
+      invoiceNumber: row.invoice_number,
+      invoiceType: row.invoice_type,
+      customerId: row.customer_id,
+      vendorId: row.vendor_id,
+      billToName: row.bill_to_name,
+      billToAddressLine1: row.bill_to_address_line1,
+      billToCity: row.bill_to_city,
+      billToPostalCode: row.bill_to_postal_code,
+      billToCountry: row.bill_to_country,
+      invoiceDate: row.invoice_date,
+      dueDate: row.due_date,
+      periodYear: row.period_year,
+      periodMonth: row.period_month,
+      currencyCode: row.currency_code,
+      exchangeRate: row.exchange_rate,
+      subtotal: row.subtotal_amount,
+      taxAmount: row.tax_amount,
+      shippingAmount: row.shipping_amount,
+      discountAmount: row.discount_amount,
+      totalAmount: row.total_amount,
+      paidAmount: row.paid_amount,
+      balanceDue: row.balance_due,
+      status: row.status,
+      paymentStatus: row.payment_status,
+      paymentTerms: row.payment_terms,
+      discountTerms: row.discount_terms,
+      purchaseOrderNumber: row.purchase_order_number,
+      salesOrderId: row.sales_order_id,
+      shipmentId: row.shipment_id,
+      journalEntryId: row.journal_entry_id,
+      notes: row.notes,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by
+    };
+  }
+
+  private mapPaymentRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      facilityId: row.facility_id,
+      paymentNumber: row.payment_number,
+      paymentType: row.payment_type,
+      customerId: row.customer_id,
+      vendorId: row.vendor_id,
+      paidByName: row.paid_by_name,
+      paymentDate: row.payment_date,
+      periodYear: row.period_year,
+      periodMonth: row.period_month,
+      currencyCode: row.currency_code,
+      exchangeRate: row.exchange_rate,
+      paymentAmount: row.payment_amount,
+      paymentMethod: row.payment_method,
+      referenceNumber: row.reference_number,
+      checkNumber: row.check_number,
+      transactionId: row.transaction_id,
+      bankAccountId: row.bank_account_id,
+      depositDate: row.deposit_date,
+      status: row.status,
+      journalEntryId: row.journal_entry_id,
+      notes: row.notes,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by
+    };
+  }
+
+  private mapCostAllocationRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      allocationCode: row.allocation_code,
+      allocationName: row.allocation_name,
+      description: row.description,
+      sourceType: row.source_type,
+      sourceAccountId: row.source_account_id,
+      allocationMethod: row.allocation_method,
+      allocationBasis: row.allocation_basis,
+      allocationRules: row.allocation_rules,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      updatedAt: row.updated_at,
+      updatedBy: row.updated_by
+    };
+  }
+}

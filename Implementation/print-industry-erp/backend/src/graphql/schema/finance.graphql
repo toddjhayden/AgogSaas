@@ -1,0 +1,938 @@
+# =====================================================
+# FINANCE SCHEMA
+# =====================================================
+# General Ledger, Accounts Receivable, Accounts Payable, Multi-Currency
+# Created: 2025-12-17
+# =====================================================
+
+"""
+FinancialPeriod - Accounting period for month-end close
+"""
+type FinancialPeriod {
+  id: ID!
+  tenantId: ID!
+
+  # Period
+  periodYear: Int!
+  periodMonth: Int!
+  periodName: String
+
+  # Dates
+  periodStartDate: Date!
+  periodEndDate: Date!
+
+  # Status
+  status: PeriodStatus!
+
+  # Close tracking
+  closedByUserId: ID
+  closedAt: DateTime
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+ChartOfAccounts - GL account master with hierarchy
+"""
+type ChartOfAccounts {
+  id: ID!
+  tenantId: ID!
+
+  # Identification
+  accountNumber: String!
+  accountName: String!
+  description: String
+
+  # Account type
+  accountType: AccountType!
+  accountSubtype: String
+
+  # Hierarchy
+  parentAccountId: ID
+  parentAccount: ChartOfAccounts
+  accountLevel: Int!
+  isHeader: Boolean!
+
+  # Financial statements
+  balanceSheetSection: String
+  incomeStatementSection: String
+
+  # Normal balance
+  normalBalance: NormalBalance!
+
+  # Currency
+  functionalCurrencyCode: String
+  allowForeignCurrency: Boolean!
+
+  # Restrictions
+  allowManualEntry: Boolean!
+  requiresDepartment: Boolean!
+  requiresProject: Boolean!
+
+  # Status
+  isActive: Boolean!
+  dateOpened: Date
+  dateClosed: Date
+
+  # Relationships
+  childAccounts: [ChartOfAccounts!]!
+  currentBalance: GLBalance
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+ExchangeRate - Daily exchange rates for multi-currency
+"""
+type ExchangeRate {
+  id: ID!
+  tenantId: ID!
+
+  # Exchange rate
+  fromCurrencyCode: String!
+  toCurrencyCode: String!
+  rateDate: Date!
+
+  # Rate
+  exchangeRate: Float!
+
+  # Type
+  rateType: RateType!
+
+  # Source
+  rateSource: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+JournalEntry - GL journal entry header
+"""
+type JournalEntry {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID
+
+  # Identification
+  journalEntryNumber: String!
+  entryType: EntryType!
+
+  # Dates
+  entryDate: Date!
+  postingDate: Date!
+
+  # Period
+  periodYear: Int!
+  periodMonth: Int!
+
+  # Source
+  sourceModule: String
+  sourceDocumentId: ID
+  sourceDocumentNumber: String
+
+  # Description
+  description: String!
+  reference: String
+
+  # Status
+  status: JournalStatus!
+
+  # Posting
+  postedBy: ID
+  postedAt: DateTime
+
+  # Reversal
+  reversalOfEntryId: ID
+  reversedByEntryId: ID
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+
+  # Relationships
+  lines: [JournalEntryLine!]!
+  facility: Facility
+}
+
+"""
+JournalEntryLine - GL journal entry line
+"""
+type JournalEntryLine {
+  id: ID!
+  tenantId: ID!
+
+  journalEntryId: ID!
+  lineNumber: Int!
+
+  # Account
+  accountId: ID!
+  account: ChartOfAccounts!
+
+  # Amount
+  debitAmount: Float!
+  creditAmount: Float!
+
+  # Foreign currency
+  foreignCurrencyCode: String
+  foreignCurrencyAmount: Float
+  exchangeRate: Float
+
+  # Dimensions
+  departmentId: ID
+  projectId: ID
+  customerId: ID
+  vendorId: ID
+
+  # Description
+  lineDescription: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+
+  # Relationships
+  journalEntry: JournalEntry!
+}
+
+"""
+GLBalance - General Ledger balance by account and period
+"""
+type GLBalance {
+  id: ID!
+  tenantId: ID!
+
+  # Account
+  accountId: ID!
+  account: ChartOfAccounts
+
+  # Period
+  periodYear: Int!
+  periodMonth: Int!
+
+  # Currency
+  currencyCode: String!
+
+  # Balances
+  beginningBalance: Float!
+  debitAmount: Float!
+  creditAmount: Float!
+  netChange: Float!
+  endingBalance: Float!
+
+  # Audit
+  updatedAt: DateTime
+}
+
+"""
+Invoice - AR/AP invoice
+"""
+type Invoice {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID
+
+  # Identification
+  invoiceNumber: String!
+  invoiceType: InvoiceType!
+
+  # Customer/Vendor
+  customerId: ID
+  vendorId: ID
+  billToName: String!
+  billToAddressLine1: String
+  billToCity: String
+  billToPostalCode: String
+  billToCountry: String
+
+  # Dates
+  invoiceDate: Date!
+  dueDate: Date!
+  periodYear: Int!
+  periodMonth: Int!
+
+  # Currency
+  currencyCode: String!
+  exchangeRate: Float
+
+  # Amounts
+  subtotal: Float!
+  taxAmount: Float!
+  shippingAmount: Float!
+  discountAmount: Float!
+  totalAmount: Float!
+
+  # Payment
+  paidAmount: Float!
+  balanceDue: Float!
+
+  # Status
+  status: InvoiceStatus!
+  paymentStatus: PaymentStatus!
+
+  # Terms
+  paymentTerms: String
+  discountTerms: String
+
+  # Reference
+  purchaseOrderNumber: String
+  salesOrderId: ID
+  shipmentId: ID
+
+  # GL
+  journalEntryId: ID
+
+  # Notes
+  notes: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+
+  # Relationships
+  facility: Facility
+  lines: [InvoiceLine!]!
+  payments: [Payment!]!
+  journalEntry: JournalEntry
+}
+
+"""
+InvoiceLine - Invoice line item
+"""
+type InvoiceLine {
+  id: ID!
+  tenantId: ID!
+
+  invoiceId: ID!
+  lineNumber: Int!
+
+  # Item
+  materialId: ID
+  productId: ID
+  description: String!
+
+  # Quantity
+  quantity: Float
+  unitOfMeasure: String
+  unitPrice: Float!
+
+  # Amounts
+  lineAmount: Float!
+  taxAmount: Float!
+  discountAmount: Float!
+  totalAmount: Float!
+
+  # GL
+  revenueAccountId: ID
+  cogsAccountId: ID
+
+  # Reference
+  salesOrderLineId: ID
+  shipmentLineId: ID
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+
+  # Relationships
+  invoice: Invoice!
+}
+
+"""
+Payment - AR/AP payment
+"""
+type Payment {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID
+
+  # Identification
+  paymentNumber: String!
+  paymentType: PaymentType!
+
+  # Customer/Vendor
+  customerId: ID
+  vendorId: ID
+  paidByName: String
+
+  # Date
+  paymentDate: Date!
+  periodYear: Int!
+  periodMonth: Int!
+
+  # Currency
+  currencyCode: String!
+  exchangeRate: Float
+
+  # Amount
+  paymentAmount: Float!
+
+  # Method
+  paymentMethod: PaymentMethod!
+  referenceNumber: String
+  checkNumber: String
+  transactionId: String
+
+  # Bank
+  bankAccountId: ID
+  depositDate: Date
+
+  # Status
+  status: PaymentStatus!
+
+  # GL
+  journalEntryId: ID
+
+  # Notes
+  notes: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+
+  # Relationships
+  facility: Facility
+  appliedInvoices: [PaymentApplication!]!
+  journalEntry: JournalEntry
+}
+
+"""
+PaymentApplication - Payment applied to invoices
+"""
+type PaymentApplication {
+  paymentId: ID!
+  invoiceId: ID!
+  amountApplied: Float!
+  appliedDate: Date!
+}
+
+"""
+CostAllocation - Cost allocation rules for job costing
+"""
+type CostAllocation {
+  id: ID!
+  tenantId: ID!
+
+  # Identification
+  allocationCode: String!
+  allocationName: String!
+  description: String
+
+  # Source
+  sourceType: String!
+  sourceAccountId: ID
+
+  # Method
+  allocationMethod: AllocationMethod!
+  allocationBasis: String
+
+  # Rules
+  allocationRules: JSON
+
+  # Status
+  isActive: Boolean!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+# =====================================================
+# SUMMARY TYPES
+# =====================================================
+
+"""
+TrialBalance - Trial balance report
+"""
+type TrialBalance {
+  accountNumber: String!
+  accountName: String!
+  accountType: AccountType!
+  debitAmount: Float!
+  creditAmount: Float!
+}
+
+"""
+ProfitAndLoss - P&L summary
+"""
+type ProfitAndLoss {
+  section: String!
+  accountNumber: String!
+  accountName: String!
+  amount: Float!
+  percentOfRevenue: Float
+}
+
+"""
+BalanceSheet - Balance sheet summary
+"""
+type BalanceSheet {
+  section: String!
+  accountNumber: String!
+  accountName: String!
+  amount: Float!
+  percentOfAssets: Float
+}
+
+"""
+ARAgingSummary - AR aging bucket
+"""
+type ARAgingSummary {
+  customerId: ID!
+  customerName: String!
+  current: Float!
+  days30: Float!
+  days60: Float!
+  days90: Float!
+  over90: Float!
+  totalDue: Float!
+}
+
+"""
+APAgingSummary - AP aging bucket
+"""
+type APAgingSummary {
+  vendorId: ID!
+  vendorName: String!
+  current: Float!
+  days30: Float!
+  days60: Float!
+  days90: Float!
+  over90: Float!
+  totalDue: Float!
+}
+
+# =====================================================
+# ENUMS
+# =====================================================
+
+enum PeriodStatus {
+  OPEN
+  CLOSING
+  CLOSED
+  LOCKED
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+  COST_OF_GOODS_SOLD
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum RateType {
+  DAILY
+  MONTHLY
+  AVERAGE
+  BUDGET
+}
+
+enum EntryType {
+  STANDARD
+  ADJUSTING
+  CLOSING
+  REVERSING
+  RECURRING
+}
+
+enum JournalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  POSTED
+  REVERSED
+}
+
+enum InvoiceType {
+  CUSTOMER_INVOICE
+  VENDOR_INVOICE
+  CREDIT_MEMO
+  DEBIT_MEMO
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+  VOID
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERPAID
+  REFUNDED
+}
+
+enum PaymentType {
+  CUSTOMER_PAYMENT
+  VENDOR_PAYMENT
+  REFUND
+  PREPAYMENT
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  CREDIT_CARD
+  DEBIT_CARD
+  ACH
+  WIRE_TRANSFER
+  PAYPAL
+  OTHER
+}
+
+enum AllocationMethod {
+  DIRECT
+  STEP_DOWN
+  RECIPROCAL
+  ACTIVITY_BASED
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+extend type Query {
+  """Get financial period by ID"""
+  financialPeriod(id: ID!): FinancialPeriod
+
+  """List financial periods"""
+  financialPeriods(
+    tenantId: ID!
+    year: Int
+    status: PeriodStatus
+  ): [FinancialPeriod!]!
+
+  """Get current open period"""
+  currentPeriod(tenantId: ID!): FinancialPeriod
+
+  """Get chart of accounts account by ID"""
+  account(id: ID!): ChartOfAccounts
+
+  """List chart of accounts"""
+  chartOfAccounts(
+    tenantId: ID!
+    accountType: AccountType
+    activeOnly: Boolean
+  ): [ChartOfAccounts!]!
+
+  """Get exchange rate"""
+  exchangeRate(
+    fromCurrency: String!
+    toCurrency: String!
+    rateDate: Date!
+  ): ExchangeRate
+
+  """List exchange rates"""
+  exchangeRates(
+    tenantId: ID!
+    fromCurrency: String
+    toCurrency: String
+    startDate: Date
+    endDate: Date
+  ): [ExchangeRate!]!
+
+  """Get journal entry by ID"""
+  journalEntry(id: ID!): JournalEntry
+
+  """List journal entries"""
+  journalEntries(
+    tenantId: ID!
+    facilityId: ID
+    status: JournalStatus
+    startDate: Date
+    endDate: Date
+    limit: Int
+    offset: Int
+  ): [JournalEntry!]!
+
+  """Get GL balance"""
+  glBalance(
+    accountId: ID!
+    year: Int!
+    month: Int!
+    currencyCode: String
+  ): GLBalance
+
+  """List GL balances"""
+  glBalances(
+    tenantId: ID!
+    year: Int!
+    month: Int!
+    accountType: AccountType
+    currencyCode: String
+  ): [GLBalance!]!
+
+  """Get invoice by ID"""
+  invoice(id: ID!): Invoice
+
+  """List invoices"""
+  invoices(
+    tenantId: ID!
+    invoiceType: InvoiceType
+    customerId: ID
+    vendorId: ID
+    status: InvoiceStatus
+    startDate: Date
+    endDate: Date
+    limit: Int
+    offset: Int
+  ): [Invoice!]!
+
+  """Get payment by ID"""
+  payment(id: ID!): Payment
+
+  """List payments"""
+  payments(
+    tenantId: ID!
+    paymentType: PaymentType
+    customerId: ID
+    vendorId: ID
+    startDate: Date
+    endDate: Date
+  ): [Payment!]!
+
+  """Get cost allocation"""
+  costAllocation(id: ID!): CostAllocation
+
+  """List cost allocations"""
+  costAllocations(tenantId: ID!): [CostAllocation!]!
+
+  # ====== REPORTS ======
+
+  """Trial balance"""
+  trialBalance(
+    tenantId: ID!
+    year: Int!
+    month: Int!
+    currencyCode: String
+  ): [TrialBalance!]!
+
+  """Profit and loss statement"""
+  profitAndLoss(
+    tenantId: ID!
+    startDate: Date!
+    endDate: Date!
+    currencyCode: String
+  ): [ProfitAndLoss!]!
+
+  """Balance sheet"""
+  balanceSheet(
+    tenantId: ID!
+    asOfDate: Date!
+    currencyCode: String
+  ): [BalanceSheet!]!
+
+  """AR aging report"""
+  arAging(
+    tenantId: ID!
+    asOfDate: Date!
+    currencyCode: String
+  ): [ARAgingSummary!]!
+
+  """AP aging report"""
+  apAging(
+    tenantId: ID!
+    asOfDate: Date!
+    currencyCode: String
+  ): [APAgingSummary!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+extend type Mutation {
+  """Create financial period"""
+  createFinancialPeriod(input: CreateFinancialPeriodInput!): FinancialPeriod!
+
+  """Close financial period"""
+  closeFinancialPeriod(id: ID!): FinancialPeriod!
+
+  """Reopen financial period"""
+  reopenFinancialPeriod(id: ID!): FinancialPeriod!
+
+  """Create GL account"""
+  createAccount(input: CreateAccountInput!): ChartOfAccounts!
+
+  """Update GL account"""
+  updateAccount(id: ID!, input: UpdateAccountInput!): ChartOfAccounts!
+
+  """Create exchange rate"""
+  createExchangeRate(input: CreateExchangeRateInput!): ExchangeRate!
+
+  """Create journal entry"""
+  createJournalEntry(input: CreateJournalEntryInput!): JournalEntry!
+
+  """Post journal entry"""
+  postJournalEntry(id: ID!): JournalEntry!
+
+  """Reverse journal entry"""
+  reverseJournalEntry(id: ID!, reversalDate: Date): JournalEntry!
+
+  """Create invoice"""
+  createInvoice(input: CreateInvoiceInput!): Invoice!
+
+  """Update invoice"""
+  updateInvoice(id: ID!, input: UpdateInvoiceInput!): Invoice!
+
+  """Void invoice"""
+  voidInvoice(id: ID!): Invoice!
+
+  """Create payment"""
+  createPayment(input: CreatePaymentInput!): Payment!
+
+  """Apply payment to invoices"""
+  applyPayment(
+    paymentId: ID!
+    applications: [PaymentApplicationInput!]!
+  ): Payment!
+
+  """Create cost allocation"""
+  createCostAllocation(input: CreateCostAllocationInput!): CostAllocation!
+
+  """Run cost allocation"""
+  runCostAllocation(id: ID!, periodYear: Int!, periodMonth: Int!): JournalEntry!
+}
+
+# =====================================================
+# INPUT TYPES
+# =====================================================
+
+input CreateFinancialPeriodInput {
+  periodYear: Int!
+  periodMonth: Int!
+  periodStartDate: Date!
+  periodEndDate: Date!
+}
+
+input CreateAccountInput {
+  accountNumber: String!
+  accountName: String!
+  description: String
+  accountType: AccountType!
+  accountSubtype: String
+  parentAccountId: ID
+  normalBalance: NormalBalance!
+  functionalCurrencyCode: String
+}
+
+input UpdateAccountInput {
+  accountName: String
+  description: String
+  isActive: Boolean
+}
+
+input CreateExchangeRateInput {
+  fromCurrencyCode: String!
+  toCurrencyCode: String!
+  rateDate: Date!
+  exchangeRate: Float!
+  rateType: RateType!
+}
+
+input CreateJournalEntryInput {
+  facilityId: ID
+  entryType: EntryType!
+  entryDate: Date!
+  postingDate: Date!
+  description: String!
+  reference: String
+  lines: [JournalEntryLineInput!]!
+}
+
+input JournalEntryLineInput {
+  accountId: ID!
+  debitAmount: Float!
+  creditAmount: Float!
+  foreignCurrencyCode: String
+  foreignCurrencyAmount: Float
+  exchangeRate: Float
+  lineDescription: String
+}
+
+input CreateInvoiceInput {
+  facilityId: ID
+  invoiceType: InvoiceType!
+  customerId: ID
+  vendorId: ID
+  billToName: String!
+  invoiceDate: Date!
+  dueDate: Date!
+  currencyCode: String!
+  paymentTerms: String
+  lines: [InvoiceLineInput!]!
+}
+
+input InvoiceLineInput {
+  description: String!
+  quantity: Float
+  unitPrice: Float!
+  lineAmount: Float!
+  taxAmount: Float
+  revenueAccountId: ID
+}
+
+input UpdateInvoiceInput {
+  dueDate: Date
+  status: InvoiceStatus
+  notes: String
+}
+
+input CreatePaymentInput {
+  facilityId: ID
+  paymentType: PaymentType!
+  customerId: ID
+  vendorId: ID
+  paymentDate: Date!
+  currencyCode: String!
+  paymentAmount: Float!
+  paymentMethod: PaymentMethod!
+  referenceNumber: String
+}
+
+input PaymentApplicationInput {
+  invoiceId: ID!
+  amountApplied: Float!
+}
+
+input CreateCostAllocationInput {
+  allocationCode: String!
+  allocationName: String!
+  description: String
+  sourceType: String!
+  allocationMethod: AllocationMethod!
+  allocationRules: JSON
+}
