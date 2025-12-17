@@ -1,0 +1,572 @@
+# AgogSaaS Complete Test Environment
+# Purpose: Multi-region test setup for English and Chinese language testing
+# Architecture: 1 Edge + 2 Regional Clouds + Shared Monitoring
+#
+# PORTS ALLOCATION:
+# Edge:      5001-5010
+# Region 1:  6001-6010 (US-EAST)
+# Region 2:  7001-7010 (EU-CENTRAL)
+# Monitor:   9090-9093, 3000
+
+version: '3.8'
+
+networks:
+  edge-network:
+    driver: bridge
+  region1-network:
+    driver: bridge
+  region2-network:
+    driver: bridge
+  monitoring-network:
+    driver: bridge
+
+volumes:
+  # Edge volumes
+  postgres-edge-data:
+  nats-edge-data:
+
+  # Region 1 volumes
+  postgres-region1-data:
+  redis-region1-data:
+  nats-region1-data:
+
+  # Region 2 volumes
+  postgres-region2-data:
+  redis-region2-data:
+  nats-region2-data:
+
+  # Monitoring volumes
+  prometheus-data:
+  grafana-data:
+
+services:
+  # ==========================================================================
+  # EDGE COMPUTER SIMULATION (Facility-Level)
+  # ==========================================================================
+
+  postgres-edge:
+    image: pgvector/pgvector:pg16
+    container_name: test-postgres-edge
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agog_edge
+      POSTGRES_USER: edge_user
+      POSTGRES_PASSWORD: edge_password_test
+      FACILITY_ID: FAC-TORONTO-001
+      TENANT_ID: tenant-us
+    volumes:
+      - postgres-edge-data:/var/lib/postgresql/data
+      - ../../Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - edge-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edge_user -d agog_edge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=edge"
+      - "agog.environment=test"
+
+  backend-edge:
+    build:
+      context: ../../Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: test-backend-edge
+    restart: unless-stopped
+    depends_on:
+      postgres-edge:
+        condition: service_healthy
+      nats-edge:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      ENVIRONMENT: edge
+      FACILITY_ID: FAC-TORONTO-001
+      TENANT_ID: tenant-us
+      REGION: US-EAST
+      DATABASE_URL: postgresql://edge_user:edge_password_test@postgres-edge:5432/agog_edge
+      NATS_URL: nats://nats-edge:4222
+      REGIONAL_CLOUD_URL: http://backend-region1:4000
+      SYNC_INTERVAL_SECONDS: 30
+      OFFLINE_MODE_ENABLED: "true"
+      JWT_SECRET: test_jwt_secret_edge
+      GRAPHQL_PLAYGROUND: "true"
+      GRAPHQL_INTROSPECTION: "true"
+    ports:
+      - "5001:4000"
+    networks:
+      - edge-network
+      - region1-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "agog.tier=edge"
+      - "agog.environment=test"
+
+  nats-edge:
+    image: nats:latest
+    container_name: test-nats-edge
+    restart: unless-stopped
+    command:
+      - "-js"
+      - "-sd"
+      - "/data"
+      - "-m"
+      - "8222"
+    volumes:
+      - nats-edge-data:/data
+    ports:
+      - "5222:4222"
+      - "5223:8222"
+    networks:
+      - edge-network
+    labels:
+      - "agog.tier=edge"
+      - "agog.environment=test"
+
+  # ==========================================================================
+  # REGION 1: US-EAST (Primary - English Testing)
+  # ==========================================================================
+
+  postgres-region1:
+    image: pgvector/pgvector:pg16
+    container_name: test-postgres-region1
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agogsaas
+      POSTGRES_USER: agogsaas_user
+      POSTGRES_PASSWORD: region1_password_test
+      REGION: US-EAST
+      ENVIRONMENT: test
+    volumes:
+      - postgres-region1-data:/var/lib/postgresql/data
+      - ../../Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "6432:5432"
+    networks:
+      - region1-network
+      - monitoring-network
+    command: |
+      postgres
+      -c wal_level=logical
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=US-EAST"
+      - "agog.environment=test"
+
+  redis-region1:
+    image: redis:7-alpine
+    container_name: test-redis-region1
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-region1-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - region1-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=US-EAST"
+      - "agog.environment=test"
+
+  backend-region1:
+    build:
+      context: ../../Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: test-backend-region1
+    restart: unless-stopped
+    depends_on:
+      postgres-region1:
+        condition: service_healthy
+      redis-region1:
+        condition: service_healthy
+      nats-region1:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      ENVIRONMENT: regional
+      REGION: US-EAST
+      DATABASE_URL: postgresql://agogsaas_user:region1_password_test@postgres-region1:5432/agogsaas
+      REDIS_URL: redis://redis-region1:6379
+      NATS_URL: nats://nats-region1:4222
+      JWT_SECRET: test_jwt_secret_region1
+      GRAPHQL_PLAYGROUND: "true"
+      GRAPHQL_INTROSPECTION: "true"
+      CROSS_REGION_SYNC_ENABLED: "true"
+      EDGE_SYNC_ENABLED: "true"
+    ports:
+      - "6001:4000"
+    networks:
+      - region1-network
+      - monitoring-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=US-EAST"
+      - "agog.environment=test"
+
+  frontend-region1:
+    build:
+      context: ../../Implementation/print-industry-erp/frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        VITE_API_URL: http://localhost:6001/graphql
+        VITE_WS_URL: ws://localhost:6222
+        VITE_DEFAULT_LANGUAGE: en-US
+        VITE_ENABLE_MARKETPLACE: "true"
+        VITE_ENABLE_AI_FEATURES: "false"
+    container_name: test-frontend-region1
+    restart: unless-stopped
+    depends_on:
+      - backend-region1
+    ports:
+      - "6080:80"
+    networks:
+      - region1-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=US-EAST"
+      - "agog.environment=test"
+      - "agog.language=en-US"
+
+  nats-region1:
+    image: nats:latest
+    container_name: test-nats-region1
+    restart: unless-stopped
+    command: |
+      --jetstream
+      --store_dir=/data
+      --max_mem_store=2GB
+      --max_file_store=20GB
+      --cluster_name=US-EAST
+      --http_port=8222
+    volumes:
+      - nats-region1-data:/data
+    ports:
+      - "6222:4222"
+      - "6223:8222"
+      - "6224:6222"
+    networks:
+      - region1-network
+      - monitoring-network
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=US-EAST"
+      - "agog.environment=test"
+
+  # ==========================================================================
+  # REGION 2: EU-CENTRAL (Secondary - Chinese Testing)
+  # ==========================================================================
+
+  postgres-region2:
+    image: pgvector/pgvector:pg16
+    container_name: test-postgres-region2
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agogsaas
+      POSTGRES_USER: agogsaas_user
+      POSTGRES_PASSWORD: region2_password_test
+      REGION: EU-CENTRAL
+      ENVIRONMENT: test
+    volumes:
+      - postgres-region2-data:/var/lib/postgresql/data
+      - ../../Implementation/print-industry-erp/backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "7432:5432"
+    networks:
+      - region2-network
+      - monitoring-network
+    command: |
+      postgres
+      -c wal_level=logical
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=EU-CENTRAL"
+      - "agog.environment=test"
+
+  redis-region2:
+    image: redis:7-alpine
+    container_name: test-redis-region2
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-region2-data:/data
+    ports:
+      - "7379:6379"
+    networks:
+      - region2-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=EU-CENTRAL"
+      - "agog.environment=test"
+
+  backend-region2:
+    build:
+      context: ../../Implementation/print-industry-erp/backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: test-backend-region2
+    restart: unless-stopped
+    depends_on:
+      postgres-region2:
+        condition: service_healthy
+      redis-region2:
+        condition: service_healthy
+      nats-region2:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      ENVIRONMENT: regional
+      REGION: EU-CENTRAL
+      DATABASE_URL: postgresql://agogsaas_user:region2_password_test@postgres-region2:5432/agogsaas
+      REDIS_URL: redis://redis-region2:6379
+      NATS_URL: nats://nats-region2:4222
+      JWT_SECRET: test_jwt_secret_region2
+      GRAPHQL_PLAYGROUND: "true"
+      GRAPHQL_INTROSPECTION: "true"
+      CROSS_REGION_SYNC_ENABLED: "true"
+      EDGE_SYNC_ENABLED: "true"
+    ports:
+      - "7001:4000"
+    networks:
+      - region2-network
+      - monitoring-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=EU-CENTRAL"
+      - "agog.environment=test"
+
+  frontend-region2:
+    build:
+      context: ../../Implementation/print-industry-erp/frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        VITE_API_URL: http://localhost:7001/graphql
+        VITE_WS_URL: ws://localhost:7222
+        VITE_DEFAULT_LANGUAGE: zh-CN
+        VITE_ENABLE_MARKETPLACE: "true"
+        VITE_ENABLE_AI_FEATURES: "false"
+    container_name: test-frontend-region2
+    restart: unless-stopped
+    depends_on:
+      - backend-region2
+    ports:
+      - "7080:80"
+    networks:
+      - region2-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=EU-CENTRAL"
+      - "agog.environment=test"
+      - "agog.language=zh-CN"
+
+  nats-region2:
+    image: nats:latest
+    container_name: test-nats-region2
+    restart: unless-stopped
+    command: |
+      --jetstream
+      --store_dir=/data
+      --max_mem_store=2GB
+      --max_file_store=20GB
+      --cluster_name=EU-CENTRAL
+      --http_port=8222
+    volumes:
+      - nats-region2-data:/data
+    ports:
+      - "7222:4222"
+      - "7223:8222"
+      - "7224:6222"
+    networks:
+      - region2-network
+      - monitoring-network
+    labels:
+      - "agog.tier=regional"
+      - "agog.region=EU-CENTRAL"
+      - "agog.environment=test"
+
+  # ==========================================================================
+  # SHARED MONITORING STACK
+  # ==========================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: test-prometheus
+    restart: unless-stopped
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "agog.tier=monitoring"
+      - "agog.environment=test"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: test-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring-network
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: changeme
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "agog.tier=monitoring"
+      - "agog.environment=test"
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: test-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ../monitoring/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    networks:
+      - monitoring-network
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "agog.tier=monitoring"
+      - "agog.environment=test"
+
+# ==========================================================================
+# TEST ENVIRONMENT NOTES
+# ==========================================================================
+#
+# ACCESS POINTS:
+# - Frontend Region 1 (US-EAST, English):   http://localhost:6080
+# - Frontend Region 2 (EU-CENTRAL, Chinese): http://localhost:7080
+# - Backend Edge:                            http://localhost:5001/graphql
+# - Backend Region 1:                        http://localhost:6001/graphql
+# - Backend Region 2:                        http://localhost:7001/graphql
+# - Prometheus:                              http://localhost:9090
+# - Grafana:                                 http://localhost:3000 (admin/changeme)
+# - Alertmanager:                            http://localhost:9093
+#
+# DATABASE ACCESS:
+# - Edge:     psql -h localhost -p 5432 -U edge_user -d agog_edge
+# - Region 1: psql -h localhost -p 6432 -U agogsaas_user -d agogsaas
+# - Region 2: psql -h localhost -p 7432 -U agogsaas_user -d agogsaas
+#
+# REDIS ACCESS:
+# - Region 1: redis-cli -h localhost -p 6379
+# - Region 2: redis-cli -h localhost -p 7379
+#
+# NATS MONITORING:
+# - Edge:     http://localhost:5223
+# - Region 1: http://localhost:6223
+# - Region 2: http://localhost:7223
+#
+# START:
+# docker-compose -f docker-compose.test.yml up -d
+#
+# STOP:
+# docker-compose -f docker-compose.test.yml down
+#
+# LOGS:
+# docker-compose -f docker-compose.test.yml logs -f [service-name]
+#
+# RESET DATA:
+# docker-compose -f docker-compose.test.yml down -v
+#
