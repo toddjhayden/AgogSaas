@@ -1,0 +1,391 @@
+# OLTP vs OLAP - Semantic Knowledge for AI Agents
+# Purpose: Core concepts that define how transactional and analytical systems differ
+# Usage: AI agents query "What is OLTP?" or "When do I use OLAP vs OLTP?"
+
+type: semantic_knowledge
+category: data_architecture_fundamentals
+version: "1.0"
+last_updated: "2025-12-17"
+
+# FUNDAMENTAL PRINCIPLE
+fundamental_principle:
+  statement: "OLAP requirements DRIVE OLTP schema design"
+  explanation: "Business intelligence needs (what we want to measure) determine what transactional data we capture and how we structure it"
+  anti_pattern: "Building OLTP first without dimensional model guidance leads to poor analytics"
+
+# OLTP (Online Transaction Processing)
+oltp:
+  full_name: "Online Transaction Processing"
+  acronym: "OLTP"
+
+  purpose: "Capture and manage day-to-day business transactions"
+
+  characteristics:
+    - "INSERT, UPDATE, DELETE operations"
+    - "Normalized schema (3NF) to reduce redundancy"
+    - "Row-oriented storage"
+    - "Fast writes, optimized for transactions"
+    - "Current state of data"
+    - "Many small, frequent queries"
+    - "ACID compliant (Atomicity, Consistency, Isolation, Durability)"
+
+  use_cases:
+    - "Process sales orders"
+    - "Manage inventory"
+    - "Track production runs"
+    - "Record quality inspections"
+    - "Handle purchase orders"
+    - "Log employee timecards"
+    - "Capture sensor readings"
+
+  schema_design:
+    approach: "Normalized (3NF)"
+    goal: "Minimize redundancy, maintain consistency"
+    tables: "Many tables with foreign key relationships"
+    updates: "Frequent INSERT/UPDATE/DELETE"
+
+  query_patterns:
+    - "Single record lookup (SELECT WHERE id = ?)"
+    - "Insert new order"
+    - "Update inventory quantity"
+    - "Delete customer (soft delete)"
+
+  performance_goals:
+    - "Sub-second write latency"
+    - "High transaction throughput"
+    - "Concurrent user support"
+
+  technology_stack:
+    database: "PostgreSQL (what we use)"
+    alternatives: ["MySQL", "SQL Server", "Oracle"]
+    access_layer: "GraphQL API (what we built)"
+
+  current_state_in_project:
+    status: "80/86 tables with GraphQL APIs"
+    issue: "Built without OLAP guidance - needs refactoring"
+    critical_problems:
+      - "Column names semantically inconsistent"
+      - "No SCD Type 2 tracking for historical analysis"
+      - "Missing conformed dimensions"
+      - "Can't answer business intelligence questions efficiently"
+
+# OLAP (Online Analytical Processing)
+olap:
+  full_name: "Online Analytical Processing"
+  acronym: "OLAP"
+
+  purpose: "Enable complex analytical queries and business intelligence"
+
+  characteristics:
+    - "SELECT operations (read-heavy)"
+    - "Denormalized schema (star/snowflake) for query performance"
+    - "Column-oriented storage"
+    - "Fast reads, optimized for analytics"
+    - "Historical data (time-series)"
+    - "Complex aggregations and joins"
+    - "Eventually consistent (not real-time)"
+
+  use_cases:
+    - "Revenue by customer/product/region/time"
+    - "OEE trends by work center"
+    - "Quality defect analysis"
+    - "Sales forecasting"
+    - "Inventory turnover analysis"
+    - "Customer lifetime value"
+    - "Vendor performance scorecards"
+
+  schema_design:
+    approach: "Dimensional (Star Schema / Snowflake)"
+    goal: "Optimize for analytical queries"
+    components:
+      fact_tables: "Metrics/measurements (sales, production, quality)"
+      dimension_tables: "Context (who, what, where, when, why)"
+    pattern: "Few large denormalized tables joined by surrogate keys"
+
+  query_patterns:
+    - "Aggregate across time (SUM revenue BY month)"
+    - "Slice and dice (sales BY product BY region BY quarter)"
+    - "Trend analysis (OEE over last 90 days)"
+    - "Top N (top 10 customers by revenue)"
+
+  performance_goals:
+    - "Sub-second query response for aggregates"
+    - "Support for ad-hoc analysis"
+    - "Handle billions of rows"
+
+  technology_stack:
+    database: "Data Warehouse (to be built)"
+    options: ["PostgreSQL with star schema", "Snowflake", "BigQuery", "Redshift"]
+    access_layer: "BI tools (Grafana, Tableau, PowerBI)"
+
+  current_state_in_project:
+    status: "NOT BUILT - this is the critical gap"
+    required_work:
+      - "Design star schema with fact and dimension tables"
+      - "Implement SCD Type 2 for dimensions"
+      - "Build ETL processes (OLTP → OLAP)"
+      - "Create aggregate tables for performance"
+      - "Develop BI views and reports"
+
+# Key Differences (Side-by-Side)
+key_differences:
+
+  data_structure:
+    oltp: "Normalized (3NF) - many tables with FKs"
+    olap: "Denormalized (Star) - fact tables joined to dimensions"
+
+  query_type:
+    oltp: "Simple SELECT/INSERT/UPDATE/DELETE on single records"
+    olap: "Complex aggregations across millions of rows"
+
+  workload:
+    oltp: "Write-heavy (transactions)"
+    olap: "Read-heavy (analytics)"
+
+  data_scope:
+    oltp: "Current state (what IS)"
+    olap: "Historical trends (what WAS, what WILL BE)"
+
+  update_frequency:
+    oltp: "Real-time (immediate)"
+    olap: "Batch (hourly/daily/weekly ETL)"
+
+  users:
+    oltp: "Operational staff (order entry, warehouse, production)"
+    olap: "Analysts, executives, data scientists"
+
+  schema_changes:
+    oltp: "Frequent (as business evolves)"
+    olap: "Stable (conformed dimensions, established grain)"
+
+  optimization:
+    oltp: "Indexes on primary/foreign keys, row-level locks"
+    olap: "Columnstore, partitioning, materialized views, aggregates"
+
+# When to Use Each
+when_to_use:
+
+  oltp:
+    - "Capturing business transactions"
+    - "Real-time operational data"
+    - "User-facing applications"
+    - "Transactional consistency required"
+    examples:
+      - "Customer places order → write to sales_orders table"
+      - "Warehouse ships product → update shipments table"
+      - "Employee clocks in → insert timecard record"
+
+  olap:
+    - "Business intelligence and reporting"
+    - "Historical analysis and trends"
+    - "Executive dashboards"
+    - "Predictive analytics"
+    examples:
+      - "Show revenue by product category for last 12 months"
+      - "Calculate customer lifetime value by segment"
+      - "Analyze OEE trends by work center and shift"
+      - "Forecast demand based on historical patterns"
+
+# Integration Pattern (How they work together)
+integration_pattern:
+
+  architecture: "Lambda Architecture or ETL Pipeline"
+
+  data_flow:
+    - step: 1
+      description: "Business transactions captured in OLTP"
+      example: "Sales order entered, production run completed"
+
+    - step: 2
+      description: "ETL process extracts data from OLTP"
+      example: "Nightly batch job queries OLTP tables"
+
+    - step: 3
+      description: "Transform data to dimensional model"
+      example: "Join normalized tables, apply business rules, handle SCD"
+
+    - step: 4
+      description: "Load into OLAP fact and dimension tables"
+      example: "Insert into fact_sales_orders, update dim_customer (SCD Type 2)"
+
+    - step: 5
+      description: "BI tools query OLAP for analytics"
+      example: "Grafana dashboard shows revenue trends"
+
+  timing:
+    oltp: "Real-time (seconds)"
+    etl: "Scheduled (minutes to hours)"
+    olap: "Slightly stale but optimized (minutes to hours behind OLTP)"
+
+  consistency:
+    oltp: "Strong consistency (ACID)"
+    olap: "Eventual consistency (acceptable staleness)"
+
+# Dimensional Modeling Concepts (Bridge between OLTP and OLAP)
+dimensional_modeling:
+
+  kimball_methodology:
+    philosophy: "Business-driven dimensional design"
+    artifacts:
+      - "Bus Matrix (processes × dimensions)"
+      - "Conformed dimensions (shared across facts)"
+      - "Fact grain definitions (one row per...)"
+      - "Star schema (fact center, dimension points)"
+
+  fact_tables:
+    definition: "Measurements/metrics from business processes"
+    grain: "Most atomic level of detail (one row per transaction/event/snapshot)"
+    characteristics:
+      - "Mostly numeric, additive measures"
+      - "Foreign keys to dimensions (not data)"
+      - "Degenerate dimensions (transaction IDs)"
+    types:
+      transaction: "One row per event (sales order, production run)"
+      periodic_snapshot: "One row per period (daily inventory, monthly balances)"
+      accumulating_snapshot: "One row per process lifecycle (order-to-cash)"
+    examples:
+      - "fact_sales_orders (grain: one row per sales order line)"
+      - "fact_production_runs (grain: one row per production run)"
+      - "fact_inventory_snapshots (grain: one row per material/location/day)"
+
+  dimension_tables:
+    definition: "Context/attributes for analyzing facts (who, what, where, when, why)"
+    characteristics:
+      - "Mostly text/descriptive"
+      - "Slowly Changing Dimensions (SCD) track history"
+      - "Surrogate keys (not natural keys)"
+    types:
+      type_0: "Never changes (Date, Time)"
+      type_1: "Overwrite, no history (reference data)"
+      type_2: "Track history with effective dates (customer, product)"
+      type_3: "Limited history (prior value column)"
+    examples:
+      - "dim_customer (SCD Type 2: track pricing tier changes)"
+      - "dim_product (SCD Type 2: track cost/price changes)"
+      - "dim_date (Type 0: pre-loaded calendar)"
+
+  conformed_dimensions:
+    definition: "Dimensions shared across multiple fact tables"
+    purpose: "Enable cross-process analysis (drill-across)"
+    examples:
+      - "dim_customer used by: fact_sales_orders, fact_invoices, fact_shipments"
+      - "dim_product used by: fact_sales_orders, fact_production_runs, fact_quality"
+      - "dim_date used by: ALL fact tables"
+    business_value: "Answer questions like 'How does production quality affect sales?'"
+
+# Project-Specific Application
+project_application:
+
+  current_oltp:
+    database: "PostgreSQL 16"
+    schema: "86 tables, 80 with GraphQL"
+    issues:
+      - "Column names inconsistent (47 violations)"
+      - "No SCD Type 2 tracking"
+      - "Can't answer: 'What was customer's pricing tier 6 months ago?'"
+      - "Can't answer: 'How has product cost changed over time?'"
+
+  required_olap:
+    goal: "Enable business intelligence across all modules"
+
+    conformed_dimensions_needed:
+      - dim_date
+      - dim_time_of_day
+      - dim_customer
+      - dim_product
+      - dim_material
+      - dim_facility
+      - dim_work_center
+      - dim_employee
+      - dim_vendor
+      - dim_security_zone
+      - dim_partner_company
+
+    fact_tables_needed:
+      - fact_sales_orders
+      - fact_production_runs
+      - fact_quality_inspections
+      - fact_inventory_snapshots
+      - fact_labor_tracking
+      - fact_purchase_orders
+      - fact_gl_transactions
+      - fact_marketplace_jobs
+      - fact_sensor_readings
+
+    business_questions_to_answer:
+      sales:
+        - "Revenue by customer/product/region/time?"
+        - "Quote-to-order conversion rate?"
+        - "Customer lifetime value?"
+      manufacturing:
+        - "OEE by work center/product/shift?"
+        - "Scrap rate trends?"
+        - "Capacity utilization?"
+      quality:
+        - "Defect rate by product/work center?"
+        - "Customer rejection trends?"
+        - "CAPA closure time?"
+      financial:
+        - "Gross margin by product/customer?"
+        - "Inventory turns?"
+        - "Working capital efficiency?"
+
+# AI Agent Guidelines
+ai_agent_guidelines:
+
+  when_building_features:
+    - "ALWAYS ask: What OLAP questions will this data answer?"
+    - "Design OLTP columns to support dimensional analysis"
+    - "Use conformed dimension column standards"
+    - "Include SCD tracking in master data"
+
+  when_naming_columns:
+    - "Follow dimensional model naming conventions"
+    - "No semantic overloading"
+    - "Think: How will analyst query this in OLAP?"
+
+  when_designing_tables:
+    - "Identify: Is this fact data or dimension data?"
+    - "Fact = measurements (numeric, additive)"
+    - "Dimension = context (descriptive, categorical)"
+
+  when_queried_about_data:
+    - "Understand the difference: OLTP vs OLAP question"
+    - "OLTP: 'What is order #12345 status?' (single record)"
+    - "OLAP: 'What are average order values by month?' (aggregation)"
+
+# Related Concepts (for semantic search)
+related_concepts:
+  - "Data warehouse"
+  - "Star schema"
+  - "Snowflake schema"
+  - "Fact table"
+  - "Dimension table"
+  - "Slowly Changing Dimensions (SCD)"
+  - "ETL (Extract, Transform, Load)"
+  - "Business Intelligence (BI)"
+  - "Kimball methodology"
+  - "Inmon methodology"
+  - "OLAP cube"
+  - "Data mart"
+  - "Surrogate key"
+  - "Natural key"
+  - "Degenerate dimension"
+  - "Conformed dimension"
+  - "Grain"
+  - "Additivity"
+
+# Memory Metadata
+memory_metadata:
+  embeddings_needed: true
+  searchable_fields:
+    - oltp_characteristics
+    - olap_characteristics
+    - dimensional_modeling_concepts
+    - business_questions
+    - ai_agent_guidelines
+  importance: "CRITICAL - foundational knowledge"
+  version_history:
+    - version: "1.0"
+      date: "2025-12-17"
+      changes: "Initial OLTP vs OLAP semantic knowledge"
