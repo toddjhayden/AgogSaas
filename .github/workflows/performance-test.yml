@@ -1,0 +1,394 @@
+name: Performance Testing
+
+on:
+  schedule:
+    # Run weekly on Monday at 3 AM UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        default: 'staging'
+        options:
+          - staging
+          - production
+      duration:
+        description: 'Test duration (e.g., 5m, 10m)'
+        required: false
+        default: '5m'
+      virtual_users:
+        description: 'Number of virtual users'
+        required: false
+        default: '50'
+
+env:
+  BACKEND_DIR: Implementation/print-industry-erp/backend
+  FRONTEND_DIR: Implementation/print-industry-erp/frontend
+
+jobs:
+  # =============================================================================
+  # Setup Performance Testing Environment
+  # =============================================================================
+  setup:
+    name: Setup Performance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Verify k6 installation
+        run: k6 version
+
+  # =============================================================================
+  # Load Testing
+  # =============================================================================
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    needs: setup
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Determine target URL
+        id: target
+        run: |
+          if [ "${{ github.event.inputs.target_environment }}" == "production" ]; then
+            echo "url=https://agogsaas.com" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://staging.agogsaas.com" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create k6 load test script
+        run: |
+          cat > load-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          import { Rate } from 'k6/metrics';
+
+          const errorRate = new Rate('errors');
+
+          export let options = {
+            stages: [
+              { duration: '2m', target: ${{ github.event.inputs.virtual_users || 50 }} },
+              { duration: '${{ github.event.inputs.duration || '5m' }}', target: ${{ github.event.inputs.virtual_users || 50 }} },
+              { duration: '2m', target: 0 },
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<500', 'p(99)<1000'],
+              http_req_failed: ['rate<0.05'],
+              errors: ['rate<0.1'],
+            },
+          };
+
+          const BASE_URL = '${{ steps.target.outputs.url }}';
+
+          export default function () {
+            // Test 1: Health check
+            let healthRes = http.get(`${BASE_URL}/health`);
+            check(healthRes, {
+              'health check status 200': (r) => r.status === 200,
+              'health check duration < 200ms': (r) => r.timings.duration < 200,
+            }) || errorRate.add(1);
+
+            sleep(1);
+
+            // Test 2: GraphQL query
+            let graphqlRes = http.post(
+              `${BASE_URL}/graphql`,
+              JSON.stringify({
+                query: '{ __typename }',
+              }),
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            check(graphqlRes, {
+              'graphql status 200': (r) => r.status === 200,
+              'graphql duration < 500ms': (r) => r.timings.duration < 500,
+              'graphql has data': (r) => r.json().data !== undefined,
+            }) || errorRate.add(1);
+
+            sleep(1);
+
+            // Test 3: Frontend page load
+            let frontendRes = http.get(`${BASE_URL}/`);
+            check(frontendRes, {
+              'frontend status 200': (r) => r.status === 200,
+              'frontend duration < 1000ms': (r) => r.timings.duration < 1000,
+              'frontend has content': (r) => r.body.includes('AgogSaaS'),
+            }) || errorRate.add(1);
+
+            sleep(2);
+          }
+          EOF
+
+      - name: Run k6 load test
+        run: |
+          echo "Running load test against ${{ steps.target.outputs.url }}"
+          k6 run --out json=load-test-results.json load-test.js
+
+      - name: Upload load test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: load-test-results.json
+
+  # =============================================================================
+  # Stress Testing
+  # =============================================================================
+  stress-test:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event.inputs.target_environment != 'production'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Create k6 stress test script
+        run: |
+          cat > stress-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+
+          export let options = {
+            stages: [
+              { duration: '1m', target: 50 },
+              { duration: '2m', target: 100 },
+              { duration: '2m', target: 200 },
+              { duration: '2m', target: 300 },
+              { duration: '2m', target: 200 },
+              { duration: '1m', target: 0 },
+            ],
+          };
+
+          const BASE_URL = 'https://staging.agogsaas.com';
+
+          export default function () {
+            let res = http.get(`${BASE_URL}/health`);
+            check(res, {
+              'status 200': (r) => r.status === 200,
+            });
+            sleep(1);
+          }
+          EOF
+
+      - name: Run k6 stress test
+        run: |
+          echo "Running stress test against staging..."
+          k6 run --out json=stress-test-results.json stress-test.js || true
+
+      - name: Upload stress test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: stress-test-results
+          path: stress-test-results.json
+
+  # =============================================================================
+  # Database Performance Testing
+  # =============================================================================
+  database-performance:
+    name: Database Performance
+    runs-on: ubuntu-latest
+    if: github.event.inputs.target_environment == 'staging'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Run database performance queries
+        run: |
+          echo "Testing database query performance..."
+
+          ssh -i ~/.ssh/staging_key \
+            ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} \
+            'cd /opt/agogsaas && docker-compose exec -T postgres psql -U agogsaas_user -d agogsaas' << 'EOSQL'
+
+          -- Enable timing
+          \timing on
+
+          -- Test 1: Simple select performance
+          SELECT COUNT(*) FROM monitoring_events;
+
+          -- Test 2: Join performance
+          SELECT me.*, mt.name
+          FROM monitoring_events me
+          JOIN monitoring_tasks mt ON me.task_id = mt.id
+          LIMIT 100;
+
+          -- Test 3: Index usage check
+          EXPLAIN ANALYZE
+          SELECT * FROM monitoring_events
+          WHERE created_at > NOW() - INTERVAL '1 day';
+
+          -- Test 4: Connection pool stats
+          SELECT * FROM pg_stat_activity;
+
+          EOSQL
+
+      - name: Check slow queries
+        run: |
+          echo "Checking for slow queries..."
+
+          ssh -i ~/.ssh/staging_key \
+            ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} \
+            'cd /opt/agogsaas && docker-compose exec -T postgres psql -U agogsaas_user -d agogsaas -c "SELECT query, mean_exec_time, calls FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;"' || echo "pg_stat_statements not enabled"
+
+  # =============================================================================
+  # Frontend Performance (Lighthouse)
+  # =============================================================================
+  lighthouse:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Determine target URL
+        id: target
+        run: |
+          if [ "${{ github.event.inputs.target_environment }}" == "production" ]; then
+            echo "url=https://agogsaas.com" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://staging.agogsaas.com" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Lighthouse audit
+        run: |
+          lhci autorun \
+            --collect.url=${{ steps.target.outputs.url }} \
+            --collect.numberOfRuns=3 \
+            --assert.preset=lighthouse:recommended \
+            --upload.target=temporary-public-storage || true
+
+      - name: Generate Lighthouse report
+        run: |
+          echo "Lighthouse audit completed"
+          echo "Results available in workflow artifacts"
+
+  # =============================================================================
+  # Performance Summary
+  # =============================================================================
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: [load-test, stress-test, lighthouse]
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate performance summary
+        run: |
+          echo "Performance Testing Summary"
+          echo "=========================="
+          echo ""
+          echo "Target: ${{ github.event.inputs.target_environment || 'staging' }}"
+          echo "Duration: ${{ github.event.inputs.duration || '5m' }}"
+          echo "Virtual Users: ${{ github.event.inputs.virtual_users || '50' }}"
+          echo ""
+          echo "Load Test: ${{ needs.load-test.result }}"
+          echo "Stress Test: ${{ needs.stress-test.result }}"
+          echo "Lighthouse: ${{ needs.lighthouse.result }}"
+          echo ""
+
+          # Parse k6 results if available
+          if [ -f load-test-results/load-test-results.json ]; then
+            echo "Load Test Results:"
+            cat load-test-results/load-test-results.json | grep -E "http_req_duration|http_req_failed" || true
+          fi
+
+      - name: Check performance thresholds
+        run: |
+          FAILED=false
+
+          if [ "${{ needs.load-test.result }}" == "failure" ]; then
+            echo "WARNING: Load test failed threshold checks"
+            FAILED=true
+          fi
+
+          if [ "$FAILED" == "true" ]; then
+            echo "Performance tests failed threshold checks"
+            exit 1
+          fi
+
+          echo "All performance tests passed"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `
+            ## Performance Test Results
+
+            | Test | Status |
+            |------|--------|
+            | Load Test | ${{ needs.load-test.result }} |
+            | Stress Test | ${{ needs.stress-test.result }} |
+            | Lighthouse | ${{ needs.lighthouse.result }} |
+
+            **Target:** ${{ github.event.inputs.target_environment || 'staging' }}
+            **Duration:** ${{ github.event.inputs.duration || '5m' }}
+            **Virtual Users:** ${{ github.event.inputs.virtual_users || '50' }}
+
+            View detailed reports in the workflow artifacts.
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });

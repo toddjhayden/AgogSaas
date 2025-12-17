@@ -1,0 +1,361 @@
+name: Security Scanning
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  BACKEND_DIR: Implementation/print-industry-erp/backend
+  FRONTEND_DIR: Implementation/print-industry-erp/frontend
+
+jobs:
+  # =============================================================================
+  # Dependency Vulnerability Scanning
+  # =============================================================================
+  npm-audit:
+    name: NPM Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Backend npm audit
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "Running npm audit on backend..."
+          npm audit --audit-level=moderate || true
+          npm audit --json > backend-audit.json || true
+
+      - name: Frontend npm audit
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Running npm audit on frontend..."
+          npm audit --audit-level=moderate || true
+          npm audit --json > frontend-audit.json || true
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v3
+        with:
+          name: npm-audit-results
+          path: |
+            ${{ env.BACKEND_DIR }}/backend-audit.json
+            ${{ env.FRONTEND_DIR }}/frontend-audit.json
+
+  # =============================================================================
+  # OWASP Dependency Check
+  # =============================================================================
+  owasp-dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'AgogSaaS'
+          path: '.'
+          format: 'HTML'
+          args: >
+            --enableRetired
+            --enableExperimental
+
+      - name: Upload OWASP results
+        uses: actions/upload-artifact@v3
+        with:
+          name: owasp-dependency-check-report
+          path: reports
+
+  # =============================================================================
+  # Secret Detection
+  # =============================================================================
+  secret-scanning:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
+          chmod +x gitleaks
+
+      - name: Run gitleaks
+        run: |
+          echo "Scanning for secrets with gitleaks..."
+          ./gitleaks detect --source . --verbose --report-path gitleaks-report.json || true
+
+      - name: Check for secrets
+        run: |
+          if [ -f gitleaks-report.json ]; then
+            if [ $(cat gitleaks-report.json | wc -l) -gt 2 ]; then
+              echo "Secrets detected! Review gitleaks-report.json"
+              cat gitleaks-report.json
+              exit 1
+            fi
+          fi
+          echo "No secrets detected"
+
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+
+  # =============================================================================
+  # Docker Image Vulnerability Scanning (Trivy)
+  # =============================================================================
+  trivy-scan:
+    name: Container Image Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.BACKEND_DIR }}
+          file: ${{ env.BACKEND_DIR }}/Dockerfile
+          push: false
+          load: true
+          tags: agogsaas-backend:scan
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.FRONTEND_DIR }}
+          file: ${{ env.FRONTEND_DIR }}/Dockerfile
+          push: false
+          load: true
+          tags: agogsaas-frontend:scan
+
+      - name: Run Trivy scan on backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: agogsaas-backend:scan
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy scan on frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: agogsaas-frontend:scan
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: |
+            trivy-backend-results.sarif
+            trivy-frontend-results.sarif
+
+      - name: Generate human-readable reports
+        if: always()
+        run: |
+          echo "Generating human-readable Trivy reports..."
+
+          # Backend report
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image \
+            --severity CRITICAL,HIGH \
+            --format table \
+            agogsaas-backend:scan > trivy-backend-report.txt || true
+
+          # Frontend report
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image \
+            --severity CRITICAL,HIGH \
+            --format table \
+            agogsaas-frontend:scan > trivy-frontend-report.txt || true
+
+      - name: Upload Trivy reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: trivy-reports
+          path: |
+            trivy-backend-report.txt
+            trivy-frontend-report.txt
+            trivy-backend-results.sarif
+            trivy-frontend-results.sarif
+
+  # =============================================================================
+  # Static Code Analysis
+  # =============================================================================
+  code-analysis:
+    name: Static Code Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd ${{ env.BACKEND_DIR }} && npm ci
+          cd ${{ env.FRONTEND_DIR }} && npm ci
+
+      - name: Run ESLint with security rules
+        run: |
+          echo "Running ESLint security analysis..."
+
+          cd ${{ env.BACKEND_DIR }}
+          npm run lint -- --format json --output-file eslint-backend.json || true
+
+          cd ../${{ env.FRONTEND_DIR }}
+          npm run lint -- --format json --output-file eslint-frontend.json || true
+
+      - name: Upload ESLint results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: eslint-results
+          path: |
+            ${{ env.BACKEND_DIR }}/eslint-backend.json
+            ${{ env.FRONTEND_DIR }}/eslint-frontend.json
+
+  # =============================================================================
+  # License Compliance Check
+  # =============================================================================
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install license-checker
+        run: npm install -g license-checker
+
+      - name: Check backend licenses
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          npm ci
+          echo "Checking backend licenses..."
+          license-checker --json --out backend-licenses.json || true
+          license-checker --summary || true
+
+      - name: Check frontend licenses
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          npm ci
+          echo "Checking frontend licenses..."
+          license-checker --json --out frontend-licenses.json || true
+          license-checker --summary || true
+
+      - name: Upload license reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-reports
+          path: |
+            ${{ env.BACKEND_DIR }}/backend-licenses.json
+            ${{ env.FRONTEND_DIR }}/frontend-licenses.json
+
+  # =============================================================================
+  # Security Summary
+  # =============================================================================
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [npm-audit, secret-scanning, trivy-scan, code-analysis, license-check]
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate security summary
+        run: |
+          echo "Security Scan Summary"
+          echo "===================="
+          echo ""
+          echo "NPM Audit: ${{ needs.npm-audit.result }}"
+          echo "Secret Scanning: ${{ needs.secret-scanning.result }}"
+          echo "Trivy Image Scan: ${{ needs.trivy-scan.result }}"
+          echo "Code Analysis: ${{ needs.code-analysis.result }}"
+          echo "License Check: ${{ needs.license-check.result }}"
+          echo ""
+
+          # Check if any critical issues found
+          if [ "${{ needs.secret-scanning.result }}" == "failure" ]; then
+            echo "CRITICAL: Secrets detected in code!"
+            exit 1
+          fi
+
+          if [ "${{ needs.trivy-scan.result }}" == "failure" ]; then
+            echo "WARNING: Critical vulnerabilities found in Docker images"
+          fi
+
+          echo "Security scan completed"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `
+            ## Security Scan Results
+
+            | Check | Status |
+            |-------|--------|
+            | NPM Audit | ${{ needs.npm-audit.result }} |
+            | Secret Scanning | ${{ needs.secret-scanning.result }} |
+            | Container Scan | ${{ needs.trivy-scan.result }} |
+            | Code Analysis | ${{ needs.code-analysis.result }} |
+            | License Check | ${{ needs.license-check.result }} |
+
+            View detailed reports in the workflow artifacts.
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });

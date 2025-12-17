@@ -1,11 +1,20 @@
 # Don't copy .env file into Docker image
 # Docker Compose will provide environment variables
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # Don't copy node_modules (will be installed in container)
 node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Don't copy build output (will be generated in container)
+dist
+build
+.vite
+.turbo
 
 # Don't copy development files
 *.log
@@ -16,6 +25,36 @@ node_modules
 *.swo
 *~
 
-# Don't copy build output (will be generated in container)
-dist
-build
+# Don't copy Git files
+.git
+.gitignore
+.gitattributes
+
+# Don't copy test files
+**/*.test.tsx
+**/*.test.ts
+**/*.spec.tsx
+**/*.spec.ts
+coverage
+.nyc_output
+cypress
+e2e
+
+# Don't copy documentation
+*.md
+!README.md
+docs
+
+# Don't copy CI/CD files
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Don't copy Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+nginx.conf.template
+
+# Don't copy source maps in production
+**/*.map

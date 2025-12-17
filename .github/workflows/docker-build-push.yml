@@ -1,0 +1,271 @@
+name: Docker Build and Push (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (staging, production, etc.)'
+        required: true
+        type: string
+      image_tag:
+        description: 'Docker image tag'
+        required: true
+        type: string
+      push_images:
+        description: 'Whether to push images to registry'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      backend_image:
+        description: 'Backend image with tag'
+        value: ${{ jobs.build-push.outputs.backend_image }}
+      frontend_image:
+        description: 'Frontend image with tag'
+        value: ${{ jobs.build-push.outputs.frontend_image }}
+      backend_digest:
+        description: 'Backend image digest'
+        value: ${{ jobs.build-push.outputs.backend_digest }}
+      frontend_digest:
+        description: 'Frontend image digest'
+        value: ${{ jobs.build-push.outputs.frontend_digest }}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+  BACKEND_DIR: Implementation/print-industry-erp/backend
+  FRONTEND_DIR: Implementation/print-industry-erp/frontend
+
+jobs:
+  build-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      backend_image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ inputs.image_tag }}
+      frontend_image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ inputs.image_tag }}
+      backend_digest: ${{ steps.build-backend.outputs.digest }}
+      frontend_digest: ${{ steps.build-frontend.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - name: Log in to Container Registry
+        if: ${{ inputs.push_images }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate build metadata
+        id: metadata
+        run: |
+          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+          echo "git_commit=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "git_branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          echo "version=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+
+      # =============================================================================
+      # Backend Image Build
+      # =============================================================================
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=${{ inputs.environment }}-latest
+          labels: |
+            org.opencontainers.image.title=AgogSaaS Backend
+            org.opencontainers.image.description=AgogSaaS GraphQL Backend with 4-layer AI system
+            org.opencontainers.image.vendor=AgogSaaS
+            org.opencontainers.image.version=${{ inputs.image_tag }}
+            org.opencontainers.image.created=${{ steps.metadata.outputs.build_date }}
+            org.opencontainers.image.revision=${{ steps.metadata.outputs.git_commit }}
+            com.agogsaas.environment=${{ inputs.environment }}
+            com.agogsaas.git.branch=${{ steps.metadata.outputs.git_branch }}
+
+      - name: Build and push backend image
+        id: build-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.BACKEND_DIR }}
+          file: ${{ env.BACKEND_DIR }}/Dockerfile
+          push: ${{ inputs.push_images }}
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend-${{ inputs.environment }}
+          cache-to: type=gha,mode=max,scope=backend-${{ inputs.environment }}
+          platforms: linux/amd64
+          build-args: |
+            NODE_ENV=${{ inputs.environment == 'production' && 'production' || 'development' }}
+            BUILD_DATE=${{ steps.metadata.outputs.build_date }}
+            GIT_COMMIT=${{ steps.metadata.outputs.git_commit }}
+            VERSION=${{ inputs.image_tag }}
+
+      # =============================================================================
+      # Frontend Image Build
+      # =============================================================================
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=raw,value=${{ inputs.image_tag }}
+            type=raw,value=${{ inputs.environment }}-latest
+          labels: |
+            org.opencontainers.image.title=AgogSaaS Frontend
+            org.opencontainers.image.description=AgogSaaS React Frontend with Monitoring Dashboard
+            org.opencontainers.image.vendor=AgogSaaS
+            org.opencontainers.image.version=${{ inputs.image_tag }}
+            org.opencontainers.image.created=${{ steps.metadata.outputs.build_date }}
+            org.opencontainers.image.revision=${{ steps.metadata.outputs.git_commit }}
+            com.agogsaas.environment=${{ inputs.environment }}
+            com.agogsaas.git.branch=${{ steps.metadata.outputs.git_branch }}
+
+      - name: Determine GraphQL URL
+        id: graphql-url
+        run: |
+          if [ "${{ inputs.environment }}" == "production" ]; then
+            echo "url=https://agogsaas.com/graphql" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.environment }}" == "staging" ]; then
+            echo "url=https://staging.agogsaas.com/graphql" >> $GITHUB_OUTPUT
+          else
+            echo "url=http://localhost:4000/graphql" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push frontend image
+        id: build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.FRONTEND_DIR }}
+          file: ${{ env.FRONTEND_DIR }}/Dockerfile
+          push: ${{ inputs.push_images }}
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend-${{ inputs.environment }}
+          cache-to: type=gha,mode=max,scope=frontend-${{ inputs.environment }}
+          platforms: linux/amd64
+          build-args: |
+            NODE_ENV=${{ inputs.environment == 'production' && 'production' || 'development' }}
+            VITE_GRAPHQL_URL=${{ steps.graphql-url.outputs.url }}
+            BUILD_DATE=${{ steps.metadata.outputs.build_date }}
+            GIT_COMMIT=${{ steps.metadata.outputs.git_commit }}
+            VERSION=${{ inputs.image_tag }}
+
+      # =============================================================================
+      # Image Analysis and Reporting
+      # =============================================================================
+      - name: Analyze image sizes
+        if: ${{ inputs.push_images }}
+        run: |
+          echo "Docker Image Sizes"
+          echo "=================="
+          echo ""
+
+          # Get image sizes
+          BACKEND_SIZE=$(docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ inputs.image_tag }} --format "{{.Size}}")
+          FRONTEND_SIZE=$(docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ inputs.image_tag }} --format "{{.Size}}")
+
+          echo "Backend:  $BACKEND_SIZE"
+          echo "Frontend: $FRONTEND_SIZE"
+          echo ""
+
+          # Save for artifacts
+          cat > image-sizes.txt << EOF
+          Backend Image:  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ inputs.image_tag }}
+          Size: $BACKEND_SIZE
+          Digest: ${{ steps.build-backend.outputs.digest }}
+
+          Frontend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ inputs.image_tag }}
+          Size: $FRONTEND_SIZE
+          Digest: ${{ steps.build-frontend.outputs.digest }}
+
+          Build Date: ${{ steps.metadata.outputs.build_date }}
+          Git Commit: ${{ steps.metadata.outputs.git_commit }}
+          Git Branch: ${{ steps.metadata.outputs.git_branch }}
+          Environment: ${{ inputs.environment }}
+          EOF
+
+      - name: Generate SBOM (Software Bill of Materials)
+        if: ${{ inputs.push_images }}
+        run: |
+          echo "Generating Software Bill of Materials..."
+
+          # Install syft for SBOM generation
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+          # Generate SBOM for backend
+          syft ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ inputs.image_tag }} \
+            -o json > backend-sbom.json || echo "SBOM generation failed for backend"
+
+          # Generate SBOM for frontend
+          syft ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ inputs.image_tag }} \
+            -o json > frontend-sbom.json || echo "SBOM generation failed for frontend"
+
+          echo "SBOM generation completed"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-build-artifacts-${{ inputs.environment }}
+          path: |
+            image-sizes.txt
+            backend-sbom.json
+            frontend-sbom.json
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          echo "Docker Build Summary"
+          echo "===================="
+          echo ""
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Image Tag: ${{ inputs.image_tag }}"
+          echo ""
+          echo "Backend Image:"
+          echo "  Name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ inputs.image_tag }}"
+          echo "  Digest: ${{ steps.build-backend.outputs.digest }}"
+          echo ""
+          echo "Frontend Image:"
+          echo "  Name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ inputs.image_tag }}"
+          echo "  Digest: ${{ steps.build-frontend.outputs.digest }}"
+          echo ""
+
+          # Create job summary for GitHub Actions UI
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Docker Build Summary
+
+          **Environment:** ${{ inputs.environment }}
+          **Tag:** \`${{ inputs.image_tag }}\`
+
+          ### Images Built
+
+          | Component | Image | Digest |
+          |-----------|-------|--------|
+          | Backend | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ inputs.image_tag }}\` | \`${{ steps.build-backend.outputs.digest }}\` |
+          | Frontend | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ inputs.image_tag }}\` | \`${{ steps.build-frontend.outputs.digest }}\` |
+
+          ### Pull Commands
+
+          \`\`\`bash
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ inputs.image_tag }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ inputs.image_tag }}
+          \`\`\`
+          EOF

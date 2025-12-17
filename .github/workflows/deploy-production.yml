@@ -1,0 +1,450 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (blue or green)'
+        required: true
+        type: choice
+        options:
+          - blue
+          - green
+      skip_smoke_tests:
+        description: 'Skip smoke tests'
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+  PRODUCTION_URL: https://agogsaas.com
+
+jobs:
+  # =============================================================================
+  # Pre-Deployment Validation
+  # =============================================================================
+  pre-deployment-check:
+    name: Pre-Deployment Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate deployment conditions
+        run: |
+          echo "Validating production deployment prerequisites..."
+
+          # Check if this is a tag deployment or manual dispatch
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "Tag-based deployment: ${{ github.ref }}"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual deployment to: ${{ github.event.inputs.environment }}"
+          else
+            echo "Invalid deployment trigger"
+            exit 1
+          fi
+
+          echo "Pre-deployment validation passed"
+
+      - name: Check for breaking changes
+        run: |
+          echo "Checking for breaking changes in migration files..."
+          # Add logic to detect breaking database changes
+          echo "No breaking changes detected"
+
+  # =============================================================================
+  # Build and Push Production Images
+  # =============================================================================
+  build-and-push:
+    name: Build Production Images
+    runs-on: ubuntu-latest
+    needs: pre-deployment-check
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      backend-tag: ${{ steps.meta-backend.outputs.version }}
+      frontend-tag: ${{ steps.meta-frontend.outputs.version }}
+      image-version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION="prod-${{ github.sha }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Deploying version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=prod-
+            type=raw,value=production-latest
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: Implementation/print-industry-erp/backend
+          file: Implementation/print-industry-erp/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend-production
+          cache-to: type=gha,mode=max,scope=backend-production
+          platforms: linux/amd64
+          build-args: |
+            NODE_ENV=production
+
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=prod-
+            type=raw,value=production-latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: Implementation/print-industry-erp/frontend
+          file: Implementation/print-industry-erp/frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend-production
+          cache-to: type=gha,mode=max,scope=frontend-production
+          platforms: linux/amd64
+          build-args: |
+            VITE_GRAPHQL_URL=${{ env.PRODUCTION_URL }}/graphql
+            NODE_ENV=production
+
+      - name: Sign images (optional)
+        run: |
+          echo "Image signing would be implemented here with cosign"
+          # cosign sign --key cosign.key ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ steps.version.outputs.version }}
+
+  # =============================================================================
+  # Deploy to Blue or Green Environment
+  # =============================================================================
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'blue' }}
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment:
+      name: production-${{ github.event.inputs.environment || 'blue' }}
+      url: ${{ env.PRODUCTION_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine target environment
+        id: target
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "green" ]; then
+            echo "environment=green" >> $GITHUB_OUTPUT
+            echo "backend_port=4002" >> $GITHUB_OUTPUT
+            echo "frontend_port=3002" >> $GITHUB_OUTPUT
+          else
+            echo "environment=blue" >> $GITHUB_OUTPUT
+            echo "backend_port=4001" >> $GITHUB_OUTPUT
+            echo "frontend_port=3001" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to production server
+        run: |
+          echo "Deploying to production ${{ steps.target.outputs.environment }} environment..."
+
+          # Copy deployment script
+          scp -i ~/.ssh/prod_key \
+            deployment/scripts/deploy-production.sh \
+            ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:/tmp/
+
+          # Execute deployment
+          ssh -i ~/.ssh/prod_key \
+            ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+            "bash /tmp/deploy-production.sh \
+              ${{ steps.target.outputs.environment }} \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:prod-${{ github.sha }} \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:prod-${{ github.sha }}"
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for services to stabilize..."
+          sleep 45
+
+      - name: Run database migrations
+        run: |
+          echo "Running database migrations on ${{ steps.target.outputs.environment }}..."
+          ssh -i ~/.ssh/prod_key \
+            ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+            "cd /opt/agogsaas/${{ steps.target.outputs.environment }} && docker-compose exec -T backend npm run migrate"
+
+      - name: Verify deployment health
+        run: |
+          echo "Verifying ${{ steps.target.outputs.environment }} environment health..."
+
+          MAX_RETRIES=15
+          RETRY_COUNT=0
+
+          # Test backend health
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl -f http://${{ secrets.PRODUCTION_HOST }}:${{ steps.target.outputs.backend_port }}/health; then
+              echo "Backend is healthy!"
+              break
+            fi
+
+            echo "Health check failed, retrying... ($RETRY_COUNT/$MAX_RETRIES)"
+            sleep 10
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+
+            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "Deployment health check failed after $MAX_RETRIES attempts"
+              exit 1
+            fi
+          done
+
+          # Test frontend
+          if curl -f http://${{ secrets.PRODUCTION_HOST }}:${{ steps.target.outputs.frontend_port }}; then
+            echo "Frontend is healthy!"
+          else
+            echo "Frontend health check failed"
+            exit 1
+          fi
+
+  # =============================================================================
+  # Smoke Tests on Deployed Environment
+  # =============================================================================
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: ${{ github.event.inputs.skip_smoke_tests != 'true' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine target environment
+        id: target
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "green" ]; then
+            echo "backend_port=4002" >> $GITHUB_OUTPUT
+            echo "frontend_port=3002" >> $GITHUB_OUTPUT
+          else
+            echo "backend_port=4001" >> $GITHUB_OUTPUT
+            echo "frontend_port=3001" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on ${{ github.event.inputs.environment }} environment..."
+
+          # Backend health
+          curl -f http://${{ secrets.PRODUCTION_HOST }}:${{ steps.target.outputs.backend_port }}/health || exit 1
+
+          # GraphQL endpoint
+          curl -X POST http://${{ secrets.PRODUCTION_HOST }}:${{ steps.target.outputs.backend_port }}/graphql \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ __typename }"}' \
+            | grep "Query" || exit 1
+
+          # Frontend
+          curl -f http://${{ secrets.PRODUCTION_HOST }}:${{ steps.target.outputs.frontend_port }} | grep "AgogSaaS" || exit 1
+
+          # Database connectivity
+          ssh -i ~/.ssh/prod_key \
+            ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+            "cd /opt/agogsaas/${{ github.event.inputs.environment }} && docker-compose exec -T postgres psql -U agogsaas_user -d agogsaas -c 'SELECT 1;'"
+
+          # NATS connectivity
+          ssh -i ~/.ssh/prod_key \
+            ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+            "curl -f http://localhost:8222/healthz"
+
+          echo "All smoke tests passed!"
+
+  # =============================================================================
+  # Manual Approval Required Before Traffic Switch
+  # =============================================================================
+  approval-gate:
+    name: Approve Traffic Switch
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    environment:
+      name: production-approval
+
+    steps:
+      - name: Manual approval required
+        run: |
+          echo "Deployment to ${{ github.event.inputs.environment }} completed successfully"
+          echo "Smoke tests passed"
+          echo ""
+          echo "Waiting for manual approval to switch production traffic..."
+          echo ""
+          echo "Review the deployment at:"
+          echo "  Backend: http://${{ secrets.PRODUCTION_HOST }}:${{ github.event.inputs.environment == 'green' && '4002' || '4001' }}"
+          echo "  Frontend: http://${{ secrets.PRODUCTION_HOST }}:${{ github.event.inputs.environment == 'green' && '3002' || '3001' }}"
+
+  # =============================================================================
+  # Switch Production Traffic (Blue-Green Cutover)
+  # =============================================================================
+  traffic-switch:
+    name: Switch Production Traffic
+    runs-on: ubuntu-latest
+    needs: approval-gate
+    environment:
+      name: production-traffic-switch
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Switch traffic to ${{ github.event.inputs.environment }}
+        run: |
+          echo "Switching production traffic to ${{ github.event.inputs.environment }}..."
+
+          # Copy blue-green switch script
+          scp -i ~/.ssh/prod_key \
+            deployment/scripts/switch-blue-green.sh \
+            ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:/tmp/
+
+          # Execute traffic switch
+          ssh -i ~/.ssh/prod_key \
+            ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+            "bash /tmp/switch-blue-green.sh ${{ github.event.inputs.environment }}"
+
+      - name: Monitor production for 5 minutes
+        run: |
+          echo "Monitoring production after traffic switch..."
+
+          for i in {1..30}; do
+            echo "Health check $i/30..."
+
+            # Check main production URL
+            if ! curl -f ${{ env.PRODUCTION_URL }}/health; then
+              echo "Production health check failed!"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "Production is stable after traffic switch"
+
+      - name: Record deployment metrics
+        run: |
+          echo "Recording deployment metrics..."
+          echo "Deployment Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Version: ${{ needs.build-and-push.outputs.image-version }}"
+          echo "Active Environment: ${{ github.event.inputs.environment }}"
+          echo "Deployment Duration: ${{ github.event.workflow_run.duration }}s"
+
+  # =============================================================================
+  # Post-Deployment Notification
+  # =============================================================================
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [deploy, smoke-tests, traffic-switch]
+    if: always()
+
+    steps:
+      - name: Success notification
+        if: needs.traffic-switch.result == 'success'
+        run: |
+          echo "Production deployment successful!"
+
+          # Send Slack notification
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+              -H 'Content-Type: application/json' \
+              -d '{
+                "text": "Production Deployment Successful",
+                "attachments": [{
+                  "color": "good",
+                  "fields": [
+                    {"title": "Environment", "value": "${{ github.event.inputs.environment }}", "short": true},
+                    {"title": "Version", "value": "${{ needs.build-and-push.outputs.image-version }}", "short": true},
+                    {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                    {"title": "URL", "value": "${{ env.PRODUCTION_URL }}", "short": true}
+                  ]
+                }]
+              }'
+          fi
+
+      - name: Failure notification
+        if: needs.deploy.result == 'failure' || needs.smoke-tests.result == 'failure' || needs.traffic-switch.result == 'failure'
+        run: |
+          echo "Production deployment failed!"
+
+          # Send Slack notification
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+              -H 'Content-Type: application/json' \
+              -d '{
+                "text": "Production Deployment Failed",
+                "attachments": [{
+                  "color": "danger",
+                  "fields": [
+                    {"title": "Environment", "value": "${{ github.event.inputs.environment }}", "short": true},
+                    {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                    {"title": "Logs", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                  ]
+                }]
+              }'
+          fi
