@@ -1,0 +1,804 @@
+# =====================================================
+# OPERATIONS SCHEMA
+# =====================================================
+# Production planning, scheduling, OEE tracking
+# Created: 2025-12-17
+# =====================================================
+
+"""
+WorkCenter - Manufacturing equipment (presses, bindery, finishing)
+"""
+type WorkCenter {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  workCenterCode: String!
+  workCenterName: String!
+  workCenterType: WorkCenterType!
+
+  # Equipment details
+  manufacturer: String
+  model: String
+  serialNumber: String
+  assetTag: String
+
+  # Press specifications (for imposition engine)
+  sheetWidthMax: Float
+  sheetHeightMax: Float
+  sheetWidthMin: Float
+  sheetHeightMin: Float
+  dimensionUnit: String
+  gripperMargin: Float
+  sideMargins: Float
+  maxColors: Int
+
+  # Capacity
+  productionRatePerHour: Float
+  productionUnit: ProductionUnit
+
+  # Costs
+  hourlyRate: Float
+  setupCost: Float
+  costPerUnit: Float
+
+  # Maintenance
+  lastMaintenanceDate: Date
+  nextMaintenanceDate: Date
+  maintenanceIntervalDays: Int
+
+  # Status
+  status: WorkCenterStatus!
+  isActive: Boolean!
+
+  # Configuration
+  operatingCalendar: JSON
+  capabilities: JSON
+
+  # Relationships
+  facility: Facility!
+  productionRuns: [ProductionRun!]!
+  maintenanceRecords: [MaintenanceRecord!]!
+  equipmentStatusLog: [EquipmentStatusLog!]!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+ProductionOrder - High-level production order from sales
+"""
+type ProductionOrder {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  productionOrderNumber: String!
+  salesOrderId: ID
+  salesOrderLineId: ID
+
+  # Product
+  productId: ID!
+  productCode: String
+  productDescription: String
+
+  # Quantity
+  quantityOrdered: Float!
+  quantityCompleted: Float!
+  quantityScrap: Float!
+  unitOfMeasure: String
+
+  # Manufacturing strategy
+  manufacturingStrategy: ManufacturingStrategy
+
+  # Scheduling
+  priority: Int!
+  dueDate: Date
+  plannedStartDate: DateTime
+  plannedCompletionDate: DateTime
+  actualStartDate: DateTime
+  actualCompletionDate: DateTime
+
+  # Status
+  status: ProductionOrderStatus!
+
+  # Routing
+  routingId: ID
+
+  # Costs
+  estimatedMaterialCost: Float
+  estimatedLaborCost: Float
+  estimatedOverheadCost: Float
+  actualMaterialCost: Float
+  actualLaborCost: Float
+  actualOverheadCost: Float
+
+  # Notes
+  specialInstructions: String
+  qualityRequirements: String
+
+  # Relationships
+  facility: Facility!
+  productionRuns: [ProductionRun!]!
+  operations: [Operation!]!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+Operation - Individual operation type (printing, die cutting, etc.)
+"""
+type Operation {
+  id: ID!
+  tenantId: ID!
+
+  # Identification
+  operationCode: String!
+  operationName: String!
+  operationType: OperationType!
+
+  # Work center
+  defaultWorkCenterId: ID
+  defaultWorkCenter: WorkCenter
+
+  # Time standards
+  setupTimeMinutes: Float
+  runTimePerUnitSeconds: Float
+
+  # Costs
+  setupCost: Float
+  costPerUnit: Float
+
+  # Quality
+  inspectionRequired: Boolean!
+  inspectionTemplateId: ID
+
+  # Description
+  description: String
+  workInstructions: String
+
+  # Status
+  isActive: Boolean!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+ProductionRun - Actual production execution on a work center
+"""
+type ProductionRun {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  productionRunNumber: String!
+  productionOrderId: ID!
+  workCenterId: ID!
+  operationId: ID!
+
+  # Operator
+  operatorUserId: ID
+  operatorName: String
+
+  # Timing
+  setupStartTime: DateTime
+  setupEndTime: DateTime
+  runStartTime: DateTime
+  runEndTime: DateTime
+
+  # Quantities
+  targetQuantity: Float!
+  goodQuantity: Float!
+  scrapQuantity: Float!
+  unitOfMeasure: String
+
+  # Performance
+  actualSetupMinutes: Float
+  actualRunMinutes: Float
+  downtime: Float
+  downtimeReason: String
+
+  # Status
+  status: ProductionRunStatus!
+
+  # Notes
+  notes: String
+
+  # Relationships
+  productionOrder: ProductionOrder!
+  workCenter: WorkCenter!
+  operation: Operation!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+ChangeoverDetail - Changeover tracking between jobs
+"""
+type ChangeoverDetail {
+  id: ID!
+  tenantId: ID!
+
+  workCenterId: ID!
+  fromProductionRunId: ID
+  toProductionRunId: ID
+
+  changeoverStartTime: DateTime!
+  changeoverEndTime: DateTime
+  changeoverMinutes: Float
+
+  changeoverType: String
+  fromProductCode: String
+  toProductCode: String
+
+  crewSize: Int
+  notes: String
+
+  # Relationships
+  workCenter: WorkCenter!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+EquipmentStatusLog - Real-time equipment status tracking
+"""
+type EquipmentStatusLog {
+  id: ID!
+  tenantId: ID!
+
+  workCenterId: ID!
+  status: WorkCenterStatus!
+  statusStartTime: DateTime!
+  statusEndTime: DateTime
+  durationMinutes: Float
+
+  reason: String
+  notes: String
+
+  # Relationships
+  workCenter: WorkCenter!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+MaintenanceRecord - Preventive and corrective maintenance
+"""
+type MaintenanceRecord {
+  id: ID!
+  tenantId: ID!
+
+  workCenterId: ID!
+  maintenanceType: MaintenanceType!
+  maintenanceDate: Date!
+
+  scheduledDate: Date
+  completedDate: Date
+  downtime: Float
+
+  description: String
+  workPerformed: String
+  partsReplaced: String
+  costLabor: Float
+  costParts: Float
+
+  technicianName: String
+  technicianUserId: ID
+
+  nextMaintenanceDate: Date
+
+  # Relationships
+  workCenter: WorkCenter!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+AssetHierarchy - Parent-child equipment relationships
+"""
+type AssetHierarchy {
+  id: ID!
+  tenantId: ID!
+
+  parentAssetId: ID
+  childAssetId: ID!
+
+  relationshipType: String
+  description: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+OEECalculation - Overall Equipment Effectiveness metrics
+"""
+type OEECalculation {
+  id: ID!
+  tenantId: ID!
+
+  workCenterId: ID!
+  calculationDate: Date!
+  shiftNumber: Int
+
+  # OEE Components
+  availabilityPercent: Float!
+  performancePercent: Float!
+  qualityPercent: Float!
+  oeePercent: Float!
+
+  # Time breakdown (minutes)
+  plannedProductionTime: Float!
+  downtime: Float!
+  operatingTime: Float!
+
+  # Production
+  idealCycleTime: Float
+  totalPieces: Int!
+  goodPieces: Int!
+  rejectPieces: Int!
+
+  # Losses
+  availabilityLoss: Float
+  performanceLoss: Float
+  qualityLoss: Float
+
+  notes: String
+
+  # Relationships
+  workCenter: WorkCenter!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+ProductionSchedule - Production scheduling and capacity
+"""
+type ProductionSchedule {
+  id: ID!
+  tenantId: ID!
+
+  scheduleDate: Date!
+  shiftNumber: Int
+  workCenterId: ID!
+  productionOrderId: ID
+  operationId: ID
+
+  scheduledStartTime: DateTime!
+  scheduledEndTime: DateTime!
+  durationMinutes: Float
+
+  status: ScheduleStatus!
+  notes: String
+
+  # Relationships
+  workCenter: WorkCenter!
+  productionOrder: ProductionOrder
+  operation: Operation
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+CapacityPlanning - Capacity planning and what-if scenarios
+"""
+type CapacityPlanning {
+  id: ID!
+  tenantId: ID!
+
+  planName: String!
+  planType: String!
+  startDate: Date!
+  endDate: Date!
+
+  workCenterId: ID
+  facilityId: ID
+
+  totalCapacityHours: Float!
+  utilizationPercent: Float
+
+  demandForecast: JSON
+  capacityBreakdown: JSON
+
+  notes: String
+
+  # Relationships
+  workCenter: WorkCenter
+  facility: Facility
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+# =====================================================
+# ENUMS
+# =====================================================
+
+enum WorkCenterType {
+  OFFSET_PRESS
+  DIGITAL_PRESS
+  FLEXO_PRESS
+  GRAVURE_PRESS
+  DIE_CUTTER
+  FOLDER
+  BINDERY
+  FINISHING
+  COATING
+  LAMINATING
+  EMBOSSING
+  FOILING
+  CUTTING
+  PACKAGING
+  INSPECTION
+  OTHER
+}
+
+enum ProductionUnit {
+  SHEETS
+  IMPRESSIONS
+  FEET
+  METERS
+  PIECES
+  POUNDS
+  KILOGRAMS
+  HOURS
+}
+
+enum WorkCenterStatus {
+  AVAILABLE
+  IN_USE
+  DOWN
+  MAINTENANCE
+  OFFLINE
+  CHANGEOVER
+}
+
+enum ManufacturingStrategy {
+  MTS
+  MTO
+  CTO
+  ETO
+  POD
+  VDP
+  LEAN
+  DIGITAL
+  MODIFY_TO_ORDER
+}
+
+enum ProductionOrderStatus {
+  PLANNED
+  RELEASED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  ON_HOLD
+}
+
+enum OperationType {
+  PRINTING
+  DIE_CUTTING
+  FOLDING
+  GLUING
+  COATING
+  LAMINATING
+  EMBOSSING
+  FOILING
+  CUTTING
+  BINDING
+  STITCHING
+  PERFECT_BINDING
+  SADDLE_STITCH
+  DRILLING
+  PUNCHING
+  PERFORATING
+  SCORING
+  NUMBERING
+  INSPECTION
+  PACKAGING
+  OTHER
+}
+
+enum ProductionRunStatus {
+  SCHEDULED
+  IN_SETUP
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  PREDICTIVE
+  EMERGENCY
+  CALIBRATION
+  INSPECTION
+}
+
+enum ScheduleStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+extend type Query {
+  """Get work center by ID"""
+  workCenter(id: ID!): WorkCenter
+
+  """List work centers for a facility"""
+  workCenters(facilityId: ID!, status: WorkCenterStatus): [WorkCenter!]!
+
+  """Get production order by ID"""
+  productionOrder(id: ID!): ProductionOrder
+
+  """List production orders"""
+  productionOrders(
+    facilityId: ID!
+    status: ProductionOrderStatus
+    dueAfter: Date
+    dueBefore: Date
+    limit: Int
+    offset: Int
+  ): ProductionOrderConnection!
+
+  """Get production run by ID"""
+  productionRun(id: ID!): ProductionRun
+
+  """List production runs"""
+  productionRuns(
+    facilityId: ID
+    workCenterId: ID
+    status: ProductionRunStatus
+    startDate: DateTime
+    endDate: DateTime
+    limit: Int
+    offset: Int
+  ): [ProductionRun!]!
+
+  """Get operation by ID"""
+  operation(id: ID!): Operation
+
+  """List operations"""
+  operations(tenantId: ID!, type: OperationType): [Operation!]!
+
+  """Get OEE calculations for work center"""
+  oeeCalculations(
+    workCenterId: ID!
+    startDate: Date!
+    endDate: Date!
+  ): [OEECalculation!]!
+
+  """Get production schedule"""
+  productionSchedule(
+    workCenterId: ID
+    facilityId: ID
+    startDate: Date!
+    endDate: Date!
+  ): [ProductionSchedule!]!
+
+  """Get maintenance records"""
+  maintenanceRecords(
+    workCenterId: ID!
+    startDate: Date
+    endDate: Date
+    type: MaintenanceType
+  ): [MaintenanceRecord!]!
+
+  """Get capacity planning"""
+  capacityPlanning(
+    facilityId: ID
+    workCenterId: ID
+    startDate: Date!
+    endDate: Date!
+  ): [CapacityPlanning!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+extend type Mutation {
+  """Create work center"""
+  createWorkCenter(input: CreateWorkCenterInput!): WorkCenter!
+
+  """Update work center"""
+  updateWorkCenter(id: ID!, input: UpdateWorkCenterInput!): WorkCenter!
+
+  """Create production order"""
+  createProductionOrder(input: CreateProductionOrderInput!): ProductionOrder!
+
+  """Update production order"""
+  updateProductionOrder(id: ID!, input: UpdateProductionOrderInput!): ProductionOrder!
+
+  """Release production order"""
+  releaseProductionOrder(id: ID!): ProductionOrder!
+
+  """Create production run"""
+  createProductionRun(input: CreateProductionRunInput!): ProductionRun!
+
+  """Start production run"""
+  startProductionRun(id: ID!): ProductionRun!
+
+  """Complete production run"""
+  completeProductionRun(
+    id: ID!
+    goodQuantity: Float!
+    scrapQuantity: Float!
+    notes: String
+  ): ProductionRun!
+
+  """Create operation"""
+  createOperation(input: CreateOperationInput!): Operation!
+
+  """Update operation"""
+  updateOperation(id: ID!, input: UpdateOperationInput!): Operation!
+
+  """Log equipment status"""
+  logEquipmentStatus(input: LogEquipmentStatusInput!): EquipmentStatusLog!
+
+  """Create maintenance record"""
+  createMaintenanceRecord(input: CreateMaintenanceRecordInput!): MaintenanceRecord!
+
+  """Calculate OEE"""
+  calculateOEE(
+    workCenterId: ID!
+    calculationDate: Date!
+    shiftNumber: Int
+  ): OEECalculation!
+}
+
+# =====================================================
+# INPUT TYPES
+# =====================================================
+
+input CreateWorkCenterInput {
+  facilityId: ID!
+  workCenterCode: String!
+  workCenterName: String!
+  workCenterType: WorkCenterType!
+  manufacturer: String
+  model: String
+  serialNumber: String
+  productionRatePerHour: Float
+  hourlyRate: Float
+  setupCost: Float
+}
+
+input UpdateWorkCenterInput {
+  workCenterName: String
+  status: WorkCenterStatus
+  productionRatePerHour: Float
+  hourlyRate: Float
+  lastMaintenanceDate: Date
+  nextMaintenanceDate: Date
+  isActive: Boolean
+}
+
+input CreateProductionOrderInput {
+  facilityId: ID!
+  productionOrderNumber: String!
+  salesOrderId: ID
+  salesOrderLineId: ID
+  productId: ID!
+  quantityOrdered: Float!
+  unitOfMeasure: String
+  manufacturingStrategy: ManufacturingStrategy
+  priority: Int
+  dueDate: Date
+  specialInstructions: String
+}
+
+input UpdateProductionOrderInput {
+  quantityOrdered: Float
+  priority: Int
+  dueDate: Date
+  status: ProductionOrderStatus
+  plannedStartDate: DateTime
+  plannedCompletionDate: DateTime
+  specialInstructions: String
+}
+
+input CreateProductionRunInput {
+  productionOrderId: ID!
+  workCenterId: ID!
+  operationId: ID!
+  targetQuantity: Float!
+  unitOfMeasure: String
+  operatorUserId: ID
+}
+
+input CreateOperationInput {
+  operationCode: String!
+  operationName: String!
+  operationType: OperationType!
+  defaultWorkCenterId: ID
+  setupTimeMinutes: Float
+  runTimePerUnitSeconds: Float
+  setupCost: Float
+  costPerUnit: Float
+  description: String
+}
+
+input UpdateOperationInput {
+  operationName: String
+  defaultWorkCenterId: ID
+  setupTimeMinutes: Float
+  runTimePerUnitSeconds: Float
+  isActive: Boolean
+}
+
+input LogEquipmentStatusInput {
+  workCenterId: ID!
+  status: WorkCenterStatus!
+  reason: String
+  notes: String
+}
+
+input CreateMaintenanceRecordInput {
+  workCenterId: ID!
+  maintenanceType: MaintenanceType!
+  maintenanceDate: Date!
+  scheduledDate: Date
+  description: String!
+  technicianName: String
+}
+
+# =====================================================
+# CONNECTION TYPES
+# =====================================================
+
+type ProductionOrderConnection {
+  edges: [ProductionOrderEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ProductionOrderEdge {
+  node: ProductionOrder!
+  cursor: String!
+}
