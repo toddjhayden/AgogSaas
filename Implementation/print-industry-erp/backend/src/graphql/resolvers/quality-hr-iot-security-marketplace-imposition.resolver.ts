@@ -402,17 +402,17 @@ export class FinalModulesResolver {
     }
 
     if (startDate) {
-      whereClause += ` AND start_time >= $${paramIndex++}`;
+      whereClause += ` AND start_timestamp >= $${paramIndex++}`;
       params.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ` AND start_time <= $${paramIndex++}`;
+      whereClause += ` AND start_timestamp <= $${paramIndex++}`;
       params.push(endDate);
     }
 
     const result = await this.db.query(
-      `SELECT * FROM labor_tracking WHERE ${whereClause} ORDER BY start_time DESC`,
+      `SELECT * FROM labor_tracking WHERE ${whereClause} ORDER BY start_timestamp DESC`,
       params
     );
 
@@ -1412,8 +1412,8 @@ export class FinalModulesResolver {
       facilityId: row.facility_id,
       employeeId: row.employee_id,
       timecardDate: row.timecard_date,
-      clockIn: row.clock_in,
-      clockOut: row.clock_out,
+      clockInTimestamp: row.clock_in_timestamp,
+      clockOutTimestamp: row.clock_out_timestamp,
       regularHours: row.regular_hours ? parseFloat(row.regular_hours) : null,
       overtimeHours: row.overtime_hours ? parseFloat(row.overtime_hours) : null,
       doubleTimeHours: row.double_time_hours ? parseFloat(row.double_time_hours) : null,
@@ -1434,8 +1434,8 @@ export class FinalModulesResolver {
       tenantId: row.tenant_id,
       employeeId: row.employee_id,
       productionRunId: row.production_run_id,
-      startTime: row.start_time,
-      endTime: row.end_time,
+      startTimestamp: row.start_timestamp,
+      endTimestamp: row.end_timestamp,
       hoursWorked: row.hours_worked ? parseFloat(row.hours_worked) : null,
       laborType: row.labor_type,
       hourlyRate: row.hourly_rate ? parseFloat(row.hourly_rate) : null,

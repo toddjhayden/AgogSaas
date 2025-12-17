@@ -376,7 +376,7 @@ type Shipment {
   shipToEmail: String
 
   # Dates
-  shipDate: Date!
+  shipmentDate: Date!
   estimatedDeliveryDate: Date
   actualDeliveryDate: Date
 
@@ -969,7 +969,7 @@ input CreateShipmentInput {
   shipToCity: String!
   shipToPostalCode: String!
   shipToCountry: String!
-  shipDate: Date!
+  shipmentDate: Date!
   numberOfPackages: Int!
 }
 

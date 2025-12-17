@@ -195,19 +195,19 @@ export class OperationsResolver {
     }
 
     if (startDate) {
-      whereClause += ` AND run_start_time >= $${paramIndex++}`;
+      whereClause += ` AND start_timestamp >= $${paramIndex++}`;
       params.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ` AND run_start_time <= $${paramIndex++}`;
+      whereClause += ` AND start_timestamp <= $${paramIndex++}`;
       params.push(endDate);
     }
 
     const result = await this.db.query(
       `SELECT * FROM production_runs
        WHERE ${whereClause}
-       ORDER BY run_start_time DESC
+       ORDER BY start_timestamp DESC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
@@ -690,7 +690,7 @@ export class OperationsResolver {
     const result = await this.db.query(
       `UPDATE production_runs
        SET status = 'RUNNING',
-           run_start_time = NOW(),
+           start_timestamp = NOW(),
            updated_at = NOW(),
            updated_by = $1
        WHERE id = $2 AND deleted_at IS NULL
@@ -718,7 +718,7 @@ export class OperationsResolver {
     const result = await this.db.query(
       `UPDATE production_runs
        SET status = 'COMPLETED',
-           run_end_time = NOW(),
+           end_timestamp = NOW(),
            good_quantity = $1,
            scrap_quantity = $2,
            notes = $3,
@@ -909,7 +909,7 @@ export class OperationsResolver {
         COALESCE(SUM(actual_run_minutes), 0) as total_runtime
        FROM production_runs
        WHERE work_center_id = $1
-       AND DATE(run_start_time) = $2
+       AND DATE(start_timestamp) = $2
        AND deleted_at IS NULL`,
       [workCenterId, calculationDate]
     );
@@ -1050,8 +1050,8 @@ export class OperationsResolver {
       operatorName: row.operator_name,
       setupStartTime: row.setup_start_time,
       setupEndTime: row.setup_end_time,
-      runStartTime: row.run_start_time,
-      runEndTime: row.run_end_time,
+      startTimestamp: row.start_timestamp,
+      endTimestamp: row.end_timestamp,
       targetQuantity: row.target_quantity,
       goodQuantity: row.good_quantity,
       scrapQuantity: row.scrap_quantity,

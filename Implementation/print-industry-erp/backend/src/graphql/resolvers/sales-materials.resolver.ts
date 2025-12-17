@@ -363,12 +363,12 @@ export class SalesMaterialsResolver {
     }
 
     if (startDate) {
-      whereClause += ` AND po_date >= $${paramIndex++}`;
+      whereClause += ` AND purchase_order_date >= $${paramIndex++}`;
       params.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ` AND po_date <= $${paramIndex++}`;
+      whereClause += ` AND purchase_order_date <= $${paramIndex++}`;
       params.push(endDate);
     }
 
@@ -377,7 +377,7 @@ export class SalesMaterialsResolver {
     const result = await this.db.query(
       `SELECT * FROM purchase_orders
        WHERE ${whereClause}
-       ORDER BY po_date DESC, po_number DESC
+       ORDER BY purchase_order_date DESC, po_number DESC
        LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
       params
     );
@@ -1247,7 +1247,7 @@ export class SalesMaterialsResolver {
 
     const result = await this.db.query(
       `INSERT INTO purchase_orders (
-        tenant_id, facility_id, po_number, po_date, vendor_id, po_currency_code,
+        tenant_id, facility_id, po_number, purchase_order_date, vendor_id, po_currency_code,
         total_amount, status, requires_approval, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT', TRUE, $8)
       RETURNING *`,
@@ -2041,7 +2041,7 @@ export class SalesMaterialsResolver {
       tenantId: row.tenant_id,
       facilityId: row.facility_id,
       poNumber: row.po_number,
-      poDate: row.po_date,
+      purchaseOrderDate: row.purchase_order_date,
       vendorId: row.vendor_id,
       shipToFacilityId: row.ship_to_facility_id,
       shipToAddress: row.ship_to_address,

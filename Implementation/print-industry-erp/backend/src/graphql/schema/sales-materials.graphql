@@ -345,7 +345,7 @@ type PurchaseOrder {
 
   # PO identification
   poNumber: String!
-  poDate: Date!
+  purchaseOrderDate: Date!
   vendorId: ID!
 
   # Ship to facility
@@ -1212,7 +1212,7 @@ type Mutation {
     tenantId: ID!
     facilityId: ID!
     vendorId: ID!
-    poDate: Date!
+    purchaseOrderDate: Date!
     poCurrencyCode: String!
     totalAmount: Float!
   ): PurchaseOrder!

@@ -284,8 +284,8 @@ type Timecard {
   employeeId: ID!
   timecardDate: Date!
 
-  clockIn: DateTime
-  clockOut: DateTime
+  clockInTimestamp: DateTime
+  clockOutTimestamp: DateTime
 
   regularHours: Float
   overtimeHours: Float
@@ -318,8 +318,8 @@ type LaborTracking {
   employeeId: ID!
   productionRunId: ID!
 
-  startTime: DateTime!
-  endTime: DateTime
+  startTimestamp: DateTime!
+  endTimestamp: DateTime
 
   hoursWorked: Float
   laborType: LaborType

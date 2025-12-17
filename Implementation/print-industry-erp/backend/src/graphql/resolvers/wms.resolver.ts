@@ -405,12 +405,12 @@ export class WMSResolver {
     }
 
     if (startDate) {
-      whereClause += ` AND ship_date >= $${paramIndex++}`;
+      whereClause += ` AND shipment_date >= $${paramIndex++}`;
       params.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ` AND ship_date <= $${paramIndex++}`;
+      whereClause += ` AND shipment_date <= $${paramIndex++}`;
       params.push(endDate);
     }
 
@@ -422,7 +422,7 @@ export class WMSResolver {
     const result = await this.db.query(
       `SELECT * FROM shipments
        WHERE ${whereClause}
-       ORDER BY ship_date DESC`,
+       ORDER BY shipment_date DESC`,
       params
     );
 
@@ -938,7 +938,7 @@ export class WMSResolver {
         tenant_id, facility_id, shipment_number, sales_order_id,
         wave_id, carrier_integration_id, ship_to_name,
         ship_to_address_line1, ship_to_city, ship_to_postal_code,
-        ship_to_country, ship_date, number_of_packages, status, created_by
+        ship_to_country, shipment_date, number_of_packages, status, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PLANNED', $14)
       RETURNING *`,
       [
@@ -1410,7 +1410,7 @@ export class WMSResolver {
       shipToCountry: row.ship_to_country,
       shipToPhone: row.ship_to_phone,
       shipToEmail: row.ship_to_email,
-      shipDate: row.ship_date,
+      shipmentDate: row.shipment_date,
       estimatedDeliveryDate: row.estimated_delivery_date,
       actualDeliveryDate: row.actual_delivery_date,
       numberOfPackages: row.number_of_packages,

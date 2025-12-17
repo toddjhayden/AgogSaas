@@ -197,8 +197,8 @@ type ProductionRun {
   # Timing
   setupStartTime: DateTime
   setupEndTime: DateTime
-  runStartTime: DateTime
-  runEndTime: DateTime
+  startTimestamp: DateTime
+  endTimestamp: DateTime
 
   # Quantities
   targetQuantity: Float!
