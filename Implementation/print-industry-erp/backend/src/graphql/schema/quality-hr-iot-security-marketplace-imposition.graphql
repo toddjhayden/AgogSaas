@@ -561,7 +561,7 @@ type MarketplaceJobPosting {
   postingCompanyId: ID!
 
   jobDescription: String!
-  quantity: Float!
+  quantityRequired: Float!
   unitOfMeasure: String
 
   productSpecifications: JSON
@@ -640,7 +640,7 @@ type ExternalCompanyOrder {
   marketplaceBidId: ID
 
   orderDescription: String
-  quantity: Float!
+  quantityOrdered: Float!
 
   orderAmount: Float!
   orderCurrencyCode: String

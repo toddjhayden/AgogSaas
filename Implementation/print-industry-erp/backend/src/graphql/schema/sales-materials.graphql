@@ -751,7 +751,7 @@ type QuoteLine {
   description: String
 
   # Quantity
-  quantity: Float!
+  quantityQuoted: Float!
   unitOfMeasure: String
 
   # Pricing

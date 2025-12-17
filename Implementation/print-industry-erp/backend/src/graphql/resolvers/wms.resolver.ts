@@ -230,9 +230,9 @@ export class WMSResolver {
         m.description as material_description,
         l.location_id,
         loc.location_code,
-        SUM(l.current_quantity) as on_hand_quantity,
-        SUM(l.available_quantity) as available_quantity,
-        SUM(l.allocated_quantity) as allocated_quantity,
+        SUM(l.quantity_on_hand) as on_hand_quantity,
+        SUM(l.quantity_available) as quantity_available,
+        SUM(l.quantity_allocated) as quantity_allocated,
         l.unit_of_measure,
         MAX(l.updated_at) as last_count_date
        FROM lots l
@@ -251,8 +251,8 @@ export class WMSResolver {
       locationId: row.location_id,
       locationCode: row.location_code,
       onHandQuantity: parseFloat(row.on_hand_quantity),
-      availableQuantity: parseFloat(row.available_quantity),
-      allocatedQuantity: parseFloat(row.allocated_quantity),
+      quantityAvailable: parseFloat(row.quantity_available),
+      quantityAllocated: parseFloat(row.quantity_allocated),
       unitOfMeasure: row.unit_of_measure,
       lastCountDate: row.last_count_date
     }));
@@ -607,7 +607,7 @@ export class WMSResolver {
     const result = await this.db.query(
       `INSERT INTO lots (
         tenant_id, facility_id, lot_number, material_id,
-        original_quantity, current_quantity, available_quantity,
+        original_quantity, quantity_on_hand, quantity_available,
         unit_of_measure, location_id, received_date, expiration_date,
         quality_status, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -643,8 +643,8 @@ export class WMSResolver {
 
     const result = await this.db.query(
       `UPDATE lots
-       SET current_quantity = $1,
-           available_quantity = $1 - allocated_quantity,
+       SET quantity_on_hand = $1,
+           quantity_available = $1 - quantity_allocated,
            updated_at = NOW(),
            updated_by = $2
        WHERE id = $3 AND deleted_at IS NULL
@@ -726,7 +726,7 @@ export class WMSResolver {
     }
 
     const lot = lotResult.rows[0];
-    const variance = countedQuantity - parseFloat(lot.current_quantity);
+    const variance = countedQuantity - parseFloat(lot.quantity_on_hand);
 
     // Record cycle count transaction
     const transNumber = `CC-${Date.now()}`;
@@ -755,7 +755,7 @@ export class WMSResolver {
 
     // Update lot quantity
     await this.db.query(
-      `UPDATE lots SET current_quantity = $1, available_quantity = $1 - allocated_quantity
+      `UPDATE lots SET quantity_on_hand = $1, quantity_available = $1 - quantity_allocated
        WHERE id = $2`,
       [countedQuantity, lot.id]
     );
@@ -1206,7 +1206,7 @@ export class WMSResolver {
       ]
     );
 
-    // TODO: Update lot allocated_quantity
+    // TODO: Update lot quantity_allocated
 
     return this.mapInventoryReservationRow(result.rows[0]);
   }
@@ -1229,7 +1229,7 @@ export class WMSResolver {
       throw new Error(`Reservation ${id} not found`);
     }
 
-    // TODO: Update lot allocated_quantity
+    // TODO: Update lot quantity_allocated
 
     return this.mapInventoryReservationRow(result.rows[0]);
   }
@@ -1282,9 +1282,9 @@ export class WMSResolver {
       lotNumber: row.lot_number,
       materialId: row.material_id,
       originalQuantity: row.original_quantity,
-      currentQuantity: row.current_quantity,
-      availableQuantity: row.available_quantity,
-      allocatedQuantity: row.allocated_quantity,
+      quantityOnHand: row.quantity_on_hand,
+      quantityAvailable: row.quantity_available,
+      quantityAllocated: row.quantity_allocated,
       unitOfMeasure: row.unit_of_measure,
       locationId: row.location_id,
       vendorLotNumber: row.vendor_lot_number,

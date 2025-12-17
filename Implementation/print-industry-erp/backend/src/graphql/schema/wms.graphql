@@ -79,9 +79,9 @@ type Lot {
 
   # Quantity
   originalQuantity: Float!
-  currentQuantity: Float!
-  availableQuantity: Float!
-  allocatedQuantity: Float!
+  quantityOnHand: Float!
+  quantityAvailable: Float!
+  quantityAllocated: Float!
   unitOfMeasure: String
 
   # Location
@@ -601,8 +601,8 @@ type InventorySummary {
   locationId: ID!
   locationCode: String!
   onHandQuantity: Float!
-  availableQuantity: Float!
-  allocatedQuantity: Float!
+  quantityAvailable: Float!
+  quantityAllocated: Float!
   unitOfMeasure: String
   lastCountDate: Date
 }

@@ -2271,7 +2271,7 @@ export class SalesMaterialsResolver {
       productId: row.product_id,
       productCode: row.product_code,
       description: row.description,
-      quantity: parseFloat(row.quantity),
+      quantityQuoted: parseFloat(row.quantity_quoted),
       unitOfMeasure: row.unit_of_measure,
       unitPrice: parseFloat(row.unit_price),
       lineAmount: parseFloat(row.line_amount),

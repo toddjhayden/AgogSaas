@@ -117,5 +117,5 @@ COMMENT ON COLUMN timecards.clock_out_timestamp IS
 -- 3. Query clarity: "purchase_order_date" vs "sales_order.order_date"
 -- 4. Proper type-based naming: _date (DATE), _timestamp (TIMESTAMPTZ), _time (TIME)
 
--- Next Phase: V2.0.1 will standardize quantity/amount columns
--- Next Phase: V2.0.2 will add SCD Type 2 tracking (effective_from_date, effective_to_date, is_current_version)
+-- Next Phase: V1.0.9 will standardize quantity/amount columns
+-- Next Phase: V1.0.10 will add SCD Type 2 tracking (effective_from_date, effective_to_date, is_current_version)
