@@ -1,0 +1,1013 @@
+# =====================================================
+# WMS SCHEMA
+# =====================================================
+# Warehouse Management System with wave processing, 3PL support
+# Created: 2025-12-17
+# =====================================================
+
+"""
+InventoryLocation - Physical warehouse location (rack, bin, zone)
+"""
+type InventoryLocation {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  locationCode: String!
+  locationName: String
+  barcode: String
+
+  # Hierarchy
+  zoneCode: String
+  aisleCode: String
+  rackCode: String
+  shelfCode: String
+  binCode: String
+
+  # Type
+  locationType: LocationType!
+  abcClassification: ABCClassification
+
+  # Dimensions
+  lengthInches: Float
+  widthInches: Float
+  heightInches: Float
+  maxWeightLbs: Float
+  cubicFeet: Float
+
+  # Security (5-tier)
+  securityZone: SecurityZone!
+
+  # Temperature control
+  temperatureControlled: Boolean!
+  temperatureMinF: Float
+  temperatureMaxF: Float
+
+  # Picking
+  pickSequence: Int
+  pickZone: String
+
+  # Status
+  isActive: Boolean!
+  isAvailable: Boolean!
+  blockedReason: String
+
+  # Relationships
+  facility: Facility!
+  lots: [Lot!]!
+  currentInventory: [InventorySummary!]!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+Lot - Lot/batch tracking for traceability
+"""
+type Lot {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  lotNumber: String!
+  materialId: ID!
+
+  # Quantity
+  originalQuantity: Float!
+  currentQuantity: Float!
+  availableQuantity: Float!
+  allocatedQuantity: Float!
+  unitOfMeasure: String
+
+  # Location
+  locationId: ID
+  location: InventoryLocation
+
+  # Traceability
+  vendorLotNumber: String
+  purchaseOrderId: ID
+  productionRunId: ID
+  receivedDate: Date
+  manufacturedDate: Date
+  expirationDate: Date
+
+  # Quality
+  qualityStatus: QualityStatus!
+  qualityInspectionId: ID
+  qualityNotes: String
+
+  # 3PL customer ownership
+  customerId: ID
+  isCustomerOwned: Boolean!
+
+  # Certifications
+  certifications: JSON
+
+  # Status
+  isActive: Boolean!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+InventoryTransaction - All inventory movements
+"""
+type InventoryTransaction {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  transactionNumber: String!
+  transactionType: TransactionType!
+  transactionDate: DateTime!
+
+  # Material
+  materialId: ID!
+  lotNumber: String
+
+  # Quantity
+  quantity: Float!
+  unitOfMeasure: String
+
+  # Locations
+  fromLocationId: ID
+  toLocationId: ID
+  fromLocation: InventoryLocation
+  toLocation: InventoryLocation
+
+  # References
+  purchaseOrderId: ID
+  salesOrderId: ID
+  productionRunId: ID
+  shipmentId: ID
+  cycleCountId: ID
+
+  # Reason
+  reasonCode: String
+  notes: String
+
+  # User
+  performedBy: ID
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+Wave - Wave processing for efficient picking
+"""
+type Wave {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  waveNumber: String!
+  waveType: WaveType!
+
+  # Scheduling
+  plannedReleaseDate: DateTime
+  actualReleaseDate: DateTime
+  plannedCompletionDate: DateTime
+  actualCompletionDate: DateTime
+
+  # Status
+  status: WaveStatus!
+
+  # Picking strategy
+  pickingStrategy: PickingStrategy
+  pickZone: String
+
+  # Priority
+  priority: Int!
+
+  # Assignment
+  assignedUserId: ID
+  assignedUserName: String
+
+  # Statistics
+  totalLines: Int!
+  totalQuantity: Float!
+  pickedLines: Int!
+  pickedQuantity: Float!
+
+  # Notes
+  notes: String
+
+  # Relationships
+  facility: Facility!
+  waveLines: [WaveLine!]!
+  pickLists: [PickList!]!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+WaveLine - Individual line item in a wave
+"""
+type WaveLine {
+  id: ID!
+  tenantId: ID!
+
+  waveId: ID!
+  lineNumber: Int!
+
+  # Order reference
+  salesOrderId: ID!
+  salesOrderLineId: ID!
+
+  # Material
+  materialId: ID!
+  lotNumber: String
+
+  # Quantity
+  quantityOrdered: Float!
+  quantityPicked: Float!
+  quantityShorted: Float!
+  unitOfMeasure: String
+
+  # Location
+  pickLocationId: ID
+  pickLocation: InventoryLocation
+
+  # Status
+  status: String!
+
+  # Assignment
+  pickListId: ID
+  pickSequence: Int
+
+  # Relationships
+  wave: Wave!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+PickList - Pick list for warehouse worker
+"""
+type PickList {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  pickListNumber: String!
+  waveId: ID
+
+  # Assignment
+  assignedUserId: ID!
+  assignedUserName: String
+
+  # Timing
+  assignedAt: DateTime!
+  startedAt: DateTime
+  completedAt: DateTime
+
+  # Status
+  status: PickListStatus!
+
+  # Progress
+  totalLines: Int!
+  pickedLines: Int!
+
+  # Equipment
+  equipmentId: String
+  equipmentType: String
+
+  # Notes
+  notes: String
+
+  # Relationships
+  wave: Wave
+  lines: [WaveLine!]!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+CarrierIntegration - 3PL carrier configuration
+"""
+type CarrierIntegration {
+  id: ID!
+  tenantId: ID!
+
+  # Carrier details
+  carrierCode: String!
+  carrierName: String!
+  carrierType: CarrierType!
+
+  # API configuration
+  apiEndpoint: String
+  apiVersion: String
+  accountNumber: String
+
+  # Service mapping
+  serviceMapping: JSON
+
+  # Credentials (not returned in queries)
+  credentialsConfigured: Boolean!
+
+  # Features
+  supportsTracking: Boolean!
+  supportsRateQuotes: Boolean!
+  supportsLabelGeneration: Boolean!
+
+  # Status
+  isActive: Boolean!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+Shipment - Outbound shipment
+"""
+type Shipment {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Identification
+  shipmentNumber: String!
+  salesOrderId: ID
+  waveId: ID
+
+  # Carrier
+  carrierIntegrationId: ID
+  carrierName: String
+  serviceLevel: String
+  trackingNumber: String
+  proNumber: String
+
+  # Shipping details
+  shipToName: String!
+  shipToAddressLine1: String!
+  shipToAddressLine2: String
+  shipToCity: String!
+  shipToState: String
+  shipToPostalCode: String!
+  shipToCountry: String!
+  shipToPhone: String
+  shipToEmail: String
+
+  # Dates
+  shipDate: Date!
+  estimatedDeliveryDate: Date
+  actualDeliveryDate: Date
+
+  # Packages
+  numberOfPackages: Int!
+  totalWeight: Float
+  totalVolume: Float
+
+  # Costs
+  freight: Float
+  insurance: Float
+  otherCharges: Float
+  totalCost: Float
+
+  # Status
+  status: ShipmentStatus!
+
+  # Documents
+  bolNumber: String
+  bolDocument: String
+  commercialInvoice: String
+
+  # Notes
+  shippingNotes: String
+  deliveryNotes: String
+
+  # Relationships
+  facility: Facility!
+  carrier: CarrierIntegration
+  lines: [ShipmentLine!]!
+  trackingEvents: [TrackingEvent!]!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+ShipmentLine - Line item in shipment
+"""
+type ShipmentLine {
+  id: ID!
+  tenantId: ID!
+
+  shipmentId: ID!
+  lineNumber: Int!
+
+  # Order reference
+  salesOrderId: ID
+  salesOrderLineId: ID
+
+  # Material
+  materialId: ID!
+  materialCode: String
+  materialDescription: String
+  lotNumber: String
+
+  # Quantity
+  quantityShipped: Float!
+  unitOfMeasure: String
+
+  # Package
+  packageNumber: Int
+  weight: Float
+  volume: Float
+
+  # Relationships
+  shipment: Shipment!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+TrackingEvent - Shipment tracking history
+"""
+type TrackingEvent {
+  id: ID!
+  tenantId: ID!
+
+  shipmentId: ID!
+  eventDate: DateTime!
+  eventType: String!
+  eventDescription: String!
+
+  # Location
+  city: String
+  state: String
+  country: String
+
+  # Carrier
+  carrierEventCode: String
+
+  # Status
+  exceptionFlag: Boolean!
+  exceptionReason: String
+
+  # Relationships
+  shipment: Shipment!
+
+  # Audit
+  createdAt: DateTime!
+}
+
+"""
+KitDefinition - Kit/assembly definition
+"""
+type KitDefinition {
+  id: ID!
+  tenantId: ID!
+
+  # Identification
+  kitCode: String!
+  kitName: String!
+  description: String
+
+  # Type
+  kitType: KitType!
+
+  # Inventory
+  isStocked: Boolean!
+  leadTimeDays: Int
+
+  # Status
+  isActive: Boolean!
+
+  # Relationships
+  components: [KitComponent!]!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+KitComponent - Component material in a kit
+"""
+type KitComponent {
+  id: ID!
+  tenantId: ID!
+
+  kitId: ID!
+  lineNumber: Int!
+
+  # Material
+  componentMaterialId: ID!
+  componentMaterialCode: String
+
+  # Quantity
+  quantityPer: Float!
+  unitOfMeasure: String
+
+  # Scrap allowance
+  scrapPercent: Float
+
+  # Required
+  isRequired: Boolean!
+  substituteAllowed: Boolean!
+
+  # Relationships
+  kit: KitDefinition!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+InventoryReservation - Reserved inventory for orders
+"""
+type InventoryReservation {
+  id: UUID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Material
+  materialId: ID!
+  lotNumber: String
+
+  # Quantity
+  quantityReserved: Float!
+  unitOfMeasure: String
+
+  # Location
+  locationId: ID
+  location: InventoryLocation
+
+  # Reference
+  salesOrderId: ID
+  salesOrderLineId: ID
+  productionOrderId: ID
+
+  # Type
+  reservationType: ReservationType!
+
+  # Dates
+  reservedDate: DateTime!
+  expirationDate: DateTime
+
+  # Status
+  status: String!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  releasedAt: DateTime
+  releasedBy: ID
+}
+
+"""
+InventorySummary - Current inventory by location and material
+"""
+type InventorySummary {
+  materialId: ID!
+  materialCode: String!
+  materialDescription: String
+  locationId: ID!
+  locationCode: String!
+  onHandQuantity: Float!
+  availableQuantity: Float!
+  allocatedQuantity: Float!
+  unitOfMeasure: String
+  lastCountDate: Date
+}
+
+# =====================================================
+# ENUMS
+# =====================================================
+
+enum LocationType {
+  RECEIVING
+  PUTAWAY
+  PICK_FACE
+  RESERVE
+  PACKING
+  SHIPPING
+  QUARANTINE
+  RETURNS
+  STAGING
+  OVERFLOW
+}
+
+enum ABCClassification {
+  A
+  B
+  C
+}
+
+enum SecurityZone {
+  STANDARD
+  RESTRICTED
+  SECURE
+  HIGH_SECURITY
+  VAULT
+}
+
+enum QualityStatus {
+  QUARANTINE
+  PENDING_INSPECTION
+  RELEASED
+  REJECTED
+  HOLD
+}
+
+enum TransactionType {
+  RECEIPT
+  ISSUE
+  TRANSFER
+  ADJUSTMENT
+  CYCLE_COUNT
+  RETURN
+  SCRAP
+  RESERVATION
+  ALLOCATION
+}
+
+enum WaveType {
+  DISCRETE
+  BATCH
+  CLUSTER
+  ZONE
+}
+
+enum WaveStatus {
+  PLANNED
+  RELEASED
+  IN_PROGRESS
+  PICKED
+  COMPLETED
+  CANCELLED
+}
+
+enum PickingStrategy {
+  DISCRETE
+  BATCH
+  CLUSTER
+  ZONE
+  WAVE
+}
+
+enum PickListStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum CarrierType {
+  PARCEL
+  LTL
+  FTL
+  COURIER
+  THREE_PL
+  FREIGHT_FORWARDER
+}
+
+enum ShipmentStatus {
+  PLANNED
+  PACKED
+  MANIFESTED
+  SHIPPED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  RETURNED
+  CANCELLED
+}
+
+enum KitType {
+  STANDARD
+  PHANTOM
+  CONFIGURABLE
+  DYNAMIC
+}
+
+enum ReservationType {
+  SOFT
+  HARD
+  ALLOCATED
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+extend type Query {
+  """Get inventory location by ID"""
+  inventoryLocation(id: ID!): InventoryLocation
+
+  """List inventory locations"""
+  inventoryLocations(
+    facilityId: ID!
+    zone: String
+    locationType: LocationType
+    securityZone: SecurityZone
+    availableOnly: Boolean
+  ): [InventoryLocation!]!
+
+  """Get lot by ID"""
+  lot(id: ID!): Lot
+
+  """List lots"""
+  lots(
+    facilityId: ID!
+    materialId: ID
+    locationId: ID
+    qualityStatus: QualityStatus
+    expiringBefore: Date
+  ): [Lot!]!
+
+  """Get inventory transactions"""
+  inventoryTransactions(
+    facilityId: ID!
+    materialId: ID
+    locationId: ID
+    transactionType: TransactionType
+    startDate: DateTime
+    endDate: DateTime
+    limit: Int
+    offset: Int
+  ): [InventoryTransaction!]!
+
+  """Get current inventory summary"""
+  inventorySummary(
+    facilityId: ID!
+    materialId: ID
+    locationId: ID
+  ): [InventorySummary!]!
+
+  """Get wave by ID"""
+  wave(id: ID!): Wave
+
+  """List waves"""
+  waves(
+    facilityId: ID!
+    status: WaveStatus
+    startDate: DateTime
+    endDate: DateTime
+  ): [Wave!]!
+
+  """Get pick list by ID"""
+  pickList(id: ID!): PickList
+
+  """List pick lists"""
+  pickLists(
+    facilityId: ID!
+    assignedUserId: ID
+    waveId: ID
+    status: PickListStatus
+  ): [PickList!]!
+
+  """Get shipment by ID"""
+  shipment(id: ID!): Shipment
+
+  """List shipments"""
+  shipments(
+    facilityId: ID!
+    status: ShipmentStatus
+    startDate: Date
+    endDate: Date
+    trackingNumber: String
+  ): [Shipment!]!
+
+  """Get carrier integrations"""
+  carrierIntegrations(tenantId: ID!): [CarrierIntegration!]!
+
+  """Get kit definition by ID"""
+  kitDefinition(id: ID!): KitDefinition
+
+  """List kit definitions"""
+  kitDefinitions(tenantId: ID!): [KitDefinition!]!
+
+  """Get inventory reservations"""
+  inventoryReservations(
+    facilityId: ID!
+    materialId: ID
+    salesOrderId: ID
+  ): [InventoryReservation!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+extend type Mutation {
+  """Create inventory location"""
+  createInventoryLocation(input: CreateInventoryLocationInput!): InventoryLocation!
+
+  """Update inventory location"""
+  updateInventoryLocation(id: ID!, input: UpdateInventoryLocationInput!): InventoryLocation!
+
+  """Create lot"""
+  createLot(input: CreateLotInput!): Lot!
+
+  """Update lot quantity"""
+  updateLotQuantity(id: ID!, newQuantity: Float!, reason: String): Lot!
+
+  """Record inventory transaction"""
+  recordInventoryTransaction(input: RecordInventoryTransactionInput!): InventoryTransaction!
+
+  """Perform cycle count"""
+  performCycleCount(
+    locationId: ID!
+    materialId: ID!
+    countedQuantity: Float!
+    notes: String
+  ): InventoryTransaction!
+
+  """Create wave"""
+  createWave(input: CreateWaveInput!): Wave!
+
+  """Release wave for picking"""
+  releaseWave(id: ID!): Wave!
+
+  """Complete wave"""
+  completeWave(id: ID!): Wave!
+
+  """Create pick list"""
+  createPickList(input: CreatePickListInput!): PickList!
+
+  """Start picking"""
+  startPickList(id: ID!): PickList!
+
+  """Complete pick list"""
+  completePickList(id: ID!): PickList!
+
+  """Create shipment"""
+  createShipment(input: CreateShipmentInput!): Shipment!
+
+  """Manifest shipment"""
+  manifestShipment(id: ID!): Shipment!
+
+  """Ship shipment"""
+  shipShipment(id: ID!, trackingNumber: String): Shipment!
+
+  """Update shipment status"""
+  updateShipmentStatus(id: ID!, status: ShipmentStatus!, notes: String): Shipment!
+
+  """Create carrier integration"""
+  createCarrierIntegration(input: CreateCarrierIntegrationInput!): CarrierIntegration!
+
+  """Update carrier integration"""
+  updateCarrierIntegration(id: ID!, input: UpdateCarrierIntegrationInput!): CarrierIntegration!
+
+  """Create kit definition"""
+  createKitDefinition(input: CreateKitDefinitionInput!): KitDefinition!
+
+  """Reserve inventory"""
+  reserveInventory(input: ReserveInventoryInput!): InventoryReservation!
+
+  """Release reservation"""
+  releaseReservation(id: ID!): InventoryReservation!
+}
+
+# =====================================================
+# INPUT TYPES
+# =====================================================
+
+input CreateInventoryLocationInput {
+  facilityId: ID!
+  locationCode: String!
+  locationName: String
+  zoneCode: String
+  aisleCode: String
+  rackCode: String
+  locationType: LocationType!
+  securityZone: SecurityZone
+  pickSequence: Int
+}
+
+input UpdateInventoryLocationInput {
+  locationName: String
+  isActive: Boolean
+  isAvailable: Boolean
+  blockedReason: String
+}
+
+input CreateLotInput {
+  facilityId: ID!
+  lotNumber: String!
+  materialId: ID!
+  originalQuantity: Float!
+  unitOfMeasure: String!
+  locationId: ID
+  receivedDate: Date
+  expirationDate: Date
+  qualityStatus: QualityStatus
+}
+
+input RecordInventoryTransactionInput {
+  facilityId: ID!
+  transactionType: TransactionType!
+  materialId: ID!
+  lotNumber: String
+  quantity: Float!
+  unitOfMeasure: String!
+  fromLocationId: ID
+  toLocationId: ID
+  reasonCode: String
+  notes: String
+}
+
+input CreateWaveInput {
+  facilityId: ID!
+  waveNumber: String!
+  waveType: WaveType!
+  pickingStrategy: PickingStrategy
+  priority: Int
+  salesOrderIds: [ID!]!
+}
+
+input CreatePickListInput {
+  waveId: ID!
+  assignedUserId: ID!
+}
+
+input CreateShipmentInput {
+  facilityId: ID!
+  salesOrderId: ID
+  waveId: ID
+  carrierIntegrationId: ID
+  shipToName: String!
+  shipToAddressLine1: String!
+  shipToCity: String!
+  shipToPostalCode: String!
+  shipToCountry: String!
+  shipDate: Date!
+  numberOfPackages: Int!
+}
+
+input CreateCarrierIntegrationInput {
+  carrierCode: String!
+  carrierName: String!
+  carrierType: CarrierType!
+  apiEndpoint: String
+  accountNumber: String
+}
+
+input UpdateCarrierIntegrationInput {
+  carrierName: String
+  apiEndpoint: String
+  isActive: Boolean
+}
+
+input CreateKitDefinitionInput {
+  kitCode: String!
+  kitName: String!
+  description: String
+  kitType: KitType!
+  components: [KitComponentInput!]!
+}
+
+input KitComponentInput {
+  componentMaterialId: ID!
+  quantityPer: Float!
+  unitOfMeasure: String!
+  isRequired: Boolean
+}
+
+input ReserveInventoryInput {
+  facilityId: ID!
+  materialId: ID!
+  lotNumber: String
+  quantityReserved: Float!
+  salesOrderId: ID
+  reservationType: ReservationType!
+  expirationDate: DateTime
+}
