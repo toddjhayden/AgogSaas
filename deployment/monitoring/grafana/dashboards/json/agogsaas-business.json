@@ -1,0 +1,272 @@
+{
+  "dashboard": {
+    "title": "AgogSaaS - Business Metrics",
+    "tags": ["agogsaas", "business", "kpi"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "1m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Production Runs",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(active_production_runs)",
+            "legendFormat": "Active Runs"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "Material Utilization %",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "avg(material_utilization_percentage)",
+            "legendFormat": "Utilization"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 75, "color": "yellow" },
+                { "value": 85, "color": "green" }
+              ]
+            },
+            "unit": "percent",
+            "max": 100,
+            "min": 0
+          }
+        },
+        "gridPos": { "h": 12, "w": 6, "x": 6, "y": 0 }
+      },
+      {
+        "id": 3,
+        "title": "Orders Created (Last 24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(orders_created_total[24h]))",
+            "legendFormat": "Orders"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 }
+      },
+      {
+        "id": 4,
+        "title": "Marketplace Jobs Posted (Last 24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(marketplace_jobs_posted_total[24h]))",
+            "legendFormat": "Jobs"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 }
+      },
+      {
+        "id": 5,
+        "title": "Revenue (Last 24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(revenue_total[24h]))",
+            "legendFormat": "Revenue"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        },
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 6 }
+      },
+      {
+        "id": 6,
+        "title": "Active Tenants",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(count by (tenant_id) (active_production_runs))",
+            "legendFormat": "Tenants"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 6 }
+      },
+      {
+        "id": 7,
+        "title": "Order Fulfillment Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "(sum(increase(orders_fulfilled_total[24h])) / sum(increase(orders_created_total[24h]))) * 100",
+            "legendFormat": "Fulfillment %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 85, "color": "yellow" },
+                { "value": 95, "color": "green" }
+              ]
+            },
+            "unit": "percent",
+            "max": 100
+          }
+        },
+        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 6 }
+      },
+      {
+        "id": 8,
+        "title": "OEE by Facility",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "overall_equipment_effectiveness by (facility_name)",
+            "legendFormat": "{{facility_name}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "percent", "label": "OEE %", "max": 100, "min": 0 },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      },
+      {
+        "id": 9,
+        "title": "Material Utilization Trend",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "avg(material_utilization_percentage)",
+            "legendFormat": "Average Utilization"
+          }
+        ],
+        "yaxes": [
+          { "format": "percent", "label": "Utilization %", "max": 100, "min": 0 },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }
+      },
+      {
+        "id": 10,
+        "title": "Production Volume by Facility",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(production_items_completed_total[5m])) by (facility_name)",
+            "legendFormat": "{{facility_name}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Items/sec" },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 }
+      },
+      {
+        "id": 11,
+        "title": "Revenue Trend (7 days)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(increase(revenue_total[24h]))",
+            "legendFormat": "Daily Revenue"
+          }
+        ],
+        "yaxes": [
+          { "format": "currencyUSD", "label": "Revenue" },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 }
+      },
+      {
+        "id": 12,
+        "title": "Top Customers by Order Volume",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum(increase(orders_created_total[24h])) by (tenant_name))",
+            "legendFormat": "",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "tenant_name": "Customer",
+                "Value": "Orders (24h)"
+              }
+            }
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 }
+      },
+      {
+        "id": 13,
+        "title": "Marketplace Activity",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(marketplace_jobs_posted_total[5m])",
+            "legendFormat": "Jobs Posted"
+          },
+          {
+            "expr": "rate(marketplace_bids_submitted_total[5m])",
+            "legendFormat": "Bids Submitted"
+          },
+          {
+            "expr": "rate(marketplace_jobs_completed_total[5m])",
+            "legendFormat": "Jobs Completed"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Activity/sec" },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 }
+      }
+    ],
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}

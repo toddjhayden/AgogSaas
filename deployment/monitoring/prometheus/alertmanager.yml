@@ -1,0 +1,187 @@
+# AgogSaaS AlertManager Configuration
+# Purpose: Route alerts to appropriate teams via multiple channels
+
+global:
+  # Slack API URL (if using Slack)
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+  # PagerDuty integration key
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Templates for alert formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Alert routing
+route:
+  # Default receiver
+  receiver: 'operations-team'
+
+  # Group alerts by these labels
+  group_by: ['alertname', 'cluster', 'service']
+
+  # Wait time before sending notification
+  group_wait: 10s
+
+  # Wait time before sending notification about new alerts in existing group
+  group_interval: 10s
+
+  # Wait time before re-sending notification
+  repeat_interval: 12h
+
+  # Route specific alerts to specific teams
+  routes:
+    # Critical alerts go to PagerDuty (24/7 on-call)
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      continue: true  # Also send to default receiver
+
+    # Edge facility alerts go to customer success team
+    - match_re:
+        alertname: 'EdgeFacilityOffline|NoProductionRunsActive'
+      receiver: 'customer-success-team'
+
+    # Security alerts go to security team
+    - match:
+        team: security
+      receiver: 'security-team'
+
+    # Engineering alerts go to engineering team
+    - match:
+        team: engineering
+      receiver: 'engineering-team'
+
+    # Business metrics go to product team
+    - match_re:
+        alertname: 'LowMaterialUtilization|NoProductionRunsActive'
+      receiver: 'product-team'
+
+# Alert receivers (notification channels)
+receivers:
+  # Operations Team - Default receiver
+  - name: 'operations-team'
+    slack_configs:
+      - channel: '#ops-alerts'
+        title: 'AgogSaaS Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Actions:*
+          {{ .Annotations.actions }}
+          *Severity:* {{ .Labels.severity }}
+          *Environment:* {{ .Labels.environment }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: 'ops@agogsaas.com'
+        from: 'alerts@agogsaas.com'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: '[{{ .Status }}] AgogSaaS Alert: {{ .GroupLabels.alertname }}'
+
+  # PagerDuty - Critical alerts (24/7 on-call)
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        description: '{{ .GroupLabels.alertname }} - {{ .CommonAnnotations.summary }}'
+        details:
+          summary: '{{ .CommonAnnotations.summary }}'
+          description: '{{ .CommonAnnotations.description }}'
+          actions: '{{ .CommonAnnotations.actions }}'
+          runbook: '{{ .CommonAnnotations.runbook }}'
+
+  # Customer Success Team
+  - name: 'customer-success-team'
+    slack_configs:
+      - channel: '#customer-success-alerts'
+        title: 'Customer Impact Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Facility:* {{ .Labels.facility_name }} ({{ .Labels.facility_id }})
+          *Issue:* {{ .Annotations.summary }}
+          *Actions:*
+          {{ .Annotations.actions }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: 'customer-success@agogsaas.com'
+        from: 'alerts@agogsaas.com'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+
+  # Security Team
+  - name: 'security-team'
+    slack_configs:
+      - channel: '#security-alerts'
+        title: 'Security Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Security Issue:* {{ .Annotations.summary }}
+          *Details:* {{ .Annotations.description }}
+          *Actions:*
+          {{ .Annotations.actions }}
+          {{ end }}
+        send_resolved: true
+    email_configs:
+      - to: 'security@agogsaas.com'
+        from: 'security-alerts@agogsaas.com'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: '[SECURITY] {{ .GroupLabels.alertname }}'
+
+  # Engineering Team
+  - name: 'engineering-team'
+    slack_configs:
+      - channel: '#engineering-alerts'
+        title: 'Engineering Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Issue:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Actions:*
+          {{ .Annotations.actions }}
+          *Runbook:* {{ .Annotations.runbook }}
+          {{ end }}
+        send_resolved: true
+
+  # Product Team
+  - name: 'product-team'
+    slack_configs:
+      - channel: '#product-alerts'
+        title: 'Business Metrics Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Metric:* {{ .Annotations.summary }}
+          *Details:* {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+
+# Inhibition rules (suppress alerts when other alerts are active)
+inhibit_rules:
+  # If service is down, don't alert on high response time
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match:
+      alertname: 'HighResponseTime'
+    equal: ['job', 'instance']
+
+  # If database connection failed, don't alert on replication lag
+  - source_match:
+      alertname: 'DatabaseConnectionFailed'
+    target_match:
+      alertname: 'DatabaseReplicationLagHigh'
+    equal: ['instance']
+
+  # If edge facility is offline, don't alert on missing production runs for that facility
+  - source_match:
+      alertname: 'EdgeFacilityOffline'
+    target_match:
+      alertname: 'NoProductionRunsActive'
+    equal: ['facility_id']

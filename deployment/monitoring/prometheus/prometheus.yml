@@ -1,0 +1,242 @@
+# AgogSaaS Prometheus Configuration
+# Purpose: Scrape metrics from all services (edge, regional, database, NATS, Redis)
+# Retention: 30 days
+# Scrape interval: 15s (edge facilities every 30s)
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'agogsaas'
+    region: '${REGION}'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load alerting rules
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================================
+  # Backend Services (Regional Cloud - Blue/Green)
+  # ============================================================================
+
+  - job_name: 'backend-blue'
+    static_configs:
+      - targets:
+          - backend-blue:4000
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: environment
+        replacement: 'blue'
+      - source_labels: [__address__]
+        target_label: tier
+        replacement: 'regional-cloud'
+
+  - job_name: 'backend-green'
+    static_configs:
+      - targets:
+          - backend-green:4000
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: environment
+        replacement: 'green'
+      - source_labels: [__address__]
+        target_label: tier
+        replacement: 'regional-cloud'
+
+  # ============================================================================
+  # PostgreSQL Exporters (Blue/Green)
+  # ============================================================================
+
+  - job_name: 'postgres-blue'
+    static_configs:
+      - targets:
+          - postgres-exporter-blue:9187
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: environment
+        replacement: 'blue'
+      - source_labels: [__address__]
+        target_label: database
+        replacement: 'postgresql'
+
+  - job_name: 'postgres-green'
+    static_configs:
+      - targets:
+          - postgres-exporter-green:9187
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: environment
+        replacement: 'green'
+      - source_labels: [__address__]
+        target_label: database
+        replacement: 'postgresql'
+
+  # ============================================================================
+  # Redis Exporters (Blue/Green)
+  # ============================================================================
+
+  - job_name: 'redis-blue'
+    static_configs:
+      - targets:
+          - redis-exporter-blue:9121
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: environment
+        replacement: 'blue'
+      - source_labels: [__address__]
+        target_label: cache
+        replacement: 'redis'
+
+  - job_name: 'redis-green'
+    static_configs:
+      - targets:
+          - redis-exporter-green:9121
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: environment
+        replacement: 'green'
+      - source_labels: [__address__]
+        target_label: cache
+        replacement: 'redis'
+
+  # ============================================================================
+  # NATS Monitoring
+  # ============================================================================
+
+  - job_name: 'nats'
+    static_configs:
+      - targets:
+          - nats:8222
+    metrics_path: '/varz'
+    scrape_interval: 15s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: tier
+        replacement: 'messaging'
+
+  # ============================================================================
+  # NGINX Load Balancer
+  # ============================================================================
+
+  - job_name: 'nginx'
+    static_configs:
+      - targets:
+          - nginx-exporter:9113
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: tier
+        replacement: 'load-balancer'
+
+  # ============================================================================
+  # Edge Facilities (Dynamic Discovery)
+  # Edge computers report to regional cloud
+  # ============================================================================
+
+  - job_name: 'edge-facilities'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    # Use file-based service discovery (updated by backend service)
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/edge-facilities.json'
+        refresh_interval: 60s
+    relabel_configs:
+      - source_labels: [__meta_facility_id]
+        target_label: facility_id
+      - source_labels: [__meta_facility_name]
+        target_label: facility_name
+      - source_labels: [__meta_tenant_id]
+        target_label: tenant_id
+      - source_labels: [__address__]
+        target_label: tier
+        replacement: 'edge'
+
+  # ============================================================================
+  # Prometheus Self-Monitoring
+  # ============================================================================
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # ============================================================================
+  # Grafana Monitoring
+  # ============================================================================
+
+  - job_name: 'grafana'
+    static_configs:
+      - targets:
+          - grafana:3000
+    metrics_path: '/metrics'
+
+  # ============================================================================
+  # Blackbox Exporter (Uptime Monitoring)
+  # ============================================================================
+
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          # Regional API endpoints
+          - http://backend-blue:4000/health
+          - http://backend-green:4000/health
+          - http://nginx:80/health
+          # Public endpoints
+          - https://api.agogsaas.com/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: 'blackbox-tcp'
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          # Database connectivity
+          - postgres-blue:5432
+          - postgres-green:5432
+          # Redis connectivity
+          - redis-blue:6379
+          - redis-green:6379
+          # NATS connectivity
+          - nats:4222
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # ============================================================================
+  # Node Exporter (System Metrics)
+  # ============================================================================
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets:
+          - node-exporter:9100
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: tier
+        replacement: 'infrastructure'

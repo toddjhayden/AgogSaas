@@ -1,0 +1,324 @@
+{
+  "dashboard": {
+    "title": "AgogSaaS - Security Monitoring",
+    "tags": ["agogsaas", "security", "audit"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Failed Login Attempts (Last 5m)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(auth_failed_login_attempts_total[5m]))",
+            "legendFormat": "Failed Logins"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 10, "color": "yellow" },
+                { "value": 50, "color": "red" }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "Unauthorized Access Attempts",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(auth_unauthorized_access_total[5m]))",
+            "legendFormat": "Unauthorized"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 5, "color": "yellow" },
+                { "value": 20, "color": "red" }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+      },
+      {
+        "id": 3,
+        "title": "Vault Access Events (Last 1h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(vault_access_total[1h]))",
+            "legendFormat": "Vault Accesses"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 }
+      },
+      {
+        "id": 4,
+        "title": "Chain of Custody Events",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(increase(chain_of_custody_events_total[1h]))",
+            "legendFormat": "CoC Events"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 }
+      },
+      {
+        "id": 5,
+        "title": "Failed Login Attempts by User",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum(increase(auth_failed_login_attempts_total[1h])) by (username))",
+            "legendFormat": "",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "username": "Username",
+                "Value": "Failed Attempts (1h)"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Failed Attempts (1h)" },
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": 0, "color": "green" },
+                      { "value": 5, "color": "yellow" },
+                      { "value": 10, "color": "red" }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }
+      },
+      {
+        "id": 6,
+        "title": "Failed Logins by IP Address",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum(increase(auth_failed_login_attempts_total[1h])) by (ip_address))",
+            "legendFormat": "",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "ip_address": "IP Address",
+                "Value": "Failed Attempts (1h)"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Failed Attempts (1h)" },
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": 0, "color": "green" },
+                      { "value": 10, "color": "yellow" },
+                      { "value": 50, "color": "red" }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }
+      },
+      {
+        "id": 7,
+        "title": "Failed Login Rate Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(auth_failed_login_attempts_total[5m]))",
+            "legendFormat": "Failed Logins/sec"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Attempts/sec" },
+          { "format": "short" }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": { "params": [10], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["A", "5m", "now"] },
+              "reducer": { "params": [], "type": "avg" },
+              "type": "query"
+            }
+          ],
+          "name": "High Failed Login Rate"
+        },
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 }
+      },
+      {
+        "id": 8,
+        "title": "Unauthorized Access by Security Zone",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(auth_unauthorized_access_total[5m])) by (security_zone)",
+            "legendFormat": "Zone {{security_zone}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Attempts/sec" },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 }
+      },
+      {
+        "id": 9,
+        "title": "Vault Access by User",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(vault_access_total[5m])) by (username)",
+            "legendFormat": "{{username}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Accesses/sec" },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 }
+      },
+      {
+        "id": 10,
+        "title": "Authentication Methods Used",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(increase(auth_login_success_total[24h])) by (auth_method)",
+            "legendFormat": "{{auth_method}}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 }
+      },
+      {
+        "id": 11,
+        "title": "Security Audit Log",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "security_audit_events",
+            "legendFormat": "",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "timestamp": "Time",
+                "username": "User",
+                "action": "Action",
+                "resource": "Resource",
+                "result": "Result"
+              }
+            }
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 }
+      },
+      {
+        "id": 12,
+        "title": "Suspicious Activity Alerts",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "ALERTS{alertname=~\".*Security.*|.*Login.*|.*Unauthorized.*\", alertstate=\"firing\"}",
+            "legendFormat": "",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "alertname": "Alert",
+                "severity": "Severity",
+                "summary": "Summary"
+              }
+            }
+          }
+        ],
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "targets": ["facility-001.edge.agogsaas.com:4010"],
+    "labels": {
+      "facility_id": "facility-001",
+      "facility_name": "Toronto Print Shop",
+      "tenant_id": "tenant-001",
+      "region": "US-EAST",
+      "tier": "edge"
+    }
+  },
+  {
+    "targets": ["facility-002.edge.agogsaas.com:4010"],
+    "labels": {
+      "facility_id": "facility-002",
+      "facility_name": "Vancouver Graphics",
+      "tenant_id": "tenant-001",
+      "region": "US-EAST",
+      "tier": "edge"
+    }
+  }
+]

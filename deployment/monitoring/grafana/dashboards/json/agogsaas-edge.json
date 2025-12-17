@@ -1,0 +1,321 @@
+{
+  "dashboard": {
+    "title": "AgogSaaS - Edge Computer Monitoring",
+    "tags": ["agogsaas", "edge", "facilities"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Edge Facilities Online",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(up{tier=\"edge\"} == 1)",
+            "legendFormat": "Online"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 1, "color": "green" }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "Edge Facilities Offline",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(up{tier=\"edge\"} == 0)",
+            "legendFormat": "Offline"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 1, "color": "red" }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+      },
+      {
+        "id": 3,
+        "title": "Average Sync Lag",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(time() - edge_last_sync_timestamp{tier=\"edge\"})",
+            "legendFormat": "Avg Lag"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 60, "color": "yellow" },
+                { "value": 300, "color": "red" }
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 }
+      },
+      {
+        "id": 4,
+        "title": "Total Production Runs",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(active_production_runs{tier=\"edge\"})",
+            "legendFormat": "Active Runs"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "unit": "short"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 }
+      },
+      {
+        "id": 5,
+        "title": "Facility Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "up{tier=\"edge\"}",
+            "legendFormat": "",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "facility_name": "Facility Name",
+                "facility_id": "Facility ID",
+                "Value": "Status",
+                "region": "Region",
+                "tenant_id": "Tenant"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Status" },
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "mappings",
+                  "value": [
+                    { "type": "value", "value": "1", "text": "Online" },
+                    { "type": "value", "value": "0", "text": "Offline" }
+                  ]
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": 0, "color": "red" },
+                      { "value": 1, "color": "green" }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 }
+      },
+      {
+        "id": 6,
+        "title": "CPU Usage by Facility",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "(1 - avg(rate(node_cpu_seconds_total{mode=\"idle\",tier=\"edge\"}[5m])) by (facility_name)) * 100",
+            "legendFormat": "{{facility_name}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "percent", "label": "CPU %", "max": 100, "min": 0 },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }
+      },
+      {
+        "id": 7,
+        "title": "Memory Usage by Facility",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "(1 - (node_memory_MemAvailable_bytes{tier=\"edge\"} / node_memory_MemTotal_bytes{tier=\"edge\"})) * 100",
+            "legendFormat": "{{facility_name}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "percent", "label": "Memory %", "max": 100, "min": 0 },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }
+      },
+      {
+        "id": 8,
+        "title": "Disk Usage by Facility",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "(1 - (node_filesystem_avail_bytes{tier=\"edge\",mountpoint=\"/\"} / node_filesystem_size_bytes{tier=\"edge\",mountpoint=\"/\"})) * 100",
+            "legendFormat": "{{facility_name}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "percent", "label": "Disk %", "max": 100, "min": 0 },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 }
+      },
+      {
+        "id": 9,
+        "title": "Last Sync Time by Facility",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "time() - edge_last_sync_timestamp{tier=\"edge\"}",
+            "legendFormat": "{{facility_name}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "s", "label": "Seconds Ago" },
+          { "format": "short" }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": { "params": [300], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["A", "5m", "now"] },
+              "reducer": { "params": [], "type": "avg" },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "60s",
+          "handler": 1,
+          "name": "Edge Facility Offline > 5min",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 }
+      },
+      {
+        "id": 10,
+        "title": "PostgreSQL Status by Facility",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "pg_up{tier=\"edge\"}",
+            "legendFormat": "",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "facility_name": "Facility",
+                "Value": "DB Status"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "DB Status" },
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "mappings",
+                  "value": [
+                    { "type": "value", "value": "1", "text": "Connected" },
+                    { "type": "value", "value": "0", "text": "Offline" }
+                  ]
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": 0, "color": "red" },
+                      { "value": 1, "color": "green" }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 }
+      },
+      {
+        "id": 11,
+        "title": "Production Data Capture Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(production_events_captured_total{tier=\"edge\"}[5m])",
+            "legendFormat": "{{facility_name}}"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Events/sec" },
+          { "format": "short" }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["10s", "30s", "1m", "5m"]
+    }
+  }
+}

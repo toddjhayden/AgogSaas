@@ -1,0 +1,436 @@
+# AgogSaaS Complete Monitoring Stack
+# Purpose: Add monitoring services to existing docker-compose.regional.yml
+# Services: Prometheus, Grafana, Loki, Promtail, Blackbox Exporter, Exporters, Status Page
+
+version: '3.8'
+
+networks:
+  regional-network:
+    external: true
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  postgres-exporter-data:
+
+services:
+  # ==========================================================================
+  # PROMETHEUS - Metrics Collection
+  # ==========================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: regional-prometheus
+    restart: unless-stopped
+    user: root
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./prometheus/edge-facilities.json:/etc/prometheus/targets/edge-facilities.json:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - regional-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # ==========================================================================
+  # GRAFANA - Visualization & Dashboards
+  # ==========================================================================
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: regional-grafana
+    restart: unless-stopped
+    user: root
+    depends_on:
+      - prometheus
+      - loki
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards/dashboard-provider.yml:/etc/grafana/provisioning/dashboards/dashboard-provider.yml:ro
+      - ./grafana/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - regional-network
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-changeme}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://grafana.${REGION:-us-east}.agogsaas.com
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/json/agogsaas-overview.json
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # ==========================================================================
+  # ALERTMANAGER - Alert Routing
+  # ==========================================================================
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: regional-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    networks:
+      - regional-network
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ==========================================================================
+  # LOKI - Log Aggregation
+  # ==========================================================================
+
+  loki:
+    image: grafana/loki:latest
+    container_name: regional-loki
+    restart: unless-stopped
+    user: root
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - regional-network
+    command: -config.file=/etc/loki/loki-config.yml
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # PROMTAIL - Log Shipper
+  # ==========================================================================
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: regional-promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - regional-network
+    command: -config.file=/etc/promtail/promtail-config.yml
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ==========================================================================
+  # BLACKBOX EXPORTER - Uptime Monitoring
+  # ==========================================================================
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: regional-blackbox-exporter
+    restart: unless-stopped
+    volumes:
+      - ./blackbox/blackbox-config.yml:/etc/blackbox/blackbox-config.yml:ro
+    ports:
+      - "9115:9115"
+    networks:
+      - regional-network
+    command:
+      - '--config.file=/etc/blackbox/blackbox-config.yml'
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # ==========================================================================
+  # POSTGRES EXPORTER - Blue Environment
+  # ==========================================================================
+
+  postgres-exporter-blue:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: regional-postgres-exporter-blue
+    restart: unless-stopped
+    networks:
+      - regional-network
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DB_USER:-agogsaas_user}:${DB_PASSWORD}@postgres-blue:5432/${DB_NAME:-agogsaas}?sslmode=disable
+    ports:
+      - "9187:9187"
+    labels:
+      - "agog.tier=monitoring"
+      - "agog.environment=blue"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # ==========================================================================
+  # POSTGRES EXPORTER - Green Environment
+  # ==========================================================================
+
+  postgres-exporter-green:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: regional-postgres-exporter-green
+    restart: unless-stopped
+    networks:
+      - regional-network
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DB_USER:-agogsaas_user}:${DB_PASSWORD}@postgres-green:5432/${DB_NAME:-agogsaas}?sslmode=disable
+    ports:
+      - "9188:9187"
+    labels:
+      - "agog.tier=monitoring"
+      - "agog.environment=green"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # ==========================================================================
+  # REDIS EXPORTER - Blue Environment
+  # ==========================================================================
+
+  redis-exporter-blue:
+    image: oliver006/redis_exporter:latest
+    container_name: regional-redis-exporter-blue
+    restart: unless-stopped
+    networks:
+      - regional-network
+    environment:
+      REDIS_ADDR: redis-blue:6379
+    ports:
+      - "9121:9121"
+    labels:
+      - "agog.tier=monitoring"
+      - "agog.environment=blue"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+  # ==========================================================================
+  # REDIS EXPORTER - Green Environment
+  # ==========================================================================
+
+  redis-exporter-green:
+    image: oliver006/redis_exporter:latest
+    container_name: regional-redis-exporter-green
+    restart: unless-stopped
+    networks:
+      - regional-network
+    environment:
+      REDIS_ADDR: redis-green:6379
+    ports:
+      - "9122:9121"
+    labels:
+      - "agog.tier=monitoring"
+      - "agog.environment=green"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+  # ==========================================================================
+  # NGINX EXPORTER - Load Balancer Metrics
+  # ==========================================================================
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: regional-nginx-exporter
+    restart: unless-stopped
+    networks:
+      - regional-network
+    command:
+      - '-nginx.scrape-uri=http://nginx:8080/stub_status'
+    ports:
+      - "9113:9113"
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+  # ==========================================================================
+  # NODE EXPORTER - System Metrics
+  # ==========================================================================
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: regional-node-exporter
+    restart: unless-stopped
+    networks:
+      - regional-network
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # ==========================================================================
+  # STATUS PAGE - Public Facing
+  # ==========================================================================
+
+  status-page:
+    image: nginx:alpine
+    container_name: regional-status-page
+    restart: unless-stopped
+    networks:
+      - regional-network
+    volumes:
+      - ./status-page:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    labels:
+      - "agog.tier=monitoring"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+# ==========================================================================
+# DEPLOYMENT NOTES
+# ==========================================================================
+#
+# STARTING MONITORING STACK:
+# 1. Ensure main services are running (postgres, redis, backend, etc.)
+# 2. Start monitoring stack:
+#    docker-compose -f docker-compose.monitoring.yml up -d
+#
+# ACCESSING SERVICES:
+# - Grafana: http://localhost:3000 (admin/changeme)
+# - Prometheus: http://localhost:9090
+# - AlertManager: http://localhost:9093
+# - Loki: http://localhost:3100
+# - Status Page: http://localhost:8080
+#
+# GRAFANA DASHBOARDS:
+# Pre-loaded dashboards (auto-provisioned):
+# 1. AgogSaaS - Executive Overview
+# 2. AgogSaaS - Edge Computer Monitoring
+# 3. AgogSaaS - Database Performance
+# 4. AgogSaaS - API Performance
+# 5. AgogSaaS - Business Metrics
+# 6. AgogSaaS - Security Monitoring
+#
+# ALERTING:
+# - Alerts defined in: ./prometheus/alerts.yml
+# - Alert routing: ./prometheus/alertmanager.yml
+# - Configure Slack webhook: Set SLACK_WEBHOOK_URL in .env
+# - Configure PagerDuty: Set PAGERDUTY_SERVICE_KEY in .env
+#
+# LOGS:
+# - Logs collected by Promtail from Docker containers
+# - Log retention: 7 days (configurable in loki-config.yml)
+# - Query logs in Grafana Explore (select Loki datasource)
+#
+# RETENTION:
+# - Metrics: 30 days (Prometheus)
+# - Logs: 7 days (Loki)
+# - Increase retention in production based on compliance requirements
+#
+# RESOURCE REQUIREMENTS:
+# - Total: ~8GB RAM, 4 vCPUs
+# - Prometheus: 1-4GB depending on metric volume
+# - Grafana: 512MB-2GB
+# - Loki: 512MB-2GB
+# - Exporters: ~1GB combined
+#
