@@ -1,0 +1,1306 @@
+# =====================================================
+# SALES, MATERIALS, AND PROCUREMENT MODULE
+# =====================================================
+# Purpose: Materials management, procurement, sales, and customer management
+# Tables: 17 (materials, products, bill_of_materials, vendors, materials_suppliers,
+#         purchase_orders, purchase_order_lines, vendor_contracts, vendor_performance,
+#         customers, customer_products, customer_pricing, quotes, quote_lines,
+#         sales_orders, sales_order_lines, pricing_rules)
+# =====================================================
+
+scalar Date
+scalar DateTime
+scalar JSON
+
+# =====================================================
+# MATERIALS SECTION
+# =====================================================
+
+type Material {
+  id: ID!
+  tenantId: ID!
+
+  # Material identification
+  materialCode: String!
+  materialName: String!
+  description: String
+
+  # Material type
+  materialType: MaterialType!
+  materialCategory: String
+
+  # Unit of measure
+  primaryUom: String!
+  secondaryUom: String
+  uomConversionFactor: Float
+
+  # Dimensions (for substrates)
+  widthInches: Float
+  heightInches: Float
+  thicknessInches: Float
+  weightLbsPerUnit: Float
+
+  # Substrate specifications
+  basisWeightLbs: Int
+  caliperInches: Float
+  finish: String
+  grainDirection: String
+
+  # Inventory management
+  isLotTracked: Boolean!
+  isSerialized: Boolean!
+  shelfLifeDays: Int
+
+  # ABC classification
+  abcClassification: ABCClassification
+
+  # Costs
+  standardCost: Float
+  costCurrencyCode: String
+  lastCost: Float
+  averageCost: Float
+  costingMethod: CostingMethod!
+
+  # Purchasing
+  defaultVendorId: ID
+  leadTimeDays: Int
+  minimumOrderQuantity: Float
+  orderMultiple: Float
+
+  # Safety stock
+  safetyStockQuantity: Float
+  reorderPoint: Float
+  economicOrderQuantity: Float
+
+  # Quality & compliance
+  requiresInspection: Boolean!
+  fdaCompliant: Boolean!
+  foodContactApproved: Boolean!
+  fscCertified: Boolean!
+
+  # Status
+  isActive: Boolean!
+  isPurchasable: Boolean!
+  isSellable: Boolean!
+  isManufacturable: Boolean!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+  deletedAt: DateTime
+  deletedBy: ID
+}
+
+enum MaterialType {
+  RAW_MATERIAL
+  SUBSTRATE
+  INK
+  COATING
+  ADHESIVE
+  FINISHED_GOOD
+  WIP
+  KIT
+  PACKAGING_MATERIAL
+  MRO_SUPPLIES
+  TOOLING
+  CONSUMABLE
+}
+
+enum ABCClassification {
+  A
+  B
+  C
+}
+
+enum CostingMethod {
+  FIFO
+  LIFO
+  AVERAGE
+  STANDARD
+}
+
+type Product {
+  id: ID!
+  tenantId: ID!
+
+  # Product identification
+  productCode: String!
+  productName: String!
+  description: String
+
+  # Product category
+  productCategory: ProductCategory
+
+  # Master material linkage
+  materialId: ID
+
+  # Packaging type
+  packagingType: PackagingType
+
+  # Design specifications
+  designWidthInches: Float
+  designHeightInches: Float
+  designBleedInches: Float
+
+  # Manufacturing
+  defaultRoutingId: ID
+  standardProductionTimeHours: Float
+
+  # Costs
+  standardMaterialCost: Float
+  standardLaborCost: Float
+  standardOverheadCost: Float
+  standardTotalCost: Float
+
+  # Pricing
+  listPrice: Float
+  priceCurrencyCode: String
+
+  # Status
+  isActive: Boolean!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+  deletedAt: DateTime
+  deletedBy: ID
+}
+
+enum ProductCategory {
+  LABELS
+  CORRUGATED_BOX
+  FOLDING_CARTON
+  COMMERCIAL_PRINT
+  FLEXIBLE_PACKAGING
+  RIGID_PACKAGING
+  TAGS
+  FORMS
+  ENVELOPES
+  SPECIALTY
+}
+
+enum PackagingType {
+  CORRUGATED
+  COMMERCIAL
+  LABELS
+  FLEXIBLE
+}
+
+type BillOfMaterial {
+  id: ID!
+  tenantId: ID!
+
+  # Parent product
+  parentProductId: ID!
+
+  # Component
+  componentMaterialId: ID!
+  componentDescription: String
+
+  # Quantity
+  quantityPerParent: Float!
+  unitOfMeasure: String
+
+  # Scrap allowance
+  scrapPercentage: Float
+
+  # Sequence
+  sequenceNumber: Int
+
+  # Operation
+  operationId: ID
+
+  # Substitution
+  isSubstitutable: Boolean!
+  substituteMaterialId: ID
+
+  # Effective dating
+  effectiveFrom: Date
+  effectiveTo: Date
+
+  # Status
+  isActive: Boolean!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+# =====================================================
+# PROCUREMENT SECTION
+# =====================================================
+
+type Vendor {
+  id: ID!
+  tenantId: ID!
+
+  # Vendor identification
+  vendorCode: String!
+  vendorName: String!
+  legalName: String
+
+  # Vendor type
+  vendorType: VendorType
+
+  # Contact
+  primaryContactName: String
+  primaryContactEmail: String
+  primaryContactPhone: String
+
+  # Address
+  addressLine1: String
+  addressLine2: String
+  city: String
+  state: String
+  postalCode: String
+  country: String
+
+  # Tax information
+  taxId: String
+
+  # Payment terms
+  paymentTerms: String
+  paymentCurrencyCode: String
+
+  # Performance
+  onTimeDeliveryPercentage: Float
+  qualityRatingPercentage: Float
+  overallRating: Float
+
+  # Status
+  isActive: Boolean!
+  isApproved: Boolean!
+  approvedByUserId: ID
+  approvedAt: DateTime
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+  deletedAt: DateTime
+  deletedBy: ID
+}
+
+enum VendorType {
+  MATERIAL_SUPPLIER
+  TRADE_PRINTER
+  SERVICE_PROVIDER
+  MRO_SUPPLIER
+  FREIGHT_CARRIER
+  EQUIPMENT_VENDOR
+}
+
+type MaterialSupplier {
+  id: ID!
+  tenantId: ID!
+
+  # Material and vendor
+  materialId: ID!
+  vendorId: ID!
+
+  # Pricing
+  isPreferredVendor: Boolean!
+  vendorMaterialCode: String
+  vendorMaterialName: String
+
+  unitPrice: Float
+  priceCurrencyCode: String
+  priceUom: String
+
+  # Quantity breaks
+  priceBreaks: JSON
+
+  # Lead time
+  leadTimeDays: Int
+
+  # Minimum order
+  minimumOrderQuantity: Float
+  orderMultiple: Float
+
+  # Effective dating
+  effectiveFrom: Date
+  effectiveTo: Date
+
+  # Status
+  isActive: Boolean!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+type PurchaseOrder {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # PO identification
+  poNumber: String!
+  poDate: Date!
+  vendorId: ID!
+
+  # Ship to facility
+  shipToFacilityId: ID
+  shipToAddress: String
+
+  # Bill to
+  billingEntityId: ID
+
+  # Buyer
+  buyerUserId: ID
+
+  # Currency
+  poCurrencyCode: String!
+  exchangeRate: Float
+
+  # Amounts
+  subtotal: Float
+  taxAmount: Float
+  shippingAmount: Float
+  totalAmount: Float!
+
+  # Payment terms
+  paymentTerms: String
+
+  # Delivery
+  requestedDeliveryDate: Date
+  promisedDeliveryDate: Date
+
+  # Status
+  status: PurchaseOrderStatus!
+
+  # Approval
+  requiresApproval: Boolean!
+  approvedByUserId: ID
+  approvedAt: DateTime
+
+  # GL integration
+  journalEntryId: ID
+
+  # Notes
+  notes: String
+
+  # Lines
+  lines: [PurchaseOrderLine!]!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  ACKNOWLEDGED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+type PurchaseOrderLine {
+  id: ID!
+  tenantId: ID!
+
+  # PO linkage
+  purchaseOrderId: ID!
+  lineNumber: Int!
+
+  # Material
+  materialId: ID!
+  materialCode: String
+  description: String
+
+  # Quantity
+  quantityOrdered: Float!
+  quantityReceived: Float
+  quantityRemaining: Float
+  unitOfMeasure: String
+
+  # Price
+  unitPrice: Float!
+  lineAmount: Float!
+
+  # Delivery
+  requestedDeliveryDate: Date
+  promisedDeliveryDate: Date
+
+  # GL account
+  expenseAccountId: ID
+
+  # Receiving
+  allowOverReceipt: Boolean!
+  overReceiptTolerancePercentage: Float
+
+  # Status
+  status: PurchaseOrderLineStatus!
+
+  # Audit trail
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+enum PurchaseOrderLineStatus {
+  OPEN
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+type VendorContract {
+  id: ID!
+  tenantId: ID!
+
+  # Contract identification
+  contractNumber: String!
+  contractName: String!
+  vendorId: ID!
+
+  # Term
+  startDate: Date!
+  endDate: Date
+  autoRenew: Boolean!
+
+  # Pricing
+  pricingTerms: String
+  volumeCommitment: Float
+  currencyCode: String
+
+  # Payment terms
+  paymentTerms: String
+
+  # Status
+  status: VendorContractStatus!
+
+  # Documents
+  contractDocumentUrl: String
+
+  # Notes
+  notes: String
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+enum VendorContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+type VendorPerformance {
+  id: ID!
+  tenantId: ID!
+
+  # Vendor and period
+  vendorId: ID!
+  evaluationPeriodYear: Int!
+  evaluationPeriodMonth: Int!
+
+  # Metrics
+  totalPosIssued: Int
+  totalPosValue: Float
+
+  onTimeDeliveries: Int
+  totalDeliveries: Int
+  onTimePercentage: Float
+
+  qualityAcceptances: Int
+  qualityRejections: Int
+  qualityPercentage: Float
+
+  priceCompetitivenessScore: Float
+  responsivenessScore: Float
+  overallRating: Float
+
+  # Notes
+  notes: String
+
+  # Audit trail
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+# =====================================================
+# SALES SECTION
+# =====================================================
+
+type Customer {
+  id: ID!
+  tenantId: ID!
+
+  # Customer identification
+  customerCode: String!
+  customerName: String!
+  legalName: String
+
+  # Customer type
+  customerType: CustomerType
+
+  # Contact
+  primaryContactName: String
+  primaryContactEmail: String
+  primaryContactPhone: String
+
+  # Billing address
+  billingAddressLine1: String
+  billingAddressLine2: String
+  billingCity: String
+  billingState: String
+  billingPostalCode: String
+  billingCountry: String
+
+  # Shipping address
+  shippingAddressLine1: String
+  shippingAddressLine2: String
+  shippingCity: String
+  shippingState: String
+  shippingPostalCode: String
+  shippingCountry: String
+
+  # Tax information
+  taxId: String
+  taxExempt: Boolean!
+  taxExemptionCertificateUrl: String
+
+  # Payment terms
+  paymentTerms: String
+  creditLimit: Float
+  billingCurrencyCode: String
+
+  # Sales assignments
+  salesRepUserId: ID
+  csrUserId: ID
+
+  # Pricing tier
+  pricingTier: String
+
+  # Status
+  isActive: Boolean!
+  creditHold: Boolean!
+
+  # Performance
+  lifetimeRevenue: Float
+  ytdRevenue: Float
+  averageOrderValue: Float
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+  deletedAt: DateTime
+  deletedBy: ID
+}
+
+enum CustomerType {
+  DIRECT
+  DISTRIBUTOR
+  RESELLER
+  END_USER
+  GOVERNMENT
+  EDUCATIONAL
+}
+
+type CustomerProduct {
+  id: ID!
+  tenantId: ID!
+
+  # Customer and product
+  customerId: ID!
+  productId: ID!
+
+  # Customer's identifiers
+  customerProductCode: String
+  customerProductName: String
+
+  # Specifications
+  specifications: JSON
+
+  # Status
+  isActive: Boolean!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+type CustomerPricing {
+  id: ID!
+  tenantId: ID!
+
+  # Customer and product
+  customerId: ID!
+  productId: ID!
+
+  # Pricing
+  unitPrice: Float!
+  priceCurrencyCode: String
+  priceUom: String
+
+  # Quantity breaks
+  minimumQuantity: Float
+  priceBreaks: JSON
+
+  # Effective dating
+  effectiveFrom: Date!
+  effectiveTo: Date
+
+  # Status
+  isActive: Boolean!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+type Quote {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID
+
+  # Quote identification
+  quoteNumber: String!
+  quoteDate: Date!
+  expirationDate: Date
+
+  # Customer
+  customerId: ID!
+  contactName: String
+  contactEmail: String
+
+  # Sales rep
+  salesRepUserId: ID
+
+  # Currency
+  quoteCurrencyCode: String!
+
+  # Amounts
+  subtotal: Float
+  taxAmount: Float
+  shippingAmount: Float
+  discountAmount: Float
+  totalAmount: Float!
+
+  # Margin
+  totalCost: Float
+  marginAmount: Float
+  marginPercentage: Float
+
+  # Status
+  status: QuoteStatus!
+
+  # Conversion
+  convertedToSalesOrderId: ID
+  convertedAt: DateTime
+
+  # Notes
+  notes: String
+  termsAndConditions: String
+
+  # Lines
+  lines: [QuoteLine!]!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+enum QuoteStatus {
+  DRAFT
+  ISSUED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED_TO_ORDER
+}
+
+type QuoteLine {
+  id: ID!
+  tenantId: ID!
+
+  # Quote linkage
+  quoteId: ID!
+  lineNumber: Int!
+
+  # Product
+  productId: ID!
+  productCode: String
+  description: String
+
+  # Quantity
+  quantity: Float!
+  unitOfMeasure: String
+
+  # Pricing
+  unitPrice: Float!
+  lineAmount: Float!
+  discountPercentage: Float
+  discountAmount: Float
+
+  # Costing
+  unitCost: Float
+  lineCost: Float
+  lineMargin: Float
+  marginPercentage: Float
+
+  # Manufacturing strategy
+  manufacturingStrategy: String
+
+  # Lead time
+  leadTimeDays: Int
+  promisedDeliveryDate: Date
+
+  # Audit trail
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type SalesOrder {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Order identification
+  salesOrderNumber: String!
+  orderDate: Date!
+  customerId: ID!
+
+  # Customer reference
+  customerPoNumber: String
+
+  # Contact
+  contactName: String
+  contactEmail: String
+  contactPhone: String
+
+  # Ship to address
+  shipToName: String
+  shipToAddressLine1: String
+  shipToAddressLine2: String
+  shipToCity: String
+  shipToState: String
+  shipToPostalCode: String
+  shipToCountry: String
+
+  # Sales rep
+  salesRepUserId: ID
+
+  # Currency
+  orderCurrencyCode: String!
+  exchangeRate: Float
+
+  # Amounts
+  subtotal: Float
+  taxAmount: Float
+  shippingAmount: Float
+  discountAmount: Float
+  totalAmount: Float!
+
+  # Payment terms
+  paymentTerms: String
+
+  # Delivery
+  requestedDeliveryDate: Date
+  promisedDeliveryDate: Date
+
+  # Status
+  status: SalesOrderStatus!
+
+  # Priority
+  priority: Int
+
+  # Quote reference
+  quoteId: ID
+
+  # Notes
+  notes: String
+  specialInstructions: String
+
+  # Lines
+  lines: [SalesOrderLine!]!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PRODUCTION
+  SHIPPED
+  DELIVERED
+  INVOICED
+  CANCELLED
+  ON_HOLD
+}
+
+type SalesOrderLine {
+  id: ID!
+  tenantId: ID!
+
+  # Sales order linkage
+  salesOrderId: ID!
+  lineNumber: Int!
+
+  # Product
+  productId: ID!
+  productCode: String
+  description: String
+
+  # Quantity
+  quantityOrdered: Float!
+  quantityShipped: Float
+  quantityInvoiced: Float
+  unitOfMeasure: String
+
+  # Pricing
+  unitPrice: Float!
+  lineAmount: Float!
+  discountPercentage: Float
+  discountAmount: Float
+
+  # Manufacturing strategy
+  manufacturingStrategy: String
+
+  # Production
+  productionOrderId: ID
+
+  # Delivery
+  requestedDeliveryDate: Date
+  promisedDeliveryDate: Date
+
+  # Imposition layout
+  impositionLayoutId: ID
+
+  # Status
+  status: SalesOrderLineStatus!
+
+  # Audit trail
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+enum SalesOrderLineStatus {
+  OPEN
+  IN_PRODUCTION
+  SHIPPED
+  INVOICED
+  CLOSED
+  CANCELLED
+}
+
+type PricingRule {
+  id: ID!
+  tenantId: ID!
+
+  # Rule identification
+  ruleCode: String!
+  ruleName: String!
+  description: String
+
+  # Rule type
+  ruleType: PricingRuleType!
+
+  # Priority
+  priority: Int
+
+  # Conditions
+  conditions: JSON
+
+  # Pricing action
+  pricingAction: PricingAction!
+  actionValue: Float
+
+  # Effective dating
+  effectiveFrom: Date!
+  effectiveTo: Date
+
+  # Status
+  isActive: Boolean!
+
+  # Audit trail
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+enum PricingRuleType {
+  VOLUME_DISCOUNT
+  CUSTOMER_TIER
+  PRODUCT_CATEGORY
+  SEASONAL
+  PROMOTIONAL
+  CLEARANCE
+  CONTRACT_PRICING
+}
+
+enum PricingAction {
+  PERCENTAGE_DISCOUNT
+  FIXED_DISCOUNT
+  FIXED_PRICE
+  MARKUP_PERCENTAGE
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+type Query {
+  # Materials
+  materials(
+    tenantId: ID!
+    materialType: MaterialType
+    materialCategory: String
+    abcClassification: ABCClassification
+    isActive: Boolean
+    limit: Int = 100
+    offset: Int = 0
+  ): [Material!]!
+
+  material(id: ID!): Material
+  materialByCode(tenantId: ID!, materialCode: String!): Material
+
+  # Products
+  products(
+    tenantId: ID!
+    productCategory: ProductCategory
+    packagingType: PackagingType
+    isActive: Boolean
+    limit: Int = 100
+    offset: Int = 0
+  ): [Product!]!
+
+  product(id: ID!): Product
+  productByCode(tenantId: ID!, productCode: String!): Product
+
+  # BOM
+  billOfMaterials(
+    tenantId: ID!
+    parentProductId: ID
+    isActive: Boolean
+  ): [BillOfMaterial!]!
+
+  # Vendors
+  vendors(
+    tenantId: ID!
+    vendorType: VendorType
+    isActive: Boolean
+    isApproved: Boolean
+    limit: Int = 100
+    offset: Int = 0
+  ): [Vendor!]!
+
+  vendor(id: ID!): Vendor
+  vendorByCode(tenantId: ID!, vendorCode: String!): Vendor
+
+  # Material Suppliers
+  materialSuppliers(
+    tenantId: ID!
+    materialId: ID
+    vendorId: ID
+    isPreferredVendor: Boolean
+    isActive: Boolean
+  ): [MaterialSupplier!]!
+
+  # Purchase Orders
+  purchaseOrders(
+    tenantId: ID!
+    facilityId: ID
+    vendorId: ID
+    status: PurchaseOrderStatus
+    startDate: Date
+    endDate: Date
+    limit: Int = 100
+    offset: Int = 0
+  ): [PurchaseOrder!]!
+
+  purchaseOrder(id: ID!): PurchaseOrder
+  purchaseOrderByNumber(poNumber: String!): PurchaseOrder
+
+  # Vendor Contracts
+  vendorContracts(
+    tenantId: ID!
+    vendorId: ID
+    status: VendorContractStatus
+  ): [VendorContract!]!
+
+  # Vendor Performance
+  vendorPerformance(
+    tenantId: ID!
+    vendorId: ID
+    year: Int
+    month: Int
+  ): [VendorPerformance!]!
+
+  # Customers
+  customers(
+    tenantId: ID!
+    customerType: CustomerType
+    isActive: Boolean
+    salesRepUserId: ID
+    limit: Int = 100
+    offset: Int = 0
+  ): [Customer!]!
+
+  customer(id: ID!): Customer
+  customerByCode(tenantId: ID!, customerCode: String!): Customer
+
+  # Customer Products
+  customerProducts(
+    tenantId: ID!
+    customerId: ID
+    productId: ID
+    isActive: Boolean
+  ): [CustomerProduct!]!
+
+  # Customer Pricing
+  customerPricing(
+    tenantId: ID!
+    customerId: ID
+    productId: ID
+    asOfDate: Date
+  ): [CustomerPricing!]!
+
+  # Quotes
+  quotes(
+    tenantId: ID!
+    facilityId: ID
+    customerId: ID
+    status: QuoteStatus
+    salesRepUserId: ID
+    startDate: Date
+    endDate: Date
+    limit: Int = 100
+    offset: Int = 0
+  ): [Quote!]!
+
+  quote(id: ID!): Quote
+  quoteByNumber(quoteNumber: String!): Quote
+
+  # Sales Orders
+  salesOrders(
+    tenantId: ID!
+    facilityId: ID
+    customerId: ID
+    status: SalesOrderStatus
+    salesRepUserId: ID
+    startDate: Date
+    endDate: Date
+    limit: Int = 100
+    offset: Int = 0
+  ): [SalesOrder!]!
+
+  salesOrder(id: ID!): SalesOrder
+  salesOrderByNumber(salesOrderNumber: String!): SalesOrder
+
+  # Pricing Rules
+  pricingRules(
+    tenantId: ID!
+    ruleType: PricingRuleType
+    isActive: Boolean
+    asOfDate: Date
+  ): [PricingRule!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+type Mutation {
+  # Materials
+  createMaterial(
+    tenantId: ID!
+    materialCode: String!
+    materialName: String!
+    materialType: MaterialType!
+    description: String
+    primaryUom: String!
+    # ... additional fields as JSON input
+  ): Material!
+
+  updateMaterial(
+    id: ID!
+    materialName: String
+    description: String
+    # ... additional fields
+  ): Material!
+
+  deleteMaterial(id: ID!): Boolean!
+
+  # Products
+  createProduct(
+    tenantId: ID!
+    productCode: String!
+    productName: String!
+    description: String
+    productCategory: ProductCategory
+    materialId: ID
+  ): Product!
+
+  updateProduct(
+    id: ID!
+    productName: String
+    description: String
+  ): Product!
+
+  deleteProduct(id: ID!): Boolean!
+
+  # BOM
+  createBillOfMaterial(
+    tenantId: ID!
+    parentProductId: ID!
+    componentMaterialId: ID!
+    quantityPerParent: Float!
+    unitOfMeasure: String
+    scrapPercentage: Float
+  ): BillOfMaterial!
+
+  updateBillOfMaterial(
+    id: ID!
+    quantityPerParent: Float
+    scrapPercentage: Float
+  ): BillOfMaterial!
+
+  deleteBillOfMaterial(id: ID!): Boolean!
+
+  # Vendors
+  createVendor(
+    tenantId: ID!
+    vendorCode: String!
+    vendorName: String!
+    vendorType: VendorType
+  ): Vendor!
+
+  updateVendor(
+    id: ID!
+    vendorName: String
+    primaryContactEmail: String
+  ): Vendor!
+
+  approveVendor(id: ID!, approvedByUserId: ID!): Vendor!
+  deleteVendor(id: ID!): Boolean!
+
+  # Purchase Orders
+  createPurchaseOrder(
+    tenantId: ID!
+    facilityId: ID!
+    vendorId: ID!
+    poDate: Date!
+    poCurrencyCode: String!
+    totalAmount: Float!
+  ): PurchaseOrder!
+
+  updatePurchaseOrder(
+    id: ID!
+    status: PurchaseOrderStatus
+    promisedDeliveryDate: Date
+  ): PurchaseOrder!
+
+  approvePurchaseOrder(id: ID!, approvedByUserId: ID!): PurchaseOrder!
+  receivePurchaseOrder(id: ID!, receiptDetails: JSON!): PurchaseOrder!
+  closePurchaseOrder(id: ID!): PurchaseOrder!
+
+  # Customers
+  createCustomer(
+    tenantId: ID!
+    customerCode: String!
+    customerName: String!
+    customerType: CustomerType
+    billingCurrencyCode: String
+  ): Customer!
+
+  updateCustomer(
+    id: ID!
+    customerName: String
+    primaryContactEmail: String
+    creditLimit: Float
+  ): Customer!
+
+  deleteCustomer(id: ID!): Boolean!
+
+  # Quotes
+  createQuote(
+    tenantId: ID!
+    facilityId: ID
+    customerId: ID!
+    quoteDate: Date!
+    quoteCurrencyCode: String!
+    totalAmount: Float!
+  ): Quote!
+
+  updateQuote(
+    id: ID!
+    status: QuoteStatus
+    expirationDate: Date
+  ): Quote!
+
+  convertQuoteToSalesOrder(quoteId: ID!): SalesOrder!
+
+  # Sales Orders
+  createSalesOrder(
+    tenantId: ID!
+    facilityId: ID!
+    customerId: ID!
+    orderDate: Date!
+    orderCurrencyCode: String!
+    totalAmount: Float!
+  ): SalesOrder!
+
+  updateSalesOrder(
+    id: ID!
+    status: SalesOrderStatus
+    promisedDeliveryDate: Date
+  ): SalesOrder!
+
+  confirmSalesOrder(id: ID!): SalesOrder!
+  shipSalesOrder(id: ID!, shipmentDetails: JSON!): SalesOrder!
+  cancelSalesOrder(id: ID!, reason: String): SalesOrder!
+
+  # Pricing Rules
+  createPricingRule(
+    tenantId: ID!
+    ruleCode: String!
+    ruleName: String!
+    ruleType: PricingRuleType!
+    pricingAction: PricingAction!
+    actionValue: Float!
+    effectiveFrom: Date!
+    conditions: JSON
+  ): PricingRule!
+
+  updatePricingRule(
+    id: ID!
+    ruleName: String
+    actionValue: Float
+    isActive: Boolean
+  ): PricingRule!
+
+  deletePricingRule(id: ID!): Boolean!
+}
