@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "dashboard": "执行仪表板",
+    "operations": "运营管理",
+    "wms": "仓库管理",
+    "finance": "财务管理",
+    "quality": "质量管理",
+    "marketplace": "印刷采购市场",
+    "kpis": "KPI 浏览器"
+  },
+  "dashboard": {
+    "title": "执行仪表板",
+    "revenue": "收入",
+    "topKPIs": "前10个关键绩效指标",
+    "marketplaceActivity": "市场活动",
+    "facilityOverview": "多工厂概览",
+    "alerts": "实时警报"
+  },
+  "operations": {
+    "title": "运营仪表板",
+    "productionRuns": "生产运行",
+    "active": "活跃",
+    "scheduled": "已计划",
+    "completed": "已完成",
+    "workCenterStatus": "工作中心状态",
+    "oee": "整体设备效率 (OEE)",
+    "materialConsumption": "物料消耗差异",
+    "changeoverTracking": "换产跟踪"
+  },
+  "wms": {
+    "title": "仓库管理",
+    "inventoryLevels": "按地点的库存水平",
+    "waveProcessing": "波次处理状态",
+    "pickAccuracy": "拣货准确率",
+    "shipmentTracking": "发货跟踪",
+    "3plPerformance": "第三方物流表现"
+  },
+  "finance": {
+    "title": "财务仪表板",
+    "plSummary": "损益表摘要",
+    "arAging": "应收账款账龄",
+    "apAging": "应付账款账龄",
+    "cashFlow": "现金流预测",
+    "multiEntity": "多实体合并"
+  },
+  "quality": {
+    "title": "质量管理",
+    "defectRates": "按产品的缺陷率",
+    "customerRejections": "客户拒收趋势",
+    "inspectionResults": "检验结果",
+    "ncr": "不符合项报告 (NCR)",
+    "vendorScorecard": "供应商质量记分卡"
+  },
+  "marketplace": {
+    "title": "印刷采购市场",
+    "jobPostings": "职位发布",
+    "myBids": "我的投标",
+    "partnerNetwork": "合作伙伴网络目录",
+    "analytics": "市场分析",
+    "whiteLabelBilling": "白标计费设置"
+  },
+  "kpis": {
+    "title": "KPI 浏览器",
+    "allKPIs": "所有 KPI",
+    "category": "类别",
+    "search": "搜索 KPI",
+    "currentValue": "当前值",
+    "targetValue": "目标值",
+    "trend": "趋势",
+    "formula": "公式"
+  },
+  "common": {
+    "loading": "加载中...",
+    "error": "发生错误",
+    "noData": "无可用数据",
+    "refresh": "刷新",
+    "export": "导出",
+    "filter": "筛选",
+    "search": "搜索",
+    "save": "保存",
+    "cancel": "取消",
+    "edit": "编辑",
+    "delete": "删除",
+    "view": "查看",
+    "details": "详情"
+  },
+  "facilities": {
+    "allFacilities": "所有工厂",
+    "selectFacility": "选择工厂"
+  },
+  "alerts": {
+    "critical": "紧急",
+    "warning": "警告",
+    "info": "信息",
+    "dismiss": "关闭",
+    "viewAll": "查看所有警报"
+  }
+}

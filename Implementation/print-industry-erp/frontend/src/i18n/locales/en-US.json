@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "dashboard": "Executive Dashboard",
+    "operations": "Operations",
+    "wms": "Warehouse Management",
+    "finance": "Finance",
+    "quality": "Quality Management",
+    "marketplace": "Print Buyer Marketplace",
+    "kpis": "KPI Explorer"
+  },
+  "dashboard": {
+    "title": "Executive Dashboard",
+    "revenue": "Revenue",
+    "topKPIs": "Top 10 KPIs",
+    "marketplaceActivity": "Marketplace Activity",
+    "facilityOverview": "Multi-Facility Overview",
+    "alerts": "Real-Time Alerts"
+  },
+  "operations": {
+    "title": "Operations Dashboard",
+    "productionRuns": "Production Runs",
+    "active": "Active",
+    "scheduled": "Scheduled",
+    "completed": "Completed",
+    "workCenterStatus": "Work Center Status",
+    "oee": "Overall Equipment Effectiveness (OEE)",
+    "materialConsumption": "Material Consumption Variance",
+    "changeoverTracking": "Changeover Tracking"
+  },
+  "wms": {
+    "title": "Warehouse Management",
+    "inventoryLevels": "Inventory Levels by Location",
+    "waveProcessing": "Wave Processing Status",
+    "pickAccuracy": "Pick Accuracy Rate",
+    "shipmentTracking": "Shipment Tracking",
+    "3plPerformance": "3PL Performance"
+  },
+  "finance": {
+    "title": "Finance Dashboard",
+    "plSummary": "P&L Summary",
+    "arAging": "Accounts Receivable Aging",
+    "apAging": "Accounts Payable Aging",
+    "cashFlow": "Cash Flow Forecast",
+    "multiEntity": "Multi-Entity Consolidation"
+  },
+  "quality": {
+    "title": "Quality Management",
+    "defectRates": "Defect Rates by Product",
+    "customerRejections": "Customer Rejection Trends",
+    "inspectionResults": "Inspection Results",
+    "ncr": "Non-Conformance Reports (NCR)",
+    "vendorScorecard": "Vendor Quality Scorecards"
+  },
+  "marketplace": {
+    "title": "Print Buyer Marketplace",
+    "jobPostings": "Job Postings",
+    "myBids": "My Bids",
+    "partnerNetwork": "Partner Network Directory",
+    "analytics": "Marketplace Analytics",
+    "whiteLabelBilling": "White-Label Billing Setup"
+  },
+  "kpis": {
+    "title": "KPI Explorer",
+    "allKPIs": "All KPIs",
+    "category": "Category",
+    "search": "Search KPIs",
+    "currentValue": "Current Value",
+    "targetValue": "Target Value",
+    "trend": "Trend",
+    "formula": "Formula"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "noData": "No data available",
+    "refresh": "Refresh",
+    "export": "Export",
+    "filter": "Filter",
+    "search": "Search",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "view": "View",
+    "details": "Details"
+  },
+  "facilities": {
+    "allFacilities": "All Facilities",
+    "selectFacility": "Select Facility"
+  },
+  "alerts": {
+    "critical": "Critical",
+    "warning": "Warning",
+    "info": "Information",
+    "dismiss": "Dismiss",
+    "viewAll": "View All Alerts"
+  }
+}
