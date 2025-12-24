@@ -232,6 +232,11 @@ type Employee {
 
   isActive: Boolean!
 
+  # SCD Type 2
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  isCurrentVersion: Boolean!
+
   createdAt: DateTime!
   createdBy: ID
   updatedAt: DateTime
@@ -856,11 +861,14 @@ type Query {
     facilityId: ID
     department: String
     isActive: Boolean
+    includeHistory: Boolean
     limit: Int = 100
     offset: Int = 0
   ): [Employee!]!
 
   employee(id: ID!): Employee
+  employeeAsOf(employeeNumber: String!, tenantId: ID!, asOfDate: Date!): Employee
+  employeeHistory(employeeNumber: String!, tenantId: ID!): [Employee!]!
 
   laborRates(
     tenantId: ID!

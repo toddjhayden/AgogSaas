@@ -1199,3 +1199,120 @@ export const SUBSCRIBE_AGENT_ACTIVITY = gql`
     }
   }
 `;
+
+// ============================================
+// ORCHESTRATOR MONITORING QUERIES (REQ-PROACTIVE-001)
+// ============================================
+
+export const GET_ACTIVE_WORKFLOWS = gql`
+  query GetActiveWorkflows {
+    activeWorkflows {
+      reqNumber
+      title
+      currentStage
+      currentAgent
+      status
+      elapsedMinutes
+      assignedTo
+      gitBranch
+      startedAt
+    }
+  }
+`;
+
+export const GET_STRATEGIC_DECISIONS = gql`
+  query GetStrategicDecisions($last: Int) {
+    strategicDecisions(last: $last) {
+      decision_id
+      req_number
+      strategic_agent
+      decision
+      reasoning
+      decision_confidence
+      similar_past_decisions
+      deviations_from_past
+      timestamp
+    }
+  }
+`;
+
+export const GET_ESCALATION_QUEUE = gql`
+  query GetEscalationQueue {
+    escalationQueue {
+      req_number
+      priority
+      reason
+      timestamp
+      original_decision
+      action_required
+    }
+  }
+`;
+
+export const GET_SYSTEM_HEALTH_ORCHESTRATOR = gql`
+  query GetSystemHealthOrchestrator {
+    systemHealthOrchestrator {
+      nats {
+        connected
+        responseTime
+      }
+      postgres {
+        connected
+        responseTime
+      }
+      ollama {
+        connected
+        responseTime
+      }
+      circuitBreaker {
+        status
+        failures
+        maxFailures
+      }
+      activeAgents
+      maxAgents
+    }
+  }
+`;
+
+// ============================================
+// ORCHESTRATOR CONTROL MUTATIONS (REQ-PROACTIVE-001)
+// ============================================
+
+export const RESET_CIRCUIT_BREAKER = gql`
+  mutation ResetCircuitBreaker {
+    resetCircuitBreaker {
+      success
+      message
+    }
+  }
+`;
+
+export const PAUSE_DAEMON = gql`
+  mutation PauseDaemon {
+    pauseDaemon {
+      success
+      message
+    }
+  }
+`;
+
+export const RESUME_DAEMON = gql`
+  mutation ResumeDaemon {
+    resumeDaemon {
+      success
+      message
+    }
+  }
+`;
+
+export const ROLLBACK_WORKFLOW = gql`
+  mutation RollbackWorkflow($reqNumber: String!, $reason: String!) {
+    rollbackWorkflow(reqNumber: $reqNumber, reason: $reason) {
+      success
+      reqNumber
+      rollbackTag
+      message
+    }
+  }
+`;

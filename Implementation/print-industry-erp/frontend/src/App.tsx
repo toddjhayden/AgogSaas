@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
 import { I18nextProvider } from 'react-i18next';
@@ -14,27 +14,16 @@ import { QualityDashboard } from './pages/QualityDashboard';
 import { MarketplaceDashboard } from './pages/MarketplaceDashboard';
 import { KPIExplorer } from './pages/KPIExplorer';
 import { MonitoringDashboard } from './pages/MonitoringDashboard';
-import { natsClient } from './websocket/natsClient';
+import { OrchestratorDashboard } from './pages/OrchestratorDashboard';
+import { PurchaseOrdersPage } from './pages/PurchaseOrdersPage';
+import { PurchaseOrderDetailPage } from './pages/PurchaseOrderDetailPage';
+import { CreatePurchaseOrderPage } from './pages/CreatePurchaseOrderPage';
+import { BinUtilizationDashboard } from './pages/BinUtilizationDashboard';
+import { BinUtilizationEnhancedDashboard } from './pages/BinUtilizationEnhancedDashboard';
+import { BinOptimizationHealthDashboard } from './pages/BinOptimizationHealthDashboard';
 import './index.css';
 
 const App: React.FC = () => {
-  useEffect(() => {
-    const initializeWebSocket = async () => {
-      try {
-        const wsUrl = import.meta.env.VITE_NATS_WS_URL || 'ws://localhost:4222';
-        await natsClient.connect(wsUrl);
-        console.log('WebSocket connection initialized');
-      } catch (error) {
-        console.error('Failed to initialize WebSocket:', error);
-      }
-    };
-
-    initializeWebSocket();
-
-    return () => {
-      natsClient.disconnect();
-    };
-  }, []);
 
   return (
     <ErrorBoundary>
@@ -52,6 +41,13 @@ const App: React.FC = () => {
                 <Route path="/marketplace" element={<MarketplaceDashboard />} />
                 <Route path="/kpis" element={<KPIExplorer />} />
                 <Route path="/monitoring" element={<MonitoringDashboard />} />
+                <Route path="/orchestrator" element={<OrchestratorDashboard />} />
+                <Route path="/procurement/purchase-orders" element={<PurchaseOrdersPage />} />
+                <Route path="/procurement/purchase-orders/new" element={<CreatePurchaseOrderPage />} />
+                <Route path="/procurement/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
+                <Route path="/wms/bin-utilization" element={<BinUtilizationDashboard />} />
+                <Route path="/wms/bin-utilization-enhanced" element={<BinUtilizationEnhancedDashboard />} />
+                <Route path="/wms/health" element={<BinOptimizationHealthDashboard />} />
               </Route>
             </Routes>
           </Router>

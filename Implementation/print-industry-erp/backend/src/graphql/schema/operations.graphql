@@ -56,6 +56,11 @@ type WorkCenter {
   operatingCalendar: JSON
   capabilities: JSON
 
+  # SCD Type 2
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  isCurrentVersion: Boolean!
+
   # Relationships
   facility: Facility!
   productionRuns: [ProductionRun!]!
@@ -567,11 +572,17 @@ enum ScheduleStatus {
 # =====================================================
 
 extend type Query {
-  """Get work center by ID"""
+  """Get work center by ID (current version)"""
   workCenter(id: ID!): WorkCenter
 
-  """List work centers for a facility"""
-  workCenters(facilityId: ID!, status: WorkCenterStatus): [WorkCenter!]!
+  """List work centers for a facility (current versions only by default)"""
+  workCenters(facilityId: ID!, status: WorkCenterStatus, includeHistory: Boolean): [WorkCenter!]!
+
+  """Get work center as of a specific date (historical query)"""
+  workCenterAsOf(workCenterCode: String!, facilityId: ID!, tenantId: ID!, asOfDate: Date!): WorkCenter
+
+  """Get all versions of a work center (history)"""
+  workCenterHistory(workCenterCode: String!, facilityId: ID!, tenantId: ID!): [WorkCenter!]!
 
   """Get production order by ID"""
   productionOrder(id: ID!): ProductionOrder

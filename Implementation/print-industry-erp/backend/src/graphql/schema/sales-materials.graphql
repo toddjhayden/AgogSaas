@@ -84,6 +84,11 @@ type Material {
   isSellable: Boolean!
   isManufacturable: Boolean!
 
+  # SCD Type 2
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  isCurrentVersion: Boolean!
+
   # Audit trail
   createdAt: DateTime!
   createdBy: ID
@@ -160,6 +165,11 @@ type Product {
 
   # Status
   isActive: Boolean!
+
+  # SCD Type 2
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  isCurrentVersion: Boolean!
 
   # Audit trail
   createdAt: DateTime!
@@ -278,6 +288,11 @@ type Vendor {
   isApproved: Boolean!
   approvedByUserId: ID
   approvedAt: DateTime
+
+  # SCD Type 2
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  isCurrentVersion: Boolean!
 
   # Audit trail
   createdAt: DateTime!
@@ -537,6 +552,65 @@ type VendorPerformance {
   updatedAt: DateTime
 }
 
+# Enhanced vendor performance tracking types
+
+type VendorScorecard {
+  vendorId: ID!
+  vendorCode: String!
+  vendorName: String!
+  currentRating: Float!
+
+  # 12-month rolling metrics
+  rollingOnTimePercentage: Float!
+  rollingQualityPercentage: Float!
+  rollingAvgRating: Float!
+
+  # Trend indicators
+  trendDirection: VendorTrendDirection!
+  monthsTracked: Int!
+
+  # Recent performance
+  lastMonthRating: Float!
+  last3MonthsAvgRating: Float!
+  last6MonthsAvgRating: Float!
+
+  # Performance history
+  monthlyPerformance: [VendorPerformance!]!
+}
+
+enum VendorTrendDirection {
+  IMPROVING
+  STABLE
+  DECLINING
+}
+
+type VendorComparisonReport {
+  evaluationPeriodYear: Int!
+  evaluationPeriodMonth: Int!
+  vendorType: VendorType
+
+  topPerformers: [VendorPerformanceSummary!]!
+  bottomPerformers: [VendorPerformanceSummary!]!
+
+  averageMetrics: VendorAverageMetrics!
+}
+
+type VendorPerformanceSummary {
+  vendorId: ID!
+  vendorCode: String!
+  vendorName: String!
+  overallRating: Float!
+  onTimePercentage: Float!
+  qualityPercentage: Float!
+}
+
+type VendorAverageMetrics {
+  avgOnTimePercentage: Float!
+  avgQualityPercentage: Float!
+  avgOverallRating: Float!
+  totalVendorsEvaluated: Int!
+}
+
 # =====================================================
 # SALES SECTION
 # =====================================================
@@ -599,6 +673,11 @@ type Customer {
   lifetimeRevenue: Float
   ytdRevenue: Float
   averageOrderValue: Float
+
+  # SCD Type 2
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  isCurrentVersion: Boolean!
 
   # Audit trail
   createdAt: DateTime!
@@ -980,12 +1059,15 @@ type Query {
     materialCategory: String
     abcClassification: ABCClassification
     isActive: Boolean
+    includeHistory: Boolean
     limit: Int = 100
     offset: Int = 0
   ): [Material!]!
 
   material(id: ID!): Material
   materialByCode(tenantId: ID!, materialCode: String!): Material
+  materialAsOf(materialCode: String!, tenantId: ID!, asOfDate: Date!): Material
+  materialHistory(materialCode: String!, tenantId: ID!): [Material!]!
 
   # Products
   products(
@@ -993,12 +1075,15 @@ type Query {
     productCategory: ProductCategory
     packagingType: PackagingType
     isActive: Boolean
+    includeHistory: Boolean
     limit: Int = 100
     offset: Int = 0
   ): [Product!]!
 
   product(id: ID!): Product
   productByCode(tenantId: ID!, productCode: String!): Product
+  productAsOf(productCode: String!, tenantId: ID!, asOfDate: Date!): Product
+  productHistory(productCode: String!, tenantId: ID!): [Product!]!
 
   # BOM
   billOfMaterials(
@@ -1013,12 +1098,15 @@ type Query {
     vendorType: VendorType
     isActive: Boolean
     isApproved: Boolean
+    includeHistory: Boolean
     limit: Int = 100
     offset: Int = 0
   ): [Vendor!]!
 
   vendor(id: ID!): Vendor
   vendorByCode(tenantId: ID!, vendorCode: String!): Vendor
+  vendorAsOf(vendorCode: String!, tenantId: ID!, asOfDate: Date!): Vendor
+  vendorHistory(vendorCode: String!, tenantId: ID!): [Vendor!]!
 
   # Material Suppliers
   materialSuppliers(
@@ -1059,18 +1147,35 @@ type Query {
     month: Int
   ): [VendorPerformance!]!
 
+  # Enhanced vendor performance queries
+  vendorScorecard(
+    tenantId: ID!
+    vendorId: ID!
+  ): VendorScorecard
+
+  vendorComparisonReport(
+    tenantId: ID!
+    year: Int!
+    month: Int!
+    vendorType: VendorType
+    topN: Int = 5
+  ): VendorComparisonReport
+
   # Customers
   customers(
     tenantId: ID!
     customerType: CustomerType
     isActive: Boolean
     salesRepUserId: ID
+    includeHistory: Boolean
     limit: Int = 100
     offset: Int = 0
   ): [Customer!]!
 
   customer(id: ID!): Customer
   customerByCode(tenantId: ID!, customerCode: String!): Customer
+  customerAsOf(customerCode: String!, tenantId: ID!, asOfDate: Date!): Customer
+  customerHistory(customerCode: String!, tenantId: ID!): [Customer!]!
 
   # Customer Products
   customerProducts(
@@ -1226,6 +1331,27 @@ type Mutation {
   approvePurchaseOrder(id: ID!, approvedByUserId: ID!): PurchaseOrder!
   receivePurchaseOrder(id: ID!, receiptDetails: JSON!): PurchaseOrder!
   closePurchaseOrder(id: ID!): PurchaseOrder!
+
+  # Vendor Performance Management
+  calculateVendorPerformance(
+    tenantId: ID!
+    vendorId: ID!
+    year: Int!
+    month: Int!
+  ): VendorPerformance!
+
+  calculateAllVendorsPerformance(
+    tenantId: ID!
+    year: Int!
+    month: Int!
+  ): [VendorPerformance!]!
+
+  updateVendorPerformanceScores(
+    id: ID!
+    priceCompetitivenessScore: Float
+    responsivenessScore: Float
+    notes: String
+  ): VendorPerformance!
 
   # Customers
   createCustomer(

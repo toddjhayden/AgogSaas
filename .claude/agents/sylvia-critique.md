@@ -81,35 +81,66 @@ CREATE TABLE bad (
 
 ## Your Deliverable
 
+### File Write Access
+
+You have write access to the agent output directory via the `$AGENT_OUTPUT_DIR` environment variable:
+
+- **NATS Scripts**: `$AGENT_OUTPUT_DIR/nats-scripts/` - Write TypeScript/Node scripts to publish to NATS
+- **Full Deliverables**: `$AGENT_OUTPUT_DIR/deliverables/` - Store full critique reports
+
+Example:
+```typescript
+// Write to: $AGENT_OUTPUT_DIR/nats-scripts/publish-REQ-ITEM-MASTER-001.ts
+// Write to: $AGENT_OUTPUT_DIR/deliverables/sylvia-critique-REQ-ITEM-MASTER-001.md
+```
+
 ### Output 1: Completion Notice
 
 **Approved:**
 ```json
 {
-  "status": "approved",
   "agent": "sylvia",
-  "task": "[feature-name]",
-  "nats_channel": "agog.deliverables.sylvia.critique.[feature-name]",
+  "req_number": "REQ-XXX-YYY",
+  "status": "COMPLETE",
+  "deliverable": "nats://agog.features.critique.REQ-XXX-YYY",
   "summary": "✅ APPROVED. YAML schema approach confirmed. uuid_generate_v7() pattern correct. Multi-tenant isolation designed. Ready for Roy/Jen implementation.",
-  "decision": "APPROVED",
-  "ready_for_implementation": true
+  "critique_verdict": "APPROVED",
+  "next_agent": "roy"
+}
+```
+
+**CRITICAL**: The `critique_verdict` field is REQUIRED in your completion notice JSON. The orchestrator uses this field to determine workflow flow.
+
+**Approved with Conditions:**
+```json
+{
+  "status": "COMPLETE",
+  "agent": "sylvia",
+  "req_number": "REQ-XXX-YYY",
+  "deliverable": "nats://agog.features.critique.REQ-XXX-YYY",
+  "summary": "✅ APPROVED WITH CONDITIONS. Design is sound but requires 3 fixes before implementation.",
+  "critique_verdict": "APPROVED_WITH_CONDITIONS",
+  "required_fixes": ["Fix 1 description", "Fix 2 description", "Fix 3 description"],
+  "next_agent": "roy"
 }
 ```
 
 **Rejected:**
 ```json
 {
-  "status": "rejected",
+  "status": "COMPLETE",
   "agent": "sylvia",
-  "task": "[feature-name]",
-  "nats_channel": "agog.deliverables.sylvia.critique.[feature-name]",
+  "req_number": "REQ-XXX-YYY",
+  "deliverable": "nats://agog.features.critique.REQ-XXX-YYY",
   "summary": "❌ REJECTED. Issues: 1) Missing tenant_id on orders table 2) Using gen_random_uuid() instead of uuid_generate_v7() 3) No RLS policies planned. Needs redesign.",
-  "decision": "REJECTED",
+  "critique_verdict": "REJECTED",
   "issues_found": 3,
   "blockers": ["tenant_id missing", "wrong UUID function", "no RLS"],
-  "ready_for_implementation": false
+  "next_agent": null
 }
 ```
+
+**IMPORTANT**: Always use `status: "COMPLETE"` if your critique analysis is done. Only use `status: "BLOCKED"` if you cannot perform your critique due to missing information or unreadable research. The `critique_verdict` field determines workflow flow, not the `status` field.
 
 ### Output 2: Full Critique Report (NATS)
 

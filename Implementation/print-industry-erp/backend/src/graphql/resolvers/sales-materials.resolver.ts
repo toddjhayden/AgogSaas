@@ -1,6 +1,7 @@
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
+import { VendorPerformanceService } from '../../modules/procurement/services/vendor-performance.service';
 
 /**
  * SALES, MATERIALS, AND PROCUREMENT RESOLVER
@@ -30,7 +31,11 @@ import { Pool } from 'pg';
 
 @Resolver('SalesMaterialsProcurement')
 export class SalesMaterialsResolver {
-  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
+  private readonly vendorPerformanceService: VendorPerformanceService;
+
+  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {
+    this.vendorPerformanceService = new VendorPerformanceService(db);
+  }
 
   // =====================================================
   // MATERIALS QUERIES
@@ -273,11 +278,49 @@ export class SalesMaterialsResolver {
     @Args('vendorCode') vendorCode: string
   ) {
     const result = await this.db.query(
-      `SELECT * FROM vendors WHERE tenant_id = $1 AND vendor_code = $2 AND deleted_at IS NULL`,
+      `SELECT * FROM vendors WHERE tenant_id = $1 AND vendor_code = $2 AND is_current_version = TRUE AND deleted_at IS NULL`,
       [tenantId, vendorCode]
     );
 
     return result.rows.length > 0 ? this.mapVendorRow(result.rows[0]) : null;
+  }
+
+  @Query('vendorAsOf')
+  async getVendorAsOf(
+    @Args('vendorCode') vendorCode: string,
+    @Args('tenantId') tenantId: string,
+    @Args('asOfDate') asOfDate: string
+  ) {
+    const result = await this.db.query(
+      `SELECT * FROM vendors
+       WHERE tenant_id = $1
+         AND vendor_code = $2
+         AND effective_from_date <= $3::date
+         AND (effective_to_date IS NULL OR effective_to_date >= $3::date)
+         AND deleted_at IS NULL
+       ORDER BY effective_from_date DESC
+       LIMIT 1`,
+      [tenantId, vendorCode, asOfDate]
+    );
+
+    return result.rows.length > 0 ? this.mapVendorRow(result.rows[0]) : null;
+  }
+
+  @Query('vendorHistory')
+  async getVendorHistory(
+    @Args('vendorCode') vendorCode: string,
+    @Args('tenantId') tenantId: string
+  ) {
+    const result = await this.db.query(
+      `SELECT * FROM vendors
+       WHERE tenant_id = $1
+         AND vendor_code = $2
+         AND deleted_at IS NULL
+       ORDER BY effective_from_date DESC`,
+      [tenantId, vendorCode]
+    );
+
+    return result.rows.map(this.mapVendorRow);
   }
 
   // =====================================================
@@ -503,6 +546,31 @@ export class SalesMaterialsResolver {
     );
 
     return result.rows.map(this.mapVendorPerformanceRow);
+  }
+
+  @Query('vendorScorecard')
+  async getVendorScorecard(
+    @Args('tenantId') tenantId: string,
+    @Args('vendorId') vendorId: string
+  ) {
+    return this.vendorPerformanceService.getVendorScorecard(tenantId, vendorId);
+  }
+
+  @Query('vendorComparisonReport')
+  async getVendorComparisonReport(
+    @Args('tenantId') tenantId: string,
+    @Args('year') year: number,
+    @Args('month') month: number,
+    @Args('vendorType') vendorType: string | null,
+    @Args('topN') topN: number = 5
+  ) {
+    return this.vendorPerformanceService.getVendorComparisonReport(
+      tenantId,
+      year,
+      month,
+      vendorType,
+      topN
+    );
   }
 
   // =====================================================
@@ -1378,6 +1446,98 @@ export class SalesMaterialsResolver {
     po.lines = linesResult.rows.map(this.mapPurchaseOrderLineRow);
 
     return po;
+  }
+
+  // =====================================================
+  // VENDOR PERFORMANCE MUTATIONS
+  // =====================================================
+
+  @Mutation('calculateVendorPerformance')
+  async calculateVendorPerformance(
+    @Args('tenantId') tenantId: string,
+    @Args('vendorId') vendorId: string,
+    @Args('year') year: number,
+    @Args('month') month: number,
+    @Context() context: any
+  ) {
+    return this.vendorPerformanceService.calculateVendorPerformance(
+      tenantId,
+      vendorId,
+      year,
+      month
+    );
+  }
+
+  @Mutation('calculateAllVendorsPerformance')
+  async calculateAllVendorsPerformance(
+    @Args('tenantId') tenantId: string,
+    @Args('year') year: number,
+    @Args('month') month: number,
+    @Context() context: any
+  ) {
+    return this.vendorPerformanceService.calculateAllVendorsPerformance(
+      tenantId,
+      year,
+      month
+    );
+  }
+
+  @Mutation('updateVendorPerformanceScores')
+  async updateVendorPerformanceScores(
+    @Args('id') id: string,
+    @Args('priceCompetitivenessScore') priceCompetitivenessScore: number | null,
+    @Args('responsivenessScore') responsivenessScore: number | null,
+    @Args('notes') notes: string | null,
+    @Context() context: any
+  ) {
+    const updates: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (priceCompetitivenessScore !== null) {
+      updates.push(`price_competitiveness_score = $${paramIndex++}`);
+      params.push(priceCompetitivenessScore);
+    }
+
+    if (responsivenessScore !== null) {
+      updates.push(`responsiveness_score = $${paramIndex++}`);
+      params.push(responsivenessScore);
+    }
+
+    if (notes !== null) {
+      updates.push(`notes = $${paramIndex++}`);
+      params.push(notes);
+    }
+
+    // Recalculate overall rating if we updated any scores
+    if (updates.length > 0) {
+      updates.push(`updated_at = NOW()`);
+      params.push(id);
+
+      const result = await this.db.query(
+        `UPDATE vendor_performance
+         SET ${updates.join(', ')},
+             overall_rating = (
+               (COALESCE((on_time_percentage / 100.0 * 5), 0) * 0.4) +
+               (COALESCE((quality_percentage / 100.0 * 5), 0) * 0.4) +
+               (COALESCE(price_competitiveness_score, 0) * 0.1) +
+               (COALESCE(responsiveness_score, 0) * 0.1)
+             )
+         WHERE id = $${paramIndex}
+         RETURNING *`,
+        params
+      );
+
+      return this.mapVendorPerformanceRow(result.rows[0]);
+    }
+
+    // If no updates, just return the existing record
+    const result = await this.db.query(
+      `SELECT * FROM vendor_performance WHERE id = $1`,
+      [id]
+    );
+
+    return this.mapVendorPerformanceRow(result.rows[0]);
   }
 
   // =====================================================

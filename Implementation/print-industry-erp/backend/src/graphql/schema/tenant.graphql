@@ -63,9 +63,11 @@ type Tenant {
 
   # Audit
   createdAt: DateTime!
-  createdBy: ID
+  createdBy: ID @deprecated(reason: "Use createdByUserId instead. Old column for backward compatibility during migration.")
+  createdByUserId: ID
   updatedAt: DateTime
-  updatedBy: ID
+  updatedBy: ID @deprecated(reason: "Use updatedByUserId instead. Old column for backward compatibility during migration.")
+  updatedByUserId: ID
 }
 
 """
@@ -132,9 +134,11 @@ type BillingEntity {
 
   # Audit
   createdAt: DateTime!
-  createdBy: ID
+  createdBy: ID @deprecated(reason: "Use createdByUserId instead. Old column for backward compatibility during migration.")
+  createdByUserId: ID
   updatedAt: DateTime
-  updatedBy: ID
+  updatedBy: ID @deprecated(reason: "Use updatedByUserId instead. Old column for backward compatibility during migration.")
+  updatedByUserId: ID
 }
 
 """
@@ -190,6 +194,11 @@ type Facility {
   openedDate: Date
   closedDate: Date
 
+  # SCD Type 2
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  isCurrentVersion: Boolean!
+
   # Relationships
   tenant: Tenant!
   workCenters: [WorkCenter!]!
@@ -197,9 +206,11 @@ type Facility {
 
   # Audit
   createdAt: DateTime!
-  createdBy: ID
+  createdBy: ID @deprecated(reason: "Use createdByUserId instead. Old column for backward compatibility during migration.")
+  createdByUserId: ID
   updatedAt: DateTime
-  updatedBy: ID
+  updatedBy: ID @deprecated(reason: "Use updatedByUserId instead. Old column for backward compatibility during migration.")
+  updatedByUserId: ID
 }
 
 """
@@ -275,9 +286,11 @@ type User {
 
   # Audit
   createdAt: DateTime!
-  createdBy: ID
+  createdBy: ID @deprecated(reason: "Use createdByUserId instead. Old column for backward compatibility during migration.")
+  createdByUserId: ID
   updatedAt: DateTime
-  updatedBy: ID
+  updatedBy: ID @deprecated(reason: "Use updatedByUserId instead. Old column for backward compatibility during migration.")
+  updatedByUserId: ID
 }
 
 """
@@ -326,11 +339,17 @@ extend type Query {
   """Get current user's tenant"""
   myTenant: Tenant!
 
-  """List all facilities for a tenant"""
-  facilities(tenantId: ID!): [Facility!]!
+  """List all facilities for a tenant (current versions only by default)"""
+  facilities(tenantId: ID!, includeHistory: Boolean): [Facility!]!
 
-  """Get facility by ID"""
+  """Get facility by ID (current version)"""
   facility(id: ID!): Facility
+
+  """Get facility as of a specific date (historical query)"""
+  facilityAsOf(facilityCode: String!, tenantId: ID!, asOfDate: Date!): Facility
+
+  """Get all versions of a facility (history)"""
+  facilityHistory(facilityCode: String!, tenantId: ID!): [Facility!]!
 
   """Get current user"""
   me: User!

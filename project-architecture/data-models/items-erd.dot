@@ -1,0 +1,214 @@
+digraph ItemsERD {
+  // Graph settings
+  rankdir=LR;
+  splines=ortho;
+  nodesep=0.5;
+  ranksep=1.0;
+
+  node [
+    shape=plain
+    fontname="Arial"
+    fontsize=10
+  ];
+
+  edge [
+    fontname="Arial"
+    fontsize=9
+    color="#666666"
+  ];
+
+  // ===== REFERENCE/LOOKUP TABLES =====
+
+  item_types [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#4A90E2" COLSPAN="2"><FONT COLOR="white"><B>item_types</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">type_code</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD ALIGN="LEFT">type_name</TD><TD ALIGN="LEFT">VARCHAR(100)</TD></TR>
+    <TR><TD ALIGN="LEFT">is_material_type</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">is_product_type</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">display_order</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+    <TR><TD ALIGN="LEFT">is_active</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+  </TABLE>>];
+
+  item_statuses [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#4A90E2" COLSPAN="2"><FONT COLOR="white"><B>item_statuses</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">status_code</TD><TD ALIGN="LEFT">VARCHAR(20)</TD></TR>
+    <TR><TD ALIGN="LEFT">status_name</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD ALIGN="LEFT">allows_transactions</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">display_order</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+    <TR><TD ALIGN="LEFT">is_active</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+  </TABLE>>];
+
+  measurement_types [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#4A90E2" COLSPAN="2"><FONT COLOR="white"><B>measurement_types</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">measurement_code</TD><TD ALIGN="LEFT">VARCHAR(20)</TD></TR>
+    <TR><TD ALIGN="LEFT">measurement_name</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD ALIGN="LEFT">allows_decimals</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">requires_lot_tracking</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">is_active</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+  </TABLE>>];
+
+  units_of_measure [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#4A90E2" COLSPAN="2"><FONT COLOR="white"><B>units_of_measure</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">uom_code</TD><TD ALIGN="LEFT">VARCHAR(10)</TD></TR>
+    <TR><TD ALIGN="LEFT">uom_name</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD ALIGN="LEFT">uom_type</TD><TD ALIGN="LEFT">VARCHAR(20)</TD></TR>
+    <TR><TD ALIGN="LEFT">is_base_unit</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">is_active</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+  </TABLE>>];
+
+  // ===== CORE ITEMS TABLE =====
+
+  items [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#E74C3C" COLSPAN="2"><FONT COLOR="white"><B>items</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 tenant_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">item_code</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD ALIGN="LEFT">item_name</TD><TD ALIGN="LEFT">VARCHAR(255)</TD></TR>
+    <TR><TD ALIGN="LEFT">description</TD><TD ALIGN="LEFT">TEXT</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 item_type_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD BGCOLOR="#FFE5CC"><TD ALIGN="LEFT" BGCOLOR="#FFE5CC">⚙️ can_be_purchased</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD BGCOLOR="#FFE5CC"><TD ALIGN="LEFT" BGCOLOR="#FFE5CC">⚙️ can_be_sold</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD BGCOLOR="#FFE5CC"><TD ALIGN="LEFT" BGCOLOR="#FFE5CC">⚙️ can_be_manufactured</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">can_be_inventoried</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 measurement_type_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 base_uom_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">standard_cost</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">standard_price</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 status_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">created_at</TD><TD ALIGN="LEFT">TIMESTAMP</TD></TR>
+    <TR><TD ALIGN="LEFT">updated_at</TD><TD ALIGN="LEFT">TIMESTAMP</TD></TR>
+  </TABLE>>];
+
+  // ===== ATTRIBUTE TABLES =====
+
+  item_material_attributes [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#27AE60" COLSPAN="2"><FONT COLOR="white"><B>item_material_attributes</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 🔗 item_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD BGCOLOR="#E8F8F5" COLSPAN="2"><B>Procurement</B></TD></TR>
+    <TR><TD ALIGN="LEFT">vendor_part_number</TD><TD ALIGN="LEFT">VARCHAR(100)</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 preferred_vendor_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">lead_time_days</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+    <TR><TD ALIGN="LEFT">minimum_order_quantity</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD BGCOLOR="#E8F8F5" COLSPAN="2"><B>Classification</B></TD></TR>
+    <TR><TD ALIGN="LEFT">material_category</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD ALIGN="LEFT">material_grade</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD BGCOLOR="#E8F8F5" COLSPAN="2"><B>Quality/Safety</B></TD></TR>
+    <TR><TD ALIGN="LEFT">shelf_life_days</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+    <TR><TD ALIGN="LEFT">requires_lot_tracking</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">is_hazmat</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">hazmat_class</TD><TD ALIGN="LEFT">VARCHAR(20)</TD></TR>
+    <TR><TD BGCOLOR="#E8F8F5" COLSPAN="2"><B>Storage</B></TD></TR>
+    <TR><TD ALIGN="LEFT">storage_temperature_min</TD><TD ALIGN="LEFT">DECIMAL(10,2)</TD></TR>
+    <TR><TD ALIGN="LEFT">storage_temperature_max</TD><TD ALIGN="LEFT">DECIMAL(10,2)</TD></TR>
+    <TR><TD ALIGN="LEFT">storage_humidity_min</TD><TD ALIGN="LEFT">DECIMAL(5,2)</TD></TR>
+    <TR><TD ALIGN="LEFT">storage_humidity_max</TD><TD ALIGN="LEFT">DECIMAL(5,2)</TD></TR>
+    <TR><TD BGCOLOR="#E8F8F5" COLSPAN="2"><B>Consumption</B></TD></TR>
+    <TR><TD ALIGN="LEFT">scrap_factor_percent</TD><TD ALIGN="LEFT">DECIMAL(5,2)</TD></TR>
+  </TABLE>>];
+
+  item_product_attributes [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#9B59B6" COLSPAN="2"><FONT COLOR="white"><B>item_product_attributes</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 🔗 item_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD BGCOLOR="#F4ECF7" COLSPAN="2"><B>Sales/Marketing</B></TD></TR>
+    <TR><TD ALIGN="LEFT">customer_facing_name</TD><TD ALIGN="LEFT">VARCHAR(255)</TD></TR>
+    <TR><TD ALIGN="LEFT">marketing_description</TD><TD ALIGN="LEFT">TEXT</TD></TR>
+    <TR><TD ALIGN="LEFT">marketing_category</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD BGCOLOR="#F4ECF7" COLSPAN="2"><B>Pricing</B></TD></TR>
+    <TR><TD ALIGN="LEFT">default_sales_price</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">minimum_sales_price</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">allow_discounts</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD BGCOLOR="#F4ECF7" COLSPAN="2"><B>Fulfillment</B></TD></TR>
+    <TR><TD ALIGN="LEFT">warranty_period_days</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+    <TR><TD ALIGN="LEFT">return_policy_days</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+    <TR><TD BGCOLOR="#F4ECF7" COLSPAN="2"><B>Configuration</B></TD></TR>
+    <TR><TD ALIGN="LEFT">allows_custom_configuration</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD ALIGN="LEFT">requires_artwork_approval</TD><TD ALIGN="LEFT">BOOLEAN</TD></TR>
+    <TR><TD BGCOLOR="#F4ECF7" COLSPAN="2"><B>Packaging</B></TD></TR>
+    <TR><TD ALIGN="LEFT">units_per_case</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+    <TR><TD ALIGN="LEFT">cases_per_pallet</TD><TD ALIGN="LEFT">INTEGER</TD></TR>
+  </TABLE>>];
+
+  item_physical_attributes [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#F39C12" COLSPAN="2"><FONT COLOR="white"><B>item_physical_attributes</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 🔗 item_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD BGCOLOR="#FEF5E7" COLSPAN="2"><B>Dimensions</B></TD></TR>
+    <TR><TD ALIGN="LEFT">unit_length</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">unit_width</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">unit_height</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 dimension_uom_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD BGCOLOR="#FEF5E7" COLSPAN="2"><B>Weight</B></TD></TR>
+    <TR><TD ALIGN="LEFT">unit_weight</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 weight_uom_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD BGCOLOR="#FEF5E7" COLSPAN="2"><B>Volume (Continuous)</B></TD></TR>
+    <TR><TD ALIGN="LEFT">unit_volume</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 volume_uom_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">specific_gravity</TD><TD ALIGN="LEFT">DECIMAL(10,4)</TD></TR>
+    <TR><TD BGCOLOR="#FEF5E7" COLSPAN="2"><B>Container</B></TD></TR>
+    <TR><TD ALIGN="LEFT">container_type</TD><TD ALIGN="LEFT">VARCHAR(50)</TD></TR>
+    <TR><TD ALIGN="LEFT">container_capacity</TD><TD ALIGN="LEFT">DECIMAL(18,4)</TD></TR>
+  </TABLE>>];
+
+  // ===== UOM SYSTEM TABLES =====
+
+  item_uom_conversions [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#16A085" COLSPAN="2"><FONT COLOR="white"><B>item_uom_conversions</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 🔗 item_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 🔗 from_uom_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 🔗 to_uom_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">conversion_factor</TD><TD ALIGN="LEFT">DECIMAL(18,6)</TD></TR>
+  </TABLE>>];
+
+  item_uom_preferences [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD BGCOLOR="#16A085" COLSPAN="2"><FONT COLOR="white"><B>item_uom_preferences</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 🔗 item_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+    <TR><TD ALIGN="LEFT">🔑 context</TD><TD ALIGN="LEFT">VARCHAR(20)</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗 preferred_uom_id</TD><TD ALIGN="LEFT">UUID</TD></TR>
+  </TABLE>>];
+
+  // ===== RELATIONSHIPS =====
+
+  // Items to reference tables
+  items -> item_types [label="item_type_id" color="#4A90E2" penwidth=2];
+  items -> item_statuses [label="status_id" color="#4A90E2" penwidth=2];
+  items -> measurement_types [label="measurement_type_id" color="#4A90E2" penwidth=2];
+  items -> units_of_measure [label="base_uom_id" color="#4A90E2" penwidth=2];
+
+  // Attribute tables to items (1:1 optional)
+  item_material_attributes -> items [label="item_id\n(1:0..1)" color="#27AE60" penwidth=2 style=dashed];
+  item_product_attributes -> items [label="item_id\n(1:0..1)" color="#9B59B6" penwidth=2 style=dashed];
+  item_physical_attributes -> items [label="item_id\n(1:0..1)" color="#F39C12" penwidth=2 style=dashed];
+
+  // Physical attributes to UOMs
+  item_physical_attributes -> units_of_measure [label="dimension_uom_id" color="#F39C12"];
+  item_physical_attributes -> units_of_measure [label="weight_uom_id" color="#F39C12"];
+  item_physical_attributes -> units_of_measure [label="volume_uom_id" color="#F39C12"];
+
+  // UOM system relationships
+  item_uom_conversions -> items [label="item_id\n(N:1)" color="#16A085" penwidth=2];
+  item_uom_conversions -> units_of_measure [label="from_uom_id" color="#16A085"];
+  item_uom_conversions -> units_of_measure [label="to_uom_id" color="#16A085"];
+
+  item_uom_preferences -> items [label="item_id\n(N:1)" color="#16A085" penwidth=2];
+  item_uom_preferences -> units_of_measure [label="preferred_uom_id" color="#16A085"];
+
+  // Legend
+  legend [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
+    <TR><TD COLSPAN="2" BGCOLOR="#34495E"><FONT COLOR="white"><B>LEGEND</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">🔑</TD><TD ALIGN="LEFT">Primary Key</TD></TR>
+    <TR><TD ALIGN="LEFT">🔗</TD><TD ALIGN="LEFT">Foreign Key</TD></TR>
+    <TR><TD ALIGN="LEFT">⚙️</TD><TD ALIGN="LEFT">Role Flags</TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#FFE5CC">Highlighted</TD><TD ALIGN="LEFT">Role-Based Behavior</TD></TR>
+    <TR><TD ALIGN="LEFT">Solid Line</TD><TD ALIGN="LEFT">Required Relationship</TD></TR>
+    <TR><TD ALIGN="LEFT">Dashed Line</TD><TD ALIGN="LEFT">Optional (0..1)</TD></TR>
+  </TABLE>>];
+
+  // Layout hints
+  {rank=same; item_types; item_statuses; measurement_types; units_of_measure}
+  {rank=same; items; legend}
+  {rank=same; item_material_attributes; item_product_attributes; item_physical_attributes}
+  {rank=same; item_uom_conversions; item_uom_preferences}
+}

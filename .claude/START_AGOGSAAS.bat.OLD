@@ -1,0 +1,86 @@
+@echo off
+REM ============================================================================
+REM AgogSaaS Complete System Startup (Separated Architecture v2.0)
+REM ============================================================================
+REM This script starts BOTH systems:
+REM   1. Application Stack (PostgreSQL, Backend, Frontend)
+REM   2. Agent Development System (NATS, Strategic Orchestrator)
+REM
+REM For production: Only run RUN_APPLICATION.bat
+REM For development: Run both RUN_APPLICATION.bat and RUN_AGENTS.bat
+REM
+REM Usage: Double-click this file or run from command line
+REM Location: D:\GitHub\agogsaas\.claude\START_AGOGSAAS.bat
+REM ============================================================================
+
+echo.
+echo ============================================================================
+echo   AgogSaaS Complete System Startup (v2.0 - Separated Architecture)
+echo ============================================================================
+echo.
+
+REM Change to project root
+cd /d "D:\GitHub\agogsaas"
+
+echo [1/3] Checking if Docker is running...
+docker info >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ERROR: Docker is not running!
+    echo Please start Docker Desktop and try again.
+    pause
+    exit /b 1
+)
+echo     ✓ Docker is running
+
+echo.
+echo [2/3] Starting APPLICATION stack (PostgreSQL, Backend, Frontend)...
+echo     Using: docker-compose.app.yml
+cd Implementation\print-industry-erp
+docker-compose -f docker-compose.app.yml up -d
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to start application services
+    pause
+    exit /b 1
+)
+echo     ✓ Application services started
+
+echo.
+echo [3/3] Starting AGENT DEVELOPMENT system (NATS, Strategic Orchestrator)...
+echo     Using: docker-compose.agents.yml
+docker-compose -f docker-compose.agents.yml up -d
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to start agent system
+    pause
+    exit /b 1
+)
+echo     ✓ Agent development system started
+
+echo.
+echo ============================================================================
+echo   AgogSaaS System Started Successfully!
+echo ============================================================================
+echo.
+echo APPLICATION SERVICES (Portable - Deploy Anywhere):
+echo   - PostgreSQL Database:    localhost:5433
+echo   - GraphQL API:            http://localhost:4000/graphql
+echo   - Frontend Dashboard:     http://localhost:3000
+echo   - Monitoring Dashboard:   http://localhost:3000/monitoring
+echo.
+echo AGENT DEVELOPMENT SERVICES (Local/CI Only - NEVER Deploy):
+echo   - NATS Jetstream:         http://localhost:8223
+echo   - Agent Backend API:      http://localhost:4002
+echo   - Strategic Orchestrator: Running (daemon)
+echo.
+echo Monitoring:
+echo   - OWNER_REQUESTS.md:      Scanned every 60 seconds
+echo   - Workflow Deliverables:  Stored in NATS streams
+echo   - Agent Outputs:          backend/agent-output/
+echo.
+echo To stop the system:
+echo   - Application: Run STOP_APPLICATION.bat
+echo   - Agents:      Run STOP_AGENTS.bat
+echo   - Both:        Run both stop scripts
+echo.
+echo ============================================================================
+echo.
+pause

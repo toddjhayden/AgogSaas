@@ -821,6 +821,36 @@ extend type Query {
     materialId: ID
     salesOrderId: ID
   ): [InventoryReservation!]!
+
+  # =====================================================
+  # BIN UTILIZATION OPTIMIZATION QUERIES
+  # =====================================================
+
+  """Get putaway recommendation for received lot"""
+  suggestPutawayLocation(
+    materialId: ID!
+    lotNumber: String!
+    quantity: Float!
+    dimensions: ItemDimensionsInput
+  ): PutawayRecommendationResult!
+
+  """Analyze bin utilization metrics"""
+  analyzeBinUtilization(
+    facilityId: ID!
+    locationId: ID
+  ): [BinUtilizationMetrics!]!
+
+  """Get optimization recommendations"""
+  getOptimizationRecommendations(
+    facilityId: ID!
+    threshold: Float
+  ): [OptimizationRecommendation!]!
+
+  """Analyze warehouse-wide utilization"""
+  analyzeWarehouseUtilization(
+    facilityId: ID!
+    zoneCode: String
+  ): WarehouseUtilizationAnalysis!
 }
 
 # =====================================================
@@ -1010,4 +1040,130 @@ input ReserveInventoryInput {
   salesOrderId: ID
   reservationType: ReservationType!
   expirationDate: DateTime
+}
+
+# =====================================================
+# BIN UTILIZATION OPTIMIZATION TYPES
+# =====================================================
+
+"""Item dimensions for capacity validation"""
+input ItemDimensionsInput {
+  lengthInches: Float!
+  widthInches: Float!
+  heightInches: Float!
+  cubicFeet: Float!
+  weightLbsPerUnit: Float!
+}
+
+"""Putaway recommendation result with primary and alternatives"""
+type PutawayRecommendationResult {
+  primary: PutawayRecommendation!
+  alternatives: [PutawayRecommendation!]!
+  capacityCheck: CapacityValidation!
+}
+
+"""Single putaway location recommendation"""
+type PutawayRecommendation {
+  locationId: ID!
+  locationCode: String!
+  locationType: String!
+  algorithm: String!
+  confidenceScore: Float!
+  reason: String!
+  utilizationAfterPlacement: Float!
+  availableCapacityAfter: Float!
+  pickSequence: Int
+}
+
+"""Capacity validation result"""
+type CapacityValidation {
+  canFit: Boolean!
+  dimensionCheck: Boolean!
+  weightCheck: Boolean!
+  cubicCheck: Boolean!
+  violationReasons: [String!]!
+}
+
+"""Bin utilization metrics for monitoring and optimization"""
+type BinUtilizationMetrics {
+  locationId: ID!
+  locationCode: String!
+  volumeUtilization: Float!
+  weightUtilization: Float!
+  slotUtilization: Float!
+  availableVolume: Float!
+  availableWeight: Float!
+  abcClassification: String!
+  pickFrequency: Int!
+  optimizationScore: Float!
+  recommendations: [String!]!
+}
+
+"""Optimization recommendation for warehouse operations"""
+type OptimizationRecommendation {
+  type: OptimizationType!
+  priority: OptimizationPriority!
+  sourceBinId: ID!
+  sourceBinCode: String!
+  targetBinId: ID
+  targetBinCode: String
+  materialId: ID
+  materialName: String
+  reason: String!
+  expectedImpact: String!
+  currentUtilization: Float
+  velocityChange: Float
+}
+
+"""Warehouse utilization analysis"""
+type WarehouseUtilizationAnalysis {
+  facilityId: ID!
+  totalLocations: Int!
+  activeLocations: Int!
+  averageUtilization: Float!
+  utilizationByZone: [ZoneUtilization!]!
+  underutilizedLocations: [BinCapacityInfo!]!
+  overutilizedLocations: [BinCapacityInfo!]!
+  recommendations: [OptimizationRecommendation!]!
+}
+
+"""Zone-level utilization statistics"""
+type ZoneUtilization {
+  zoneCode: String!
+  totalLocations: Int!
+  averageUtilization: Float!
+  totalCubicFeet: Float!
+  usedCubicFeet: Float!
+}
+
+"""Bin capacity information"""
+type BinCapacityInfo {
+  locationId: ID!
+  locationCode: String!
+  locationType: String!
+  totalCubicFeet: Float!
+  usedCubicFeet: Float!
+  availableCubicFeet: Float!
+  maxWeightLbs: Float!
+  currentWeightLbs: Float!
+  availableWeightLbs: Float!
+  utilizationPercentage: Float!
+  abcClassification: String
+  pickSequence: Int
+}
+
+"""Optimization type"""
+enum OptimizationType {
+  CONSOLIDATE
+  REBALANCE
+  RELOCATE
+  CROSS_DOCK
+  RESLOT
+}
+
+"""Optimization priority"""
+enum OptimizationPriority {
+  HIGH
+  MEDIUM
+  LOW
 }

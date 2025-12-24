@@ -1,0 +1,288 @@
+# OWNER REQUESTS - Feature Backlog
+
+This file tracks feature requests from product owners (Marcus, Sarah, Alex). The strategic orchestrator monitors this file and automatically spawns specialist workflows when new requests are detected.
+
+## Request Format
+
+```
+REQ-{DOMAIN}-{NUMBER}: {Feature Title}
+Status: {NEW | IN_PROGRESS | COMPLETE | BLOCKED | PENDING}
+Owner: {marcus | sarah | alex}
+Priority: {P0 | P1 | P2 | P3}
+Business Value: {Brief description}
+
+Status Meanings:
+- NEW: Brand new request, will be picked up by orchestrator on next scan
+- IN_PROGRESS: Workflow is actively running
+- COMPLETE: Workflow finished successfully
+- BLOCKED: Requires manual intervention
+- PENDING: Recovery state only (crash/token limit), orchestrator verifies before starting
+```
+
+---
+
+## Active Requests
+
+### REQ-ITEM-MASTER-001: Item Master Pattern Implementation
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Enable unified item catalog supporting both materials (purchased) and products (sold/manufactured). Critical foundation for inventory, procurement, and sales modules.
+
+**Requirements**:
+
+- Unified items table with role flags (can_be_purchased, can_be_sold, can_be_manufactured)
+- Support for dual-role items (e.g., blank labels that are both purchased and sold)
+- Multi-UOM support with conversion factors
+- 3-layer attribute model (material, product, physical)
+- SCD Type 2 for price/attribute change history
+- Integration with existing materials/products tables (migration strategy)
+
+**Current Stage**: Critique (Sylvia evaluating Cynthia's research)
+
+---
+
+### REQ-STOCK-TRACKING-001: Real-Time Stock Level Monitoring
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Enable real-time visibility into inventory levels across all warehouses. Reduces stockouts by 60% and excess inventory by 40%.
+
+**Requirements**:
+
+- Real-time stock level tracking per item per warehouse
+- Automated reorder point calculations
+- Low stock alerts and notifications
+- Stock movement history (receipts, issues, adjustments, transfers)
+- Integration with Item Master (REQ-ITEM-MASTER-001)
+- Dashboard showing current stock levels vs. min/max thresholds
+
+---
+
+### REQ-SALES-ORDER-ENTRY-001: Streamlined Sales Order Entry
+
+**Status**: IN_PROGRESS
+**Owner**: sarah
+**Priority**: P0
+**Business Value**: Reduce order entry time from 15 minutes to 2 minutes. Eliminate 70% of specification errors. Enable customer self-service.
+
+**Requirements**:
+
+- Quick order entry form with autocomplete
+- Customer-specific pricing and discount application
+- Product configurator for CTO (Configure-to-Order) items
+- Real-time inventory availability check
+- Delivery date estimation based on production schedule
+- Order confirmation with PDF proof
+- Integration with Item Master and Customer Master
+
+---
+
+### REQ-CUSTOMER-PRICING-001: Customer-Specific Pricing Engine
+
+**Status**: IN_PROGRESS
+**Owner**: sarah
+**Priority**: P1
+**Business Value**: Support volume discounts, customer-specific pricing, and promotional pricing. Increase average order value by 15%.
+
+**Requirements**:
+
+- Base price lists per item
+- Customer-specific price overrides
+- Volume discount tiers (quantity breaks)
+- Promotional pricing with date ranges
+- Contract pricing for enterprise customers
+- Price history for audit trail (SCD Type 2)
+- Pricing approval workflow for discounts > 20%
+
+---
+
+### REQ-VENDOR-MANAGEMENT-001: Vendor Master and Performance Tracking
+
+**Status**: IN_PROGRESS
+**Owner**: alex
+**Priority**: P1
+**Business Value**: Centralize vendor information and track performance. Reduce procurement costs by 10% through better vendor selection.
+
+**Requirements**:
+
+- Vendor master data (contact, payment terms, certifications)
+- Vendor performance metrics (on-time delivery, quality ratings)
+- Preferred vendor designation per item
+- Vendor price lists and quote comparison
+- Vendor certifications and compliance tracking
+- Integration with Item Master (materials sourcing)
+
+---
+
+### REQ-PURCHASE-ORDER-001: Purchase Order Creation and Tracking
+
+**Status**: IN_PROGRESS
+**Owner**: alex
+**Priority**: P0
+**Business Value**: Automate PO creation based on reorder points. Enable three-way matching for invoice processing. Reduce manual PO processing time by 80%.
+
+**Requirements**:
+
+- PO creation from reorder point triggers
+- PO approval workflow (based on amount thresholds)
+- Receiving module with qty/quality checks
+- Three-way matching (PO + Receipt + Invoice)
+- PO status tracking (pending, approved, received, closed)
+- Integration with Vendor Master and Stock Tracking
+- Email PO delivery to vendors
+
+---
+
+### REQ-DEVOPS-ORCHESTRATOR-001: Debug and Fix Strategic Orchestrator Issues
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Ensure agent orchestration system is fully operational. Critical for autonomous AI-assisted development workflows. Without working orchestration, agents cannot process requests and the entire AI development platform is non-functional.
+
+**CRITICAL ISSUES - Berry MUST FIX ALL:**
+
+1. **Workflows never update to COMPLETE** - strategic-orchestrator.service.ts:486 subscribes to workflow.completed but NEVER calls updateRequestStatus(reqNumber, 'COMPLETE'). All workflows stuck at IN_PROGRESS forever.
+
+2. **No git commits** - 161 uncommitted files, agents generate deliverables but never commit. No CI/CD runs, no security scans execute. Need workflow to commit on completion.
+
+3. **NATS deliverable streams not auto-initialized** - Had to manually run init-nats-streams.ts. Should initialize on orchestrator startup.
+
+4. **Workflow state lost on restart** - In-memory Map, restart loses all progress. Implement PostgreSQL persistence or NATS KV store.
+
+5. **No recovery mechanism** - When deliverable publish fails, workflow stuck forever. Need retry/recovery logic.
+
+6. **Race condition in duplicate prevention** - processedRequests.add() called 40 lines after check. Move before async operations.
+
+7. **Missing subscription cleanup** - waitForDeliverable() doesn't drain subs on timeout. Memory leak.
+
+8. **No environment validation** - Services start but fail silently with wrong config. Validate on startup.
+
+9. **No health checks** - No /health endpoint, no Prometheus metrics for orchestrator daemon.
+
+10. **No graceful shutdown** - Orchestrator doesn't drain NATS connections properly.
+
+11. **No rate limiting** - Agent spawns not throttled, can overwhelm system.
+
+12. **No security scans running** - GitHub Actions workflows exist but only trigger on push. Since nothing commits, nothing runs.
+
+**Already Fixed:**
+- ✅ Volume mounts (changed /workspace to /app)  
+- ✅ OWNER_REQUESTS path (changed to /app/project-spirit)
+- ✅ Host listener NATS auth (added credentials)
+- ✅ Regex patterns (allow blank lines)
+- ✅ NATS deliverable streams manually initialized
+
+**Expected Outcome:**
+
+- Workflows complete end-to-end and update status to COMPLETE in OWNER_REQUESTS.md
+- Agent deliverables committed to git automatically
+- Security scans run on every commit
+- Orchestrator survives restarts without losing workflow state
+- All 12 critical issues fixed and tested
+- Complete runbook for orchestration debugging
+- Health monitoring operational
+
+---
+
+### REQ-INFRA-DASHBOARD-001: Fix Monitoring Dashboard Missing Dependencies
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Restore monitoring dashboard functionality. Critical for observing Layer 2 (Health Monitoring), Layer 3 (Orchestration), and Layer 4 (Memory) system health in real-time.
+
+**Requirements**:
+
+- Fix missing `react-i18next` dependency in frontend container
+- Verify all other i18n dependencies are installed
+- Ensure volume mounts don't override node_modules
+- Test monitoring dashboard loads at http://localhost:3000/monitoring
+- Verify all 4 monitoring cards render (System Health, Current Errors, Active Fixes, Agent Activity)
+- **REQUIRED: Billy (QA) must use Playwright MCP to test actual user experience**
+  - Navigate to http://localhost:3000/monitoring in real browser
+  - Verify page loads without console errors
+  - Verify all 4 cards are visible and contain data
+  - Take screenshot of working dashboard
+  - Test is NOT complete until Playwright confirms user can see the page
+- Document fix in Miki's deliverables for future reference
+
+**Technical Details**:
+
+- Error: "Failed to resolve import 'react-i18next' from src/App.tsx"
+- Location: Frontend container `/app/node_modules`
+- Likely cause: Volume mount or missing package installation
+- Expected fix: Ensure `npm install` runs with all dependencies, check docker-compose volumes
+
+**Owner-Provided Assets**:
+
+- See `project-spirit/owner_requests/assets/REQ-INFRA-DASHBOARD-001/` for screenshots of the issue
+
+---
+
+## Completed Requests
+
+_None yet - first workflows in progress_
+
+---
+
+## Blocked Requests
+
+_None yet_
+
+---
+
+## Request Guidelines for Product Owners
+
+### Marcus (Warehouse/Inventory)
+
+Submit requests for:
+
+- Item Master management
+- Stock tracking and movements
+- Bin locations and warehouse operations
+- Inventory adjustments and cycle counts
+- Lot and serial number tracking
+
+### Sarah (Sales/CRM)
+
+Submit requests for:
+
+- Customer management
+- Sales order processing
+- Pricing and invoicing
+- Quote generation
+- Customer portal and self-service
+
+### Alex (Procurement/Vendors)
+
+Submit requests for:
+
+- Vendor management
+- Purchase order processing
+- RFQs and quote comparisons
+- Receiving and quality checks
+- Supplier performance tracking
+
+---
+
+## Adding New Requests
+
+1. Use format: `REQ-{DOMAIN}-{NUMBER}: {Title}`
+2. Set status to PENDING
+3. Assign to appropriate owner (marcus/sarah/alex)
+4. Set priority (P0=Critical, P1=High, P2=Medium, P3=Low)
+5. Describe business value clearly
+6. List specific requirements
+7. **If providing screenshots/assets**: Create directory `project-spirit/owner_requests/assets/REQ-{DOMAIN}-{NUMBER}/` and place images there
+8. Strategic orchestrator will detect and route automatically
+
+---
+
+**Last Updated**: 2025-12-20
+**Total Active Requests**: 7
+**Total In Progress**: 1
+**Total Completed**: 0

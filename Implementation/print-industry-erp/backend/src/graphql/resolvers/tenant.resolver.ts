@@ -58,14 +58,20 @@ export class TenantResolver {
   @Query('facilities')
   async getFacilities(
     @Args('tenantId') tenantId: string,
+    @Args('includeHistory') includeHistory: boolean = false,
     @Context() context: any
   ) {
     // TODO: Add authorization check - user must belong to this tenant
 
+    // By default, only return current versions
+    const whereClause = includeHistory
+      ? 'tenant_id = $1 AND deleted_at IS NULL'
+      : 'tenant_id = $1 AND is_current_version = TRUE AND deleted_at IS NULL';
+
     const result = await this.db.query(
       `SELECT * FROM facilities
-       WHERE tenant_id = $1 AND deleted_at IS NULL
-       ORDER BY facility_name`,
+       WHERE ${whereClause}
+       ORDER BY facility_name, effective_from_date DESC`,
       [tenantId]
     );
 
@@ -77,8 +83,10 @@ export class TenantResolver {
     @Args('id') id: string,
     @Context() context: any
   ) {
+    // Get current version by default
     const result = await this.db.query(
-      `SELECT * FROM facilities WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT * FROM facilities
+       WHERE id = $1 AND is_current_version = TRUE AND deleted_at IS NULL`,
       [id]
     );
 
@@ -87,6 +95,52 @@ export class TenantResolver {
     }
 
     return this.mapFacilityRow(result.rows[0]);
+  }
+
+  @Query('facilityAsOf')
+  async getFacilityAsOf(
+    @Args('facilityCode') facilityCode: string,
+    @Args('tenantId') tenantId: string,
+    @Args('asOfDate') asOfDate: string,
+    @Context() context: any
+  ) {
+    // Query for facility version valid on asOfDate
+    const result = await this.db.query(
+      `SELECT * FROM facilities
+       WHERE tenant_id = $1
+         AND facility_code = $2
+         AND effective_from_date <= $3
+         AND (effective_to_date IS NULL OR effective_to_date >= $3)
+         AND deleted_at IS NULL
+       ORDER BY effective_from_date DESC
+       LIMIT 1`,
+      [tenantId, facilityCode, asOfDate]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Facility ${facilityCode} not found as of ${asOfDate}`);
+    }
+
+    return this.mapFacilityRow(result.rows[0]);
+  }
+
+  @Query('facilityHistory')
+  async getFacilityHistory(
+    @Args('facilityCode') facilityCode: string,
+    @Args('tenantId') tenantId: string,
+    @Context() context: any
+  ) {
+    // Get all versions of this facility
+    const result = await this.db.query(
+      `SELECT * FROM facilities
+       WHERE tenant_id = $1
+         AND facility_code = $2
+         AND deleted_at IS NULL
+       ORDER BY effective_from_date DESC`,
+      [tenantId, facilityCode]
+    );
+
+    return result.rows.map(this.mapFacilityRow);
   }
 
   @Query('me')
@@ -484,6 +538,10 @@ export class TenantResolver {
       isActive: row.is_active,
       openedDate: row.opened_date,
       closedDate: row.closed_date,
+      // SCD Type 2 fields
+      effectiveFromDate: row.effective_from_date,
+      effectiveToDate: row.effective_to_date,
+      isCurrentVersion: row.is_current_version,
       createdAt: row.created_at,
       createdBy: row.created_by,
       updatedAt: row.updated_at,

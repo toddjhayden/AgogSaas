@@ -1,0 +1,35 @@
+{
+  "name": "agogsaas-agent-backend",
+  "version": "1.0.0",
+  "description": "AgogSaaS Agent Orchestration System - Development Only",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "daemon:start": "ts-node scripts/start-strategic-orchestrator.ts",
+    "host:listener": "ts-node scripts/host-agent-listener.ts",
+    "proactive:start": "ts-node scripts/start-proactive-daemons.ts"
+  },
+  "keywords": [
+    "agent",
+    "orchestration",
+    "ai",
+    "development"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "nats": "^2.18.0",
+    "axios": "^1.6.2",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "@types/pg": "^8.10.9",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0"
+  }
+}

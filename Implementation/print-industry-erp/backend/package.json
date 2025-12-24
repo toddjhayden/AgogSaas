@@ -1,7 +1,7 @@
 {
   "name": "agogsaas-backend",
   "version": "1.0.0",
-  "description": "AgogSaaS Backend - GraphQL API with 4-layer AI system",
+  "description": "AgogSaaS ERP Backend - GraphQL API (Portable Deployment)",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
@@ -9,7 +9,15 @@
     "start": "node dist/index.js",
     "test": "jest",
     "test:memory": "ts-node scripts/test-phase4-memory.ts",
+    "test:nats": "ts-node scripts/test-nats-deliverables.ts",
+    "test:orchestration": "ts-node scripts/test-orchestration.ts",
+    "test:workflow": "ts-node scripts/test-end-to-end-workflow.ts",
+    "workflow:item-master": "ts-node scripts/start-item-master-workflow.ts",
     "import:agog-memories": "ts-node scripts/import-agog-memories.ts",
+    "init:nats-streams": "ts-node scripts/init-nats-streams.ts",
+    "init:strategic-streams": "ts-node scripts/init-strategic-streams.ts",
+    "host:listener": "ts-node scripts/host-agent-listener.ts",
+    "daemon:start": "ts-node scripts/start-strategic-orchestrator.ts",
     "lint": "eslint src --ext .ts",
     "migrate": "echo 'Migrations applied via docker-entrypoint-initdb.d'"
   },
@@ -21,8 +29,8 @@
     "axios": "^1.6.2",
     "dotenv": "^16.3.1",
     "graphql": "^16.8.1",
-    "pg": "^8.11.3",
-    "nats": "^2.18.0"
+    "nats": "^2.28.2",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "@types/node": "^20.10.4",

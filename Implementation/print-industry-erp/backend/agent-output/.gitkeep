@@ -1,0 +1,3 @@
+# Agent output directory
+# This directory is used by agents to write NATS publishing scripts and deliverables
+# Contents are ignored by git but directory structure is preserved

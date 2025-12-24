@@ -18,12 +18,22 @@ Comprehensive architectural documentation for the AGOG Print Industry ERP system
 - [→ API Standards](../Standards/api/rest-standards.md)
 
 ### Data Architecture
-- [KPI Definitions](./data-models/kpi-definitions.md) - Comprehensive KPI catalog with schema mappings (100+ KPIs)
+
+#### OLTP Data Models
 - [Schema Inventory](./data-models/SCHEMA_INVENTORY.md) - Complete YAML schema file inventory and roadmap
-- [Data Migration](./data-models/data-migration.md) - Data migration strategies
-- [Cost Accounting](./data-models/cost-accounting.md) - Financial data models
+- [Item Management System](./data-models/item-management-system.md) - Item Master pattern and multi-UOM system
+- [Terminology Standards](./data-models/terminology-standards.md) - Semantic naming standards (vendor vs supplier, etc.)
 - [Inventory Control](./data-models/inventory-control.md) - Inventory management
 - [Lot Genealogy](./data-models/lot-genealogy.md) - Material tracking
+- [Cost Accounting](./data-models/cost-accounting.md) - Financial data models
+- [Data Migration](./data-models/data-migration.md) - Data migration strategies
+
+#### OLAP Dimensional Models
+- [Dimensional Model Bus Matrix](./data-models/dimensional-model-bus-matrix.md) - Kimball Bus Matrix (fact tables × dimensions)
+- [Column Name Audit](./data-models/column-name-audit.md) - OLTP semantic violations and remediation
+- [KPI Definitions](./data-models/kpi-definitions.md) - Comprehensive KPI catalog with schema mappings (100+ KPIs)
+
+#### Standards
 - [→ Data Modeling Standards](../Standards/data/modeling-standards.md)
 
 ### Integrations

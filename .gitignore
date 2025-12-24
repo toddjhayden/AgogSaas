@@ -62,3 +62,12 @@ data/
 *.cert
 credentials.json
 secrets.yaml
+
+# Agent Output (exclude transient files, keep structure)
+Implementation/print-industry-erp/backend/agent-output/*
+!Implementation/print-industry-erp/backend/agent-output/.gitkeep
+!Implementation/print-industry-erp/backend/agent-output/README.md
+!Implementation/print-industry-erp/backend/agent-output/nats-scripts/
+!Implementation/print-industry-erp/backend/agent-output/deliverables/
+Implementation/print-industry-erp/backend/agent-output/nats-scripts/*
+Implementation/print-industry-erp/backend/agent-output/deliverables/*

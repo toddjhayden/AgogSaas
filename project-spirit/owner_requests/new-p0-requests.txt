@@ -1,0 +1,359 @@
+### REQ-INFRA-PROACTIVE-DAEMON-001: Value Chain Expert Autonomous Daemon
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Enable continuous strategic evaluation without human intervention. System autonomously identifies high-impact opportunities using RICE scoring, analyzes competitive landscape, and generates feature recommendations 24/7. Critical foundation for proactive work generation.
+
+**Requirements**:
+
+- Convert value-chain-expert from manual spawn to daemon mode
+- Periodic strategic evaluation (daily scan at 2am)
+- Analyze business metrics (revenue, usage, support tickets)
+- Analyze competitive landscape (market trends, competitor features)
+- Analyze technical debt (code quality, security vulnerabilities)
+- Generate RICE-scored feature recommendations
+- Publish recommendations to NATS subject `agog.recommendations.strategic`
+- Integration with MetricsProvider for business intelligence
+- Configurable scan frequency (default: daily)
+
+**Expected Outcome**:
+- value-chain-expert runs autonomously as daemon service
+- Generates 3-5 strategic recommendations per week
+- Recommendations include RICE scores and business justification
+- Runs during off-peak hours to minimize API costs
+- Logs all strategic evaluations to PostgreSQL for trend analysis
+
+---
+
+### REQ-INFRA-PROACTIVE-PM-001: Project Manager Autonomous Roadmap Management
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Autonomous roadmap maintenance eliminates manual backlog grooming. System automatically breaks strategic initiatives into atomic phases, identifies dependencies, sequences work optimally, and keeps roadmap.md current without human intervention.
+
+**Requirements**:
+
+- Convert project-manager from manual spawn to autonomous operation
+- Create and maintain `roadmap.md` as single source of truth
+- Subscribe to `agog.recommendations.strategic` for new initiatives
+- Break strategic initiatives into atomic phases (S/M sizing)
+- Identify dependencies and optimal sequencing
+- Auto-generate phased feature requests in OWNER_REQUESTS.md
+- Detect roadmap gaps (features without follow-up phases)
+- Archive completed work to `roadmap-archive.md`
+- Version control integration (git commit roadmap changes)
+
+**Expected Outcome**:
+- roadmap.md maintained and current automatically
+- Strategic initiatives decomposed into executable phases
+- Dependencies mapped and sequenced optimally
+- OWNER_REQUESTS.md populated with phased work
+- Zero manual backlog grooming required
+
+---
+
+### REQ-INFRA-PROACTIVE-PO-001: Product Owner Agents Autonomous Domain Monitoring
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Product owner agents (Marcus/Sarah/Alex) autonomously monitor their domains and auto-create feature requests when thresholds met. Reduces reactive firefighting by 80%. Enables predictive issue resolution before business impact.
+
+**Requirements**:
+
+- Convert Marcus (warehouse-po), Sarah (sales-po), Alex (procurement-po) to daemon mode
+- **Marcus domain monitoring**:
+  - Monitor stockout rates (threshold: >5% of SKUs)
+  - Monitor bin utilization (threshold: >90% capacity)
+  - Monitor cycle count accuracy (threshold: <98%)
+  - Auto-create REQ-STOCK-xxx when thresholds breached
+
+- **Sarah domain monitoring**:
+  - Monitor order entry time (threshold: >10 min avg)
+  - Monitor quote-to-order conversion (threshold: <40%)
+  - Monitor customer complaint rate (threshold: >2%)
+  - Auto-create REQ-SALES-xxx when thresholds breached
+
+- **Alex domain monitoring**:
+  - Monitor vendor on-time delivery (threshold: <90%)
+  - Monitor procurement cost variance (threshold: >5%)
+  - Monitor RFQ response time (threshold: >48 hours)
+  - Auto-create REQ-PROCUREMENT-xxx when thresholds breached
+
+- Subscribe to `agog.triggers.*` for metric-based triggers
+- Publish domain-specific recommendations to NATS
+- Integration with MetricsProvider for real-time metrics
+- Configurable scan frequency (default: every 6 hours)
+
+**Expected Outcome**:
+- 3 product owner agents running as daemons
+- Domain-specific metrics monitored continuously
+- Auto-creation of 5-10 feature requests per month based on metrics
+- Predictive issue resolution before business impact
+- Reduced manual feature ideation workload by 70%
+
+---
+
+### REQ-INFRA-METRICS-001: Metrics Provider for Business Intelligence
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Centralized metrics provider enables data-driven autonomous decisions. Aggregates business metrics from PostgreSQL, publishes to NATS for real-time consumption by proactive agents. Foundation for all autonomous monitoring and decision-making.
+
+**Requirements**:
+
+- Create MetricsProvider service with PostgreSQL integration
+- Aggregate business metrics from OLTP database:
+  - Inventory metrics (stockout rates, bin utilization, cycle count accuracy)
+  - Sales metrics (order entry time, conversion rates, complaint rates)
+  - Procurement metrics (vendor OTD, cost variance, RFQ response times)
+  - System metrics (error rates, performance, API usage)
+
+- Publish metrics to NATS subjects:
+  - `agog.metrics.inventory.*`
+  - `agog.metrics.sales.*`
+  - `agog.metrics.procurement.*`
+  - `agog.metrics.system.*`
+
+- Support threshold-based triggers:
+  - Publish `agog.triggers.stockout` when stockout >5%
+  - Publish `agog.triggers.slow_orders` when entry time >10min
+  - Publish `agog.triggers.vendor_late` when OTD <90%
+
+- Metric retention and trend analysis
+- GraphQL API for dashboard consumption
+- Configurable metric refresh intervals (default: 5 minutes)
+
+**Expected Outcome**:
+- Centralized metrics service running as daemon
+- Real-time metrics published to NATS every 5 minutes
+- Product owner agents subscribe and react to triggers
+- Historical metrics stored for trend analysis
+- Dashboard displays real-time business health
+
+---
+
+### REQ-INFRA-RECOMMENDATION-PUB-001: Recommendation Publisher to OWNER_REQUESTS.md
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Autonomous appending to OWNER_REQUESTS.md closes the loop on proactive work generation. Agent recommendations become actionable work items automatically. Eliminates manual transcription of AI insights into backlog.
+
+**Requirements**:
+
+- Create RecommendationPublisher service
+- Subscribe to NATS subjects:
+  - `agog.recommendations.strategic` (from value-chain-expert)
+  - `agog.recommendations.inventory` (from Marcus-po)
+  - `agog.recommendations.sales` (from Sarah-po)
+  - `agog.recommendations.procurement` (from Alex-po)
+
+- Process recommendations:
+  - Validate recommendation format (reqNumber, title, owner, priority, business value)
+  - Check for duplicates in OWNER_REQUESTS.md using MCP memory search
+  - Format as markdown section with proper headers
+
+- Append to OWNER_REQUESTS.md:
+  - Insert before "## Completed Requests" section
+  - Add metadata (generated_by: agent, generated_at: timestamp)
+  - Set status to NEW for orchestrator pickup
+  - Commit to git with message "feat: Auto-generated recommendation from {agent}"
+
+- Governance controls:
+  - P0/P1 recommendations → status PENDING (requires human approval)
+  - P2/P3 recommendations → status NEW (auto-approved)
+  - Configurable approval thresholds
+
+**Expected Outcome**:
+- Agent recommendations automatically become backlog items
+- OWNER_REQUESTS.md updated without human intervention
+- Duplicate prevention ensures clean backlog
+- Human approval gate for high-priority work
+- Git history tracks all autonomous additions
+
+---
+
+### REQ-INFRA-CIRCUIT-BREAKER-001: Circuit Breaker for Runaway Workflows
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Prevents catastrophic API cost overruns from orchestrator failures. Circuit breaker stops workflow spawning when failure rate exceeds threshold. Saves $215 per failure event (99.7% cost reduction). Critical safety mechanism for production operation.
+
+**Requirements**:
+
+- Implement circuit breaker pattern in strategic-orchestrator.service.ts
+- Track workflow failure rates (last 10 workflows)
+- Circuit states:
+  - CLOSED: Normal operation (failure rate <20%)
+  - OPEN: Stop all spawning (failure rate >50%)
+  - HALF_OPEN: Test with 1 workflow (after 5-minute cooldown)
+
+- Failure detection:
+  - Agent timeout (>10 minutes)
+  - NATS publish failure
+  - Deliverable not found after spawn
+  - Git commit failure
+  - API rate limit errors
+
+- Circuit breaker actions:
+  - OPEN → Stop scanning OWNER_REQUESTS.md
+  - OPEN → Publish `agog.strategic.escalations.circuit_breaker_open`
+  - OPEN → Log to PostgreSQL with failure details
+  - HALF_OPEN → Spawn single test workflow
+  - HALF_OPEN success → CLOSED
+  - HALF_OPEN failure → OPEN (retry in 10 minutes)
+
+- Dashboard integration:
+  - Display circuit breaker state
+  - Show failure count and rate
+  - Emergency "force close" button for manual override
+
+**Expected Outcome**:
+- Circuit breaker prevents runaway spawning
+- $215 savings per failure event
+- 5-minute recovery time after failures
+- Automatic testing before resuming normal operation
+- Dashboard visibility into circuit state
+
+---
+
+### REQ-INFRA-STATE-PERSIST-001: PostgreSQL Workflow State Persistence
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Eliminates workflow state loss on container restart. PostgreSQL persistence ensures workflows survive crashes, redeploys, and scaling events. Prevents duplicate spawning and lost progress. Critical for production reliability.
+
+**Requirements**:
+
+- Create `agent_workflows` table in agent-postgres:
+  ```sql
+  CREATE TABLE agent_workflows (
+    req_number VARCHAR(50) PRIMARY KEY,
+    title TEXT NOT NULL,
+    assigned_to VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    current_stage INT NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP,
+    metadata JSONB
+  );
+  ```
+
+- Update orchestrator.service.ts:
+  - Replace in-memory `Map<string, FeatureWorkflow>` with PostgreSQL queries
+  - `startWorkflow()` → INSERT into agent_workflows
+  - `getWorkflowStatus()` → SELECT from agent_workflows
+  - `updateWorkflowStage()` → UPDATE agent_workflows
+  - `completeWorkflow()` → UPDATE completed_at
+
+- Add migration script V0.0.14__create_agent_workflows_table.sql
+- Implement state recovery on orchestrator startup
+- Implement cleanup of old completed workflows (>90 days)
+
+**Expected Outcome**:
+- Workflow state persists across restarts
+- Zero duplicate spawning after crashes
+- Workflow recovery after token limit crashes
+- Historical workflow audit trail in PostgreSQL
+- Production-ready state management
+
+---
+
+### REQ-INFRA-CONCURRENCY-001: Concurrency Control for Parallel Workflows
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Prevents git merge conflicts and race conditions from parallel workflows. Git branch isolation ensures workflows don't interfere. Critical for production stability when running 5+ concurrent workflows.
+
+**Requirements**:
+
+- Implement git branch isolation strategy:
+  - Each workflow gets dedicated branch: `feature/{reqNumber}`
+  - Roy/Jen work in isolated branches
+  - Billy tests in branch before merge
+  - Priya analyzes branch before completion
+
+- Workflow branch lifecycle:
+  1. Cynthia completes → create branch `feature/{reqNumber}`
+  2. Roy implements → commit to `feature/{reqNumber}`
+  3. Jen implements → commit to `feature/{reqNumber}`
+  4. Billy tests → run tests in branch
+  5. Priya analyzes → analyze branch commits
+  6. Workflow complete → merge to master + delete branch
+
+- Concurrent workflow limits:
+  - Max 4 workflows in backend stage simultaneously
+  - Queue additional workflows if limit reached
+  - Priority-based queuing (P0 > P1 > P2 > P3)
+
+- Merge conflict handling:
+  - Detect conflicts before merge
+  - Auto-rebase on master if possible
+  - Escalate to human if conflicts unresolvable
+  - Publish `agog.strategic.escalations.merge_conflict`
+
+**Expected Outcome**:
+- Zero git merge conflicts from parallel workflows
+- Up to 4 concurrent workflows running safely
+- Priority-based queuing for workflow fairness
+- Automatic conflict detection and resolution
+- Production-ready parallel execution
+
+---
+
+### REQ-INFRA-CLAUDE-USAGE-001: Claude API Usage Monitoring and Circuit Breaker
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Prevents Claude API plan limit exhaustion. Monitors usage before each scan, sleeps when >85% limit reached. Respects reset window. Critical for staying within plan limits and preventing service disruption.
+
+**Requirements**:
+
+- Implement Claude API usage monitoring:
+  - Check https://claude.ai/settings/usage before each orchestrator scan
+  - Parse usage percentage and reset time
+  - Store in PostgreSQL for trend analysis
+
+- Implement sleep-based circuit breaker:
+  ```typescript
+  async checkClaudeUsage(): Promise<boolean> {
+    const usage = await fetchClaudeUsage();
+    if (usage.percentage > 85) {
+      const minutesUntilReset = calculateMinutesUntil(usage.resetTime);
+      console.log(`[Orchestrator] Usage ${usage.percentage}% - sleeping ${minutesUntilReset} minutes`);
+      await sleep(minutesUntilReset * 60 * 1000);
+      return true; // Resumed after sleep
+    }
+    return false; // Continue normally
+  }
+  ```
+
+- Integrate into strategic-orchestrator.service.ts:
+  - Call `checkClaudeUsage()` before each `scanOwnerRequests()` cycle
+  - If usage >85%, sleep until reset (actual setTimeout/sleep)
+  - Log sleep duration and resume time
+  - Publish `agog.strategic.escalations.usage_limit_approaching`
+
+- Dashboard integration:
+  - Display current usage percentage
+  - Show time until reset
+  - Display "sleeping" state when paused
+  - Show historical usage trends
+
+**Expected Outcome**:
+- Orchestrator never exceeds 85% plan usage
+- Automatic sleep until reset window
+- Zero manual intervention required
+- Dashboard visibility into usage and sleep state
+- Trend analysis prevents recurring limit issues
+
+---

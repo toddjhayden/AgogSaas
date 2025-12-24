@@ -1,5 +1,4 @@
 import { Pool } from 'pg';
-import { connect, NatsConnection } from 'nats';
 
 export interface SystemError {
   id: string;
@@ -30,22 +29,9 @@ export interface ErrorQueryOptions {
 
 export class ErrorTrackingService {
   private pool: Pool;
-  private nc?: NatsConnection;
 
   constructor(pool: Pool) {
     this.pool = pool;
-    this.initializeNATS();
-  }
-
-  private async initializeNATS() {
-    try {
-      this.nc = await connect({
-        servers: process.env.NATS_URL || 'nats://localhost:4222',
-      });
-      console.log('[ErrorTracking] Connected to NATS');
-    } catch (error) {
-      console.error('[ErrorTracking] Failed to connect to NATS:', error);
-    }
   }
 
   /**
@@ -134,17 +120,6 @@ export class ErrorTrackingService {
 
     const newError = this.mapRow(result.rows[0]);
 
-    // Publish to NATS
-    if (this.nc) {
-      await this.nc.publish(
-        'wms.monitoring.errors.created',
-        JSON.stringify(newError)
-      );
-      await this.nc.publish(
-        `wms.monitoring.errors.created.${error.severity}`,
-        JSON.stringify(newError)
-      );
-    }
 
     console.log(`[ErrorTracking] Created ${error.severity} error: ${error.message}`);
     return newError;
@@ -173,13 +148,6 @@ export class ErrorTrackingService {
 
     const error = this.mapRow(result.rows[0]);
 
-    // Publish to NATS
-    if (this.nc) {
-      await this.nc.publish(
-        'wms.monitoring.errors.updated',
-        JSON.stringify(error)
-      );
-    }
 
     return error;
   }
@@ -207,13 +175,6 @@ export class ErrorTrackingService {
 
     const error = this.mapRow(result.rows[0]);
 
-    // Publish to NATS
-    if (this.nc) {
-      await this.nc.publish(
-        'wms.monitoring.errors.resolved',
-        JSON.stringify(error)
-      );
-    }
 
     console.log(`[ErrorTracking] Resolved error ${id} by ${resolvedBy}`);
     return error;
@@ -262,8 +223,6 @@ export class ErrorTrackingService {
   }
 
   async close() {
-    if (this.nc) {
-      await this.nc.close();
-    }
+    // Cleanup if needed
   }
 }

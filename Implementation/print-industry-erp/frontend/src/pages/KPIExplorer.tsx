@@ -226,7 +226,7 @@ export const KPIExplorer: React.FC = () => {
         <div className="card bg-gradient-to-br from-primary-500 to-primary-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-primary-100 text-sm font-medium">Total KPIs</p>
+              <p className="text-primary-100 text-sm font-medium">{t('kpis.totalKPIs')}</p>
               <p className="text-4xl font-bold mt-2">119</p>
             </div>
             <TrendingUp className="h-12 w-12 text-primary-200" />
@@ -234,7 +234,7 @@ export const KPIExplorer: React.FC = () => {
         </div>
 
         <div className="card border-l-4 border-success-500">
-          <p className="text-sm font-medium text-gray-600">Above Target</p>
+          <p className="text-sm font-medium text-gray-600">{t('kpis.aboveTarget')}</p>
           <p className="text-3xl font-bold text-success-600 mt-2">
             {mockKPIs.filter((kpi) => kpi.currentValue >= kpi.targetValue).length}
           </p>
@@ -244,7 +244,7 @@ export const KPIExplorer: React.FC = () => {
         </div>
 
         <div className="card border-l-4 border-warning-500">
-          <p className="text-sm font-medium text-gray-600">Near Target (80-99%)</p>
+          <p className="text-sm font-medium text-gray-600">{t('kpis.nearTarget')}</p>
           <p className="text-3xl font-bold text-warning-600 mt-2">
             {mockKPIs.filter((kpi) => {
               const perf = (kpi.currentValue / kpi.targetValue) * 100;
@@ -254,7 +254,7 @@ export const KPIExplorer: React.FC = () => {
         </div>
 
         <div className="card border-l-4 border-danger-500">
-          <p className="text-sm font-medium text-gray-600">Below Target (&lt;80%)</p>
+          <p className="text-sm font-medium text-gray-600">{t('kpis.belowTarget')}</p>
           <p className="text-3xl font-bold text-danger-600 mt-2">
             {mockKPIs.filter((kpi) => (kpi.currentValue / kpi.targetValue) * 100 < 80).length}
           </p>
@@ -286,7 +286,7 @@ export const KPIExplorer: React.FC = () => {
               )}
             >
               <Star className="h-4 w-4" />
-              <span>Favorites ({kpiFavorites.length})</span>
+              <span>{t('kpis.favorites')} ({kpiFavorites.length})</span>
             </button>
 
             <div className="relative">
@@ -311,10 +311,10 @@ export const KPIExplorer: React.FC = () => {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900">
-            {showFavoritesOnly ? 'Favorite KPIs' : t('kpis.allKPIs')}
+            {showFavoritesOnly ? t('kpis.favoriteKPIs') : t('kpis.allKPIs')}
           </h2>
           <p className="text-sm text-gray-500">
-            Showing {filteredKPIs.length} of {mockKPIs.length} KPIs
+            {t('kpis.showing', { count: filteredKPIs.length, total: mockKPIs.length })}
           </p>
         </div>
 
@@ -322,8 +322,8 @@ export const KPIExplorer: React.FC = () => {
           <div className="card text-center py-12">
             <p className="text-gray-500">
               {showFavoritesOnly
-                ? 'No favorite KPIs yet. Click the star icon on any KPI to add it to your favorites.'
-                : 'No KPIs found matching your search criteria.'}
+                ? t('kpis.noFavorites')
+                : t('kpis.noResults')}
             </p>
           </div>
         ) : (

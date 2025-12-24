@@ -118,8 +118,102 @@ agogsaas/
 ├── docs/                               # Documentation
 ├── .git-hooks/                         # Layer 1: Pre-commit hooks
 ├── CONSTRAINTS.md                      # Hard rules (MUST FOLLOW)
-└── docker-compose.yml                  # All services containerized
+├── docker-compose.app.yml              # Production application stack
+└── docker-compose.agents.yml           # Agent development system
 ```
+
+---
+
+## 🚨 CRITICAL: Architecture Separation (MUST UNDERSTAND)
+
+**AgogSaaS has TWO separate systems:**
+
+### 1. Application Stack (Production ERP)
+**File:** `docker-compose.app.yml`
+**Purpose:** Production packaging industry ERP application
+**Services:**
+- **backend** - GraphQL API server (Node.js + Apollo Server)
+- **frontend** - React web application (Vite + Material-UI)
+- **postgres** - PostgreSQL database with business data
+
+**Key Points:**
+- ✅ Runs independently WITHOUT agent infrastructure
+- ✅ NO NATS dependency (agent-only)
+- ✅ NO Ollama dependency (agent-only)
+- ✅ Backend uses stub services for agent features (returns empty data)
+- ✅ Frontend has NO WebSocket/NATS code
+- ✅ Deployable to production (edge/cloud/global)
+
+**Start Application:**
+```bash
+# Windows
+RUN_APPLICATION.bat
+
+# Linux/Mac
+./run-application.sh
+```
+
+### 2. Agent Development System (Dev-Only)
+**File:** `docker-compose.agents.yml`
+**Purpose:** Agent infrastructure for AI-assisted development
+**Services:**
+- **agent-backend** - Agent orchestrator + NATS listener
+- **agent-postgres** - PostgreSQL with pgvector for agent memory
+- **nats** - NATS JetStream for agent communication
+- **ollama** - Local LLM for embeddings (FREE, no API costs)
+
+**Key Points:**
+- ✅ Used ONLY during development
+- ✅ NOT deployed to production
+- ✅ Agents read OWNER_REQUESTS.md and spawn workflows
+- ✅ NATS stores agent deliverables
+- ✅ Ollama generates embeddings for agent memory (nomic-embed-text)
+
+**Start Agents:**
+```bash
+# Windows
+RUN_AGENTS.bat
+
+# Linux/Mac
+./run-agents.sh
+```
+
+### Why This Separation?
+
+**Problem We Solved:**
+- Original design had agents mixed with application code
+- NATS/Ollama dependencies leaked into production
+- Frontend tried to connect to NATS WebSocket (caused crashes)
+- Backend crashed when NATS unavailable
+
+**Solution:**
+- **Clean separation** - Application runs WITHOUT agent dependencies
+- **Stub services** - Application backend returns empty data for agent features
+- **No NATS in frontend** - Removed all WebSocket/NATS code from React app
+- **No NATS in backend** - Application backend doesn't import agent services
+- **Development-only agents** - NATS/Ollama run separately for development
+
+### What This Means For You
+
+**If you're implementing APPLICATION features (Roy, Jen):**
+- ✅ Work in `Implementation/print-industry-erp/backend/` and `frontend/`
+- ✅ Use `docker-compose.app.yml` services (backend, frontend, postgres)
+- ✅ DO NOT add NATS dependencies to application code
+- ✅ DO NOT add Ollama dependencies to application code
+- ✅ Frontend should work WITHOUT WebSocket connections
+- ✅ Backend should work WITHOUT agent services
+
+**If you're implementing AGENT features (Orchestrator, Strategic Agents):**
+- ✅ Work in agent-specific directories
+- ✅ Use `docker-compose.agents.yml` services (agent-backend, nats, ollama)
+- ✅ NATS is available for agent communication
+- ✅ Ollama is available for embeddings
+- ✅ Agent code stays separate from application code
+
+**Testing Your Work:**
+- **Application features:** Test with `docker-compose.app.yml` running
+- **Agent features:** Test with BOTH `docker-compose.app.yml` AND `docker-compose.agents.yml` running
+- **Production readiness:** Application should work with ONLY `docker-compose.app.yml`
 
 ---
 

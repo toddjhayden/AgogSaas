@@ -1,0 +1,102 @@
+================================================================================
+  AgogSaaS - Quick Start Card
+================================================================================
+
+RUN APPLICATION (Production ERP)
+─────────────────────────────────
+  Double-click: D:\GitHub\agogsaas\.claude\RUN_APPLICATION.bat
+
+  This starts the PORTABLE ERP application:
+    ✓ PostgreSQL (Database)
+    ✓ Backend (GraphQL API)
+    ✓ Frontend (React UI)
+    ✓ NO agent dependencies
+
+  Access:
+    - ERP Frontend:    http://localhost:3000
+    - GraphQL API:     http://localhost:4000/graphql
+    - Monitoring:      http://localhost:3000/monitoring
+
+  Stop:
+    Double-click: STOP_APPLICATION.bat
+
+
+RUN AGENTS (Development System)
+────────────────────────────────
+  Double-click: D:\GitHub\agogsaas\.claude\RUN_AGENTS.bat
+
+  This starts the DEVELOPMENT agent orchestration:
+    ✓ NATS (Agent communication)
+    ✓ Agent Backend (Orchestrator)
+    ✓ Strategic workflows
+
+  Access:
+    - NATS Monitor:    http://localhost:8223
+    - Agent Backend:   http://localhost:4002
+
+  Stop:
+    Double-click: STOP_AGENTS.bat
+
+
+SUBMIT A REQUEST (Marcus, Sarah, Alex)
+───────────────────────────────────────
+  1. Open: project-spirit/owner_requests/OWNER_REQUESTS.md
+
+  2. Add:
+     ### REQ-DOMAIN-NNN: Your Feature Title
+     **Status**: NEW
+     **Owner**: marcus|sarah|alex
+     **Priority**: P0
+     **Business Value**: What this does
+
+     **Requirements**:
+     - Requirement 1
+     - Requirement 2
+
+  3. Save file
+
+  4. Within 60 seconds, orchestrator auto-spawns workflow
+
+
+WORKFLOW STAGES (Automatic)
+────────────────────────────
+  1. Cynthia (Research)        - Researches requirements
+  2. Sylvia (Critique)         - Reviews quality
+  3. Roy (Backend)             - GraphQL API
+  4. Jen (Frontend)            - React UI
+  5. Billy (QA)                - Playwright MCP tests (MANDATORY!)
+  6. Priya (Statistics)        - Metrics
+
+
+CHECK PROGRESS
+──────────────
+  Status:       OWNER_REQUESTS.md (auto-updates)
+  Deliverables: backend/agent-output/deliverables/
+  NATS:         http://localhost:8223
+
+
+TROUBLESHOOTING
+───────────────
+  Problem: Daemon won't start
+  Fix:     1. Check Docker is running (Docker Desktop)
+           2. Check .env has: NATS_URL=nats://localhost:4223
+
+  Problem: Workflows not running
+  Fix:     Check Strategic Orchestrator window for errors
+
+  Problem: Billy not testing
+  Fix:     Workflow must complete all 6 stages - check orchestrator
+
+
+FILES
+─────
+  START_AGOGSAAS.bat   - Start system
+  STOP_AGOGSAAS.bat    - Stop system
+  README_STARTUP.md    - Full documentation
+
+
+SUPPORT
+───────
+  Location: D:\GitHub\agogsaas\.claude\
+
+================================================================================

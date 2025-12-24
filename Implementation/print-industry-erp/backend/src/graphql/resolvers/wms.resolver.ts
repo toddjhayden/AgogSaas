@@ -1,5 +1,6 @@
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { Pool } from 'pg';
+import { BinUtilizationOptimizationService } from '../../modules/wms/services/bin-utilization-optimization.service';
 
 /**
  * WMS GraphQL Resolver
@@ -18,7 +19,11 @@ import { Pool } from 'pg';
 
 @Resolver('WMS')
 export class WMSResolver {
-  constructor(private readonly db: Pool) {}
+  private binOptimizationService: BinUtilizationOptimizationService;
+
+  constructor(private readonly db: Pool) {
+    this.binOptimizationService = new BinUtilizationOptimizationService(db);
+  }
 
   // =====================================================
   // INVENTORY LOCATION QUERIES
@@ -1495,6 +1500,83 @@ export class WMSResolver {
       createdBy: row.created_by,
       releasedAt: row.released_at,
       releasedBy: row.released_by
+    };
+  }
+
+  // =====================================================
+  // BIN UTILIZATION OPTIMIZATION QUERIES
+  // =====================================================
+
+  @Query('suggestPutawayLocation')
+  async suggestPutawayLocation(
+    @Args('materialId') materialId: string,
+    @Args('lotNumber') lotNumber: string,
+    @Args('quantity') quantity: number,
+    @Args('dimensions') dimensions: any | null,
+    @Context() context: any
+  ) {
+    const result = await this.binOptimizationService.suggestPutawayLocation(
+      materialId,
+      lotNumber,
+      quantity,
+      dimensions
+    );
+
+    return {
+      primary: result.primary,
+      alternatives: result.alternatives,
+      capacityCheck: result.capacityCheck,
+    };
+  }
+
+  @Query('analyzeBinUtilization')
+  async analyzeBinUtilization(
+    @Args('facilityId') facilityId: string,
+    @Args('locationId') locationId: string | null,
+    @Context() context: any
+  ) {
+    const metrics = await this.binOptimizationService.calculateBinUtilization(
+      facilityId,
+      locationId || undefined
+    );
+
+    return metrics;
+  }
+
+  @Query('getOptimizationRecommendations')
+  async getOptimizationRecommendations(
+    @Args('facilityId') facilityId: string,
+    @Args('threshold') threshold: number = 0.3,
+    @Context() context: any
+  ) {
+    const recommendations = await this.binOptimizationService.generateOptimizationRecommendations(
+      facilityId,
+      threshold
+    );
+
+    return recommendations;
+  }
+
+  @Query('analyzeWarehouseUtilization')
+  async analyzeWarehouseUtilization(
+    @Args('facilityId') facilityId: string,
+    @Args('zoneCode') zoneCode: string | null,
+    @Context() context: any
+  ) {
+    const analysis = await this.binOptimizationService.analyzeWarehouseUtilization(
+      facilityId,
+      zoneCode || undefined
+    );
+
+    return {
+      facilityId: analysis.facilityId,
+      totalLocations: analysis.totalLocations,
+      activeLocations: analysis.activeLocations,
+      averageUtilization: analysis.averageUtilization,
+      utilizationByZone: analysis.utilizationByZone,
+      underutilizedLocations: analysis.underutilizedLocations,
+      overutilizedLocations: analysis.overutilizedLocations,
+      recommendations: analysis.recommendations,
     };
   }
 }

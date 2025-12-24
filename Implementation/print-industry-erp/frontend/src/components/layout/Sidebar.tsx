@@ -9,15 +9,23 @@ import {
   ShieldCheck,
   ShoppingCart,
   BarChart3,
+  FileText,
+  Package,
+  Brain,
+  Activity,
 } from 'lucide-react';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'nav.dashboard' },
   { path: '/operations', icon: Factory, label: 'nav.operations' },
   { path: '/wms', icon: Warehouse, label: 'nav.wms' },
+  { path: '/wms/bin-utilization', icon: Package, label: 'nav.binUtilization' },
+  { path: '/wms/bin-utilization-enhanced', icon: Brain, label: 'nav.binUtilizationEnhanced' },
+  { path: '/wms/health', icon: Activity, label: 'nav.healthMonitoring' },
   { path: '/finance', icon: DollarSign, label: 'nav.finance' },
   { path: '/quality', icon: ShieldCheck, label: 'nav.quality' },
   { path: '/marketplace', icon: ShoppingCart, label: 'nav.marketplace' },
+  { path: '/procurement/purchase-orders', icon: FileText, label: 'nav.procurement' },
   { path: '/kpis', icon: BarChart3, label: 'nav.kpis' },
 ];
 

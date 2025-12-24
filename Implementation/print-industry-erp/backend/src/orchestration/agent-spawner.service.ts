@@ -23,9 +23,29 @@ export class AgentSpawnerService {
   private nc!: NatsConnection;
 
   async initialize(): Promise<void> {
-    this.nc = await connect({
-      servers: process.env.NATS_URL || 'nats://localhost:4222',
-    });
+    // Use docker-compose port mapping (4223) by default
+    const natsUrl = process.env.NATS_URL || 'nats://localhost:4223';
+
+    const connectionOptions: any = {
+      servers: natsUrl,
+      name: 'agogsaas-agent-spawner',
+      reconnect: true,
+      maxReconnectAttempts: -1,
+      reconnectTimeWait: 1000,
+    };
+
+    // If credentials are not in URL, check for separate env vars
+    if (!natsUrl.includes('@')) {
+      const user = process.env.NATS_USER;
+      const pass = process.env.NATS_PASSWORD;
+      if (user && pass) {
+        connectionOptions.user = user;
+        connectionOptions.pass = pass;
+        console.log(`[AgentSpawner] Using credentials for user: ${user}`);
+      }
+    }
+
+    this.nc = await connect(connectionOptions);
     console.log('[AgentSpawner] Connected to NATS');
   }
 
@@ -50,8 +70,8 @@ export class AgentSpawnerService {
     // 3. Spawn agent as Claude Code subprocess
     const agentProcess = this.spawnAgentProcess(agentFilePath, prompt);
 
-    // 4. Subscribe to NATS for deliverable
-    const deliverableSubject = `agog.features.${this.getAgentStream(agentId)}.${reqNumber}`;
+    // 4. Subscribe to NATS for deliverable (using deliverables pattern)
+    const deliverableSubject = `agog.deliverables.${agentId}.${this.getAgentStream(agentId)}.${reqNumber}`;
     console.log(`[AgentSpawner] Subscribing to: ${deliverableSubject}`);
 
     // 5. Wait for completion or timeout
@@ -97,32 +117,42 @@ TASK: ${reqNumber} - ${featureTitle}
       prompt += `\n\nRetrieve these deliverables from NATS before starting your work.`;
     }
 
-    // Add specific context
-    if (contextData.requirements) {
+    // Add specific context (only if minimal - avoid token burn)
+    if (contextData.requirements && contextData.requirements.length < 500) {
       prompt += `\n\nREQUIREMENTS:\n${contextData.requirements}`;
     }
 
-    if (contextData.specifications) {
+    if (contextData.specifications && JSON.stringify(contextData.specifications).length < 500) {
       prompt += `\n\nSPECIFICATIONS:\n${JSON.stringify(contextData.specifications, null, 2)}`;
     }
+
+    // TOKEN BURN PREVENTION: Don't include Sylvia's critique inline!
+    // Roy/Jen should fetch it from NATS using the previousStages URLs above
+    // This saves ~5K-10K tokens per spawn (95% reduction)
 
     // Add deliverable instructions
     prompt += `\n\nDELIVERABLE INSTRUCTIONS:
 1. Complete your work according to your agent definition
-2. Publish your FULL deliverable to NATS stream: agog.features.${stream}.${reqNumber}
+2. Publish your FULL deliverable to NATS using the pattern: agog.deliverables.${agentId}.${stream}.${reqNumber}
 3. Return a tiny completion notice (< 1000 tokens) when done
+
+AGENT OUTPUT DIRECTORY:
+- You have write access to: $AGENT_OUTPUT_DIR (environment variable)
+- Use $AGENT_OUTPUT_DIR/nats-scripts/ for NATS publishing scripts
+- Use $AGENT_OUTPUT_DIR/deliverables/ for full deliverable documents
+- Example: Write to "$AGENT_OUTPUT_DIR/nats-scripts/publish-${reqNumber}.ts"
 
 The completion notice should be JSON format:
 {
   "agent": "${agentId}",
   "req_number": "${reqNumber}",
   "status": "COMPLETE" | "BLOCKED" | "FAILED",
-  "deliverable": "nats://agog.features.${stream}.${reqNumber}",
+  "deliverable": "nats://agog.deliverables.${agentId}.${stream}.${reqNumber}",
   "summary": "Brief summary of what you completed",
   "next_agent": "name-of-next-agent" (or null if workflow complete)
 }
 
-If you encounter blockers, set status to "BLOCKED" and explain in summary.
+IMPORTANT: Set status to "COMPLETE" if your work is done, even if NATS publishing fails. Only use "BLOCKED" for actual business/technical blockers that prevent you from completing your analysis or implementation.
 `;
 
     return prompt;
@@ -137,85 +167,110 @@ If you encounter blockers, set status to "BLOCKED" and explain in summary.
     const claudeCommand = process.env.CLAUDE_CLI_PATH || 'claude';
 
     const args = [
-      'task',
       '--agent', agentFilePath,
-      '--prompt', prompt,
+      '--print',  // Non-interactive mode
+      '--no-session-persistence',  // Don't save sessions
     ];
 
-    console.log(`[AgentSpawner] Executing: ${claudeCommand} ${args.slice(0, 2).join(' ')}`);
+    console.log(`[AgentSpawner] Executing: ${claudeCommand} --agent ${path.basename(agentFilePath)} --print`);
+    console.log(`[AgentSpawner] Prompt length: ${prompt.length} chars`);
 
-    const process = spawn(claudeCommand, args, {
+    const agentProcess = spawn(claudeCommand, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true, // Required for Windows to find .cmd files in PATH
       env: {
         ...process.env,
-        // Pass through necessary environment variables
+        // Pass agent output directory for file writes
+        AGENT_OUTPUT_DIR: path.join(process.cwd(), 'agent-output'),
+        // Ensure NATS URL is available
+        NATS_URL: process.env.NATS_URL || 'nats://localhost:4223',
       },
     });
 
-    // Log stdout
-    process.stdout?.on('data', (data) => {
-      console.log(`[Agent Output] ${data.toString().trim()}`);
-    });
+    // Write prompt to stdin
+    if (agentProcess.stdin) {
+      agentProcess.stdin.write(prompt);
+      agentProcess.stdin.end();
+    }
 
-    // Log stderr
-    process.stderr?.on('data', (data) => {
+    // Note: stdout is collected in waitForCompletion() to parse JSON
+    // We log stderr for debugging
+    agentProcess.stderr?.on('data', (data: Buffer) => {
       console.error(`[Agent Error] ${data.toString().trim()}`);
     });
 
-    return process;
+    return agentProcess;
   }
 
   /**
-   * Wait for agent to publish deliverable to NATS
+   * Wait for agent to complete and parse output
    */
   private async waitForCompletion(
     subject: string,
-    process: ChildProcess,
+    agentProcess: ChildProcess,
     timeoutMs: number
   ): Promise<AgentDeliverable> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        process.kill('SIGTERM');
+        agentProcess.kill('SIGTERM');
         reject(new Error(`Agent timeout after ${timeoutMs}ms`));
       }, timeoutMs);
 
-      let processExited = false;
+      let stdoutBuffer = '';
 
-      // Subscribe to NATS for deliverable
-      (async () => {
-        const sub = this.nc.subscribe(subject);
+      // Collect stdout to parse JSON completion notice (and log it)
+      agentProcess.stdout?.on('data', (data: Buffer) => {
+        const chunk = data.toString();
+        stdoutBuffer += chunk;
+        console.log(`[Agent Output] ${chunk.trim()}`);
+      });
 
-        for await (const msg of sub) {
+      // Handle process exit - parse stdout for JSON
+      agentProcess.on('exit', (code) => {
+        clearTimeout(timeout);
+
+        // Extract JSON from stdout - handle markdown code blocks
+        // First try to extract from ```json ... ``` blocks
+        let jsonText = '';
+        const codeBlockMatch = stdoutBuffer.match(/```json\s*([\s\S]*?)\s*```/);
+        if (codeBlockMatch) {
+          jsonText = codeBlockMatch[1];
+        } else {
+          // Fallback: look for {...} pattern with agent/status fields
+          const jsonMatch = stdoutBuffer.match(/\{[\s\S]*?"agent"[\s\S]*?"status"[\s\S]*?\}/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+        }
+
+        if (jsonText) {
           try {
-            const deliverable = JSON.parse(msg.string());
-            clearTimeout(timeout);
-            sub.unsubscribe();
+            const deliverable = JSON.parse(jsonText);
 
             // Verify deliverable format
             if (!deliverable.req_number || !deliverable.agent || !deliverable.status) {
-              reject(new Error('Invalid deliverable format'));
+              reject(new Error('Invalid deliverable format in stdout'));
               return;
             }
 
+            console.log(`[AgentSpawner] Parsed completion notice from stdout: ${deliverable.status}`);
             resolve(deliverable);
-            break;
+            return;
           } catch (error) {
-            console.error('[AgentSpawner] Failed to parse deliverable:', error);
+            console.error('[AgentSpawner] Failed to parse JSON from stdout:', error);
           }
         }
-      })();
 
-      // Handle process exit
-      process.on('exit', (code) => {
-        processExited = true;
+        // If no JSON found or parsing failed, reject
         if (code !== 0 && code !== null) {
-          clearTimeout(timeout);
           reject(new Error(`Agent process exited with code ${code}`));
+        } else {
+          reject(new Error('Agent completed but no valid JSON completion notice found'));
         }
       });
 
       // Handle process error
-      process.on('error', (error) => {
+      agentProcess.on('error', (error) => {
         clearTimeout(timeout);
         reject(new Error(`Agent process error: ${error.message}`));
       });
@@ -226,8 +281,35 @@ If you encounter blockers, set status to "BLOCKED" and explain in summary.
    * Get agent file path
    */
   private getAgentFilePath(agentId: string): string {
-    const agentFileName = `${agentId}.md`;
-    return path.join(process.cwd(), '.claude', 'agents', agentFileName);
+    // Try multiple locations for agent files
+    const possibleDirs = [
+      // Docker: /workspace/.claude/agents (if mounted)
+      process.env.AGENTS_DIR,
+      // Local dev: relative to backend directory
+      path.join(process.cwd(), '..', '..', '..', '.claude', 'agents'),
+      // Fallback: current working directory
+      path.join(process.cwd(), '.claude', 'agents'),
+    ].filter(Boolean) as string[];
+
+    for (const agentsDir of possibleDirs) {
+      if (!fs.existsSync(agentsDir)) {
+        continue;
+      }
+
+      // Agent files follow pattern: agentId-*.md (e.g., cynthia-research.md)
+      const files = fs.readdirSync(agentsDir);
+      const matches = files.filter(f =>
+        f.startsWith(`${agentId}-`) && f.endsWith('.md')
+      );
+
+      if (matches.length > 0) {
+        const agentPath = path.join(agentsDir, matches[0]);
+        console.log(`[AgentSpawner] Found agent ${agentId} at: ${agentPath}`);
+        return agentPath;
+      }
+    }
+
+    throw new Error(`Agent file not found for ${agentId}. Searched: ${possibleDirs.join(', ')}`);
   }
 
   /**

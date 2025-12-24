@@ -1,4 +1,3 @@
-import { connect as natsConnect } from 'nats';
 import axios from 'axios';
 import { Pool } from 'pg';
 
@@ -22,7 +21,6 @@ export interface SystemHealth {
 
 export class HealthMonitorService {
   private pool: Pool;
-  private natsUrl: string;
 
   constructor() {
     // Use DATABASE_URL connection string (set by docker-compose)
@@ -33,7 +31,6 @@ export class HealthMonitorService {
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
     });
-    this.natsUrl = process.env.NATS_URL || 'nats://localhost:4222';
   }
 
   async checkSystemHealth(): Promise<SystemHealth> {
@@ -41,7 +38,7 @@ export class HealthMonitorService {
       this.checkBackend(),
       this.checkFrontend(),
       this.checkDatabase(),
-      this.checkNATS(),
+      this.checkNats(),
     ]);
 
     const overall = this.calculateOverallHealth([backend, frontend, database, nats]);
@@ -55,11 +52,8 @@ export class HealthMonitorService {
       timestamp: new Date(),
     };
 
-    // Save to database and publish to NATS
-    await Promise.all([
-      this.saveHealthHistory(health),
-      this.publishHealth(health),
-    ]);
+    // Save to database
+    await this.saveHealthHistory(health);
 
     return health;
   }
@@ -135,50 +129,28 @@ export class HealthMonitorService {
     }
   }
 
-  private async checkNATS(): Promise<ComponentHealth> {
-    const startTime = Date.now();
-    try {
-      const nc = await natsConnect({ servers: this.natsUrl, timeout: 5000 });
-      await nc.close();
-      const responseTime = Date.now() - startTime;
-      return {
-        name: 'nats',
-        status: 'OPERATIONAL',
-        lastCheck: new Date(),
-        responseTime,
-      };
-    } catch (error: any) {
-      return {
-        name: 'nats',
-        status: 'DOWN',
-        lastCheck: new Date(),
-        responseTime: Date.now() - startTime,
-        error: error.message,
-      };
-    }
+  private async checkNats(): Promise<ComponentHealth> {
+    // NATS is not available in production application (agent-only service)
+    // Return UNKNOWN status instead of DOWN to indicate it's not applicable
+    return {
+      name: 'nats',
+      status: 'UNKNOWN',
+      lastCheck: new Date(),
+      responseTime: 0,
+      error: 'NATS not available in production (agent development only)',
+    };
   }
 
   private calculateOverallHealth(
     components: ComponentHealth[]
   ): 'OPERATIONAL' | 'DEGRADED' | 'DOWN' {
-    const upCount = components.filter(c => c.status === 'OPERATIONAL').length;
+    // Only count application components (exclude NATS/UNKNOWN status)
+    const appComponents = components.filter(c => c.status !== 'UNKNOWN');
+    const upCount = appComponents.filter(c => c.status === 'OPERATIONAL').length;
 
-    if (upCount === 4) return 'OPERATIONAL';
-    if (upCount >= 2) return 'DEGRADED';
+    if (upCount === appComponents.length) return 'OPERATIONAL';
+    if (upCount >= Math.floor(appComponents.length / 2)) return 'DEGRADED';
     return 'DOWN';
-  }
-
-  private async publishHealth(health: SystemHealth): Promise<void> {
-    try {
-      const nc = await natsConnect({ servers: this.natsUrl });
-      await nc.publish(
-        'agog.monitoring.health',
-        JSON.stringify(health)
-      );
-      await nc.close();
-    } catch (error) {
-      console.error('[Health] Failed to publish to NATS:', error);
-    }
   }
 
   /**
@@ -263,12 +235,17 @@ export class HealthMonitorService {
         const health = await this.checkSystemHealth();
         console.log(
           `[Health] ${health.overall} - Backend: ${health.backend.status}, ` +
-          `Frontend: ${health.frontend.status}, DB: ${health.database.status}, NATS: ${health.nats.status}`
+          `Frontend: ${health.frontend.status}, DB: ${health.database.status}`
         );
       } catch (error) {
         console.error('[Health] Check failed:', error);
       }
     }, intervalMs);
+  }
+
+  stopMonitoring(): void {
+    // Stop monitoring interval if implemented
+    console.log('[Health] Monitoring stopped');
   }
 
   async close(): Promise<void> {

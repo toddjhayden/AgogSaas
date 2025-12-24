@@ -45,12 +45,81 @@ SELECT * FROM customers;  -- Should only return tenant B customers
 - Test surrogate key + business identifier uniqueness
 
 ### 3. API Security Testing
+
+**CRITICAL: Use Playwright MCP for Backend API Testing**
+
+When testing GraphQL/REST APIs:
+- **ALWAYS use Playwright MCP** to test API endpoints
+- Use `page.request` API for HTTP requests
+- Verify response codes, data structure, and error handling
+- Test with real network conditions
+- Document results with screenshots of responses
+
+Example Playwright API Testing:
+```typescript
+// 1. Test GraphQL endpoint
+const response = await page.request.post('http://localhost:4000/graphql', {
+  data: {
+    query: `{ systemHealth { overall backend { status } } }`
+  }
+});
+expect(response.ok()).toBeTruthy();
+const data = await response.json();
+expect(data.errors).toBeUndefined();
+
+// 2. Verify authentication
+const authResponse = await page.request.post('http://localhost:4000/graphql', {
+  headers: { 'Authorization': 'Bearer invalid-token' },
+  data: { query: `{ systemErrors { id } }` }
+});
+expect(authResponse.status()).toBe(401);
+
+// 3. Test SQL injection protection
+const maliciousQuery = `{ systemErrors(limit: "1' OR '1'='1") { id } }`;
+const securityTest = await page.request.post('http://localhost:4000/graphql', {
+  data: { query: maliciousQuery }
+});
+expect(securityTest.ok()).toBeFalsy(); // Should reject malicious input
+```
+
+Security Tests:
 - JWT token validation
 - Permission checks
 - Rate limiting
 - Input validation (SQL injection, XSS)
 
 ### 4. Frontend Testing
+
+**CRITICAL: Use Playwright MCP for User Experience Testing**
+
+When testing frontend features:
+- **ALWAYS use Playwright MCP** to test the actual user experience
+- Do NOT rely only on code inspection or curl requests
+- Verify the page loads in a real browser
+- Check for console errors, visual rendering, and user interactions
+- Take screenshots to document the working feature
+
+Example Playwright MCP workflow:
+```typescript
+// 1. Navigate to the feature
+await page.goto('http://localhost:3000/monitoring');
+
+// 2. Wait for page to load
+await page.waitForLoadState('networkidle');
+
+// 3. Verify no console errors
+const errors = await page.evaluate(() => window.console.errors);
+expect(errors).toHaveLength(0);
+
+// 4. Verify elements are visible
+await expect(page.locator('[data-testid="system-health-card"]')).toBeVisible();
+await expect(page.locator('[data-testid="current-errors-card"]')).toBeVisible();
+
+// 5. Take screenshot
+await page.screenshot({ path: 'monitoring-dashboard-working.png' });
+```
+
+Additional Tests:
 - Component unit tests (Vitest)
 - E2E tests (Playwright)
 - Accessibility (axe-core)
@@ -58,18 +127,34 @@ SELECT * FROM customers;  -- Should only return tenant B customers
 
 ## Your Deliverable
 
+### File Write Access
+
+You have write access to the agent output directory via the `$AGENT_OUTPUT_DIR` environment variable:
+
+- **NATS Scripts**: `$AGENT_OUTPUT_DIR/nats-scripts/` - Write TypeScript/Node scripts to publish to NATS
+- **Full Deliverables**: `$AGENT_OUTPUT_DIR/deliverables/` - Store full QA test reports
+
+Example:
+```typescript
+// Write to: $AGENT_OUTPUT_DIR/nats-scripts/publish-REQ-ITEM-MASTER-001.ts
+// Write to: $AGENT_OUTPUT_DIR/deliverables/billy-qa-REQ-ITEM-MASTER-001.md
+```
+
 ### Output 1: Completion Notice
+
+**IMPORTANT**: Always use `status: "COMPLETE"` when your QA testing is done. Only use `status: "BLOCKED"` for actual blockers that prevent testing.
+
 ```json
 {
-  "status": "complete",
   "agent": "billy",
-  "task": "[feature-name]",
-  "nats_channel": "agog.deliverables.billy.qa.[feature-name]",
+  "req_number": "REQ-XXX-YYY",
+  "status": "COMPLETE",
+  "deliverable": "nats://agog.features.qa.REQ-XXX-YYY",
   "summary": "QA complete for [feature]. All tests passing (98/98). Tenant isolation verified. No security vulnerabilities. Accessibility score: 100%.",
   "tests_passed": "98/98",
   "security_issues": 0,
   "accessibility_score": 100,
-  "ready_for_deployment": true
+  "next_agent": "priya"
 }
 ```
 

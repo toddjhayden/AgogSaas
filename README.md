@@ -20,38 +20,59 @@ AI-powered Enterprise Resource Planning system for the packaging industry with 4
 
 ## Quick Start
 
-**Automated Setup (Recommended):**
+**AgogSaaS has TWO separate systems:**
+
+### 1. Start the Application Stack (Production ERP)
 
 ```bash
 # Windows
-quick-start.bat
+RUN_APPLICATION.bat
 
 # Linux/Mac
-./quick-start.sh
+./run-application.sh
 ```
 
-The script will:
-1. Check your `.env` configuration
-2. Start all services (PostgreSQL, NATS, Backend, Frontend, Monitoring)
-3. Run database migrations
-4. Set up NATS streams
-5. Show you where to access everything
+This starts:
+- PostgreSQL (business database)
+- Backend (GraphQL API)
+- Frontend (React UI)
 
-**Manual Setup:**
+Access:
+- **App:** http://localhost:3000
+- **Monitoring:** http://localhost:3000/monitoring
+- **GraphQL API:** http://localhost:4000/graphql
+
+### 2. Start the Agent Development System (Optional - For AI Development)
+
+```bash
+# Windows
+RUN_AGENTS.bat
+
+# Linux/Mac
+./run-agents.sh
+```
+
+This starts:
+- PostgreSQL with pgvector (agent memory)
+- NATS JetStream (agent communication)
+- Agent Backend (orchestrator)
+- Ollama (local AI embeddings)
+
+**Note:** The application works WITHOUT agents. Only start agents if you're doing AI-assisted development.
+
+### Manual Setup (Advanced):
 
 ```bash
 # 1. Configure environment
 cp .env.example .env
-# Edit .env: Add DB_PASSWORD and OPENAI_API_KEY
+# Edit .env: Add DB_PASSWORD (OPENAI_API_KEY optional)
 
-# 2. Start services
-docker-compose up -d
+# 2. Start application stack
+cd Implementation/print-industry-erp
+docker-compose -f docker-compose.app.yml up -d
 
-# 3. Run migrations
-docker-compose exec backend npm run migrate
-
-# 4. Setup NATS
-docker-compose exec backend node scripts/setup-nats-streams.js
+# 3. (Optional) Start agent system
+docker-compose -f docker-compose.agents.yml up -d
 
 # Access:
 # - App: http://localhost:3000
@@ -65,17 +86,21 @@ docker-compose exec backend node scripts/setup-nats-streams.js
 agogsaas/
 ├── Implementation/
 │   └── print-industry-erp/
-│       ├── backend/          # GraphQL API + AI layers
-│       ├── frontend/         # React web application
-│       ├── database/         # Database schemas & migrations
-│       ├── data-models/      # YAML schema definitions
-│       └── src/              # Implementation code
-├── project-architecture/     # System design
-├── project-spirit/           # Vision and business value
-├── Standards/                # Development standards
-├── docs/                     # Documentation
-├── .claude/agents/           # AI agent definitions
-└── CONSTRAINTS.md            # Hard rules (must follow)
+│       ├── docker-compose.app.yml      # Application stack (production)
+│       ├── docker-compose.agents.yml   # Agent system (dev only)
+│       ├── backend/                    # GraphQL API
+│       ├── frontend/                   # React web application
+│       ├── database/                   # Database schemas & migrations
+│       └── data-models/                # YAML schema definitions
+├── project-architecture/               # System design
+├── project-spirit/                     # Vision and business value
+├── Standards/                          # Development standards
+├── docs/                               # Documentation
+├── .claude/
+│   ├── agents/                         # AI agent definitions
+│   ├── RUN_APPLICATION.bat             # Start application stack
+│   └── RUN_AGENTS.bat                  # Start agent system
+└── CONSTRAINTS.md                      # Hard rules (must follow)
 ```
 
 ## 4-Layer AI System
