@@ -1,0 +1,158 @@
+# ConfigMap for Bin Utilization Optimization Configuration
+# REQ-STRATEGIC-AUTO-1766516942302
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bin-optimization-config
+  namespace: production
+  labels:
+    app: agogsaas-backend
+    feature: bin-optimization
+data:
+  # Health check thresholds
+  HEALTH_CHECK_CACHE_AGE_WARNING_MINUTES: "15"
+  HEALTH_CHECK_CACHE_AGE_CRITICAL_MINUTES: "30"
+  HEALTH_CHECK_ML_ACCURACY_WARNING: "75"
+  HEALTH_CHECK_ML_ACCURACY_CRITICAL: "70"
+  HEALTH_CHECK_CONFIDENCE_WARNING: "0.75"
+  HEALTH_CHECK_CONFIDENCE_CRITICAL: "0.65"
+
+  # Algorithm configuration
+  BIN_OPTIMIZATION_ALGORITHM: "HYBRID"
+  FFD_ENABLED: "true"
+  BFD_ENABLED: "true"
+  CROSS_DOCK_ENABLED: "true"
+  CONGESTION_AVOIDANCE_ENABLED: "true"
+  SKU_AFFINITY_ENABLED: "true"
+
+  # Performance tuning
+  MAX_CANDIDATE_LOCATIONS: "50"
+  BATCH_SIZE_LIMIT: "1000"
+  QUERY_TIMEOUT_MS: "5000"
+  CACHE_TTL_MINUTES: "5"
+
+  # ML configuration
+  ML_MODEL_ENABLED: "true"
+  ML_FEEDBACK_ENABLED: "true"
+  ML_TRAINING_THRESHOLD: "100"
+  ML_ACCURACY_TARGET: "85"
+
+  # Materialized view refresh
+  MATERIALIZED_VIEW_REFRESH_INTERVAL_MINUTES: "10"
+  MATERIALIZED_VIEW_CONCURRENT_REFRESH: "true"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alerts
+  namespace: production
+  labels:
+    app: agogsaas-backend
+    feature: bin-optimization
+data:
+  alerts.yaml: |
+    groups:
+      - name: bin_optimization
+        interval: 30s
+        rules:
+          # Cache age alerts
+          - alert: BinUtilizationCacheStale
+            expr: bin_utilization_cache_age_seconds > 1800
+            for: 5m
+            labels:
+              severity: critical
+              component: bin-optimization
+            annotations:
+              summary: "Bin utilization cache is stale"
+              description: "Cache age is {{ $value | humanizeDuration }}. Expected <15 minutes."
+              runbook_url: "https://docs.agogsaas.com/runbooks/bin-optimization/cache-stale"
+
+          - alert: BinUtilizationCacheDegraded
+            expr: bin_utilization_cache_age_seconds > 900
+            for: 5m
+            labels:
+              severity: warning
+              component: bin-optimization
+            annotations:
+              summary: "Bin utilization cache is degraded"
+              description: "Cache age is {{ $value | humanizeDuration }}. Expected <15 minutes."
+
+          # ML model accuracy alerts
+          - alert: MLModelAccuracyLow
+            expr: ml_model_accuracy_percentage < 70
+            for: 1h
+            labels:
+              severity: critical
+              component: bin-optimization
+            annotations:
+              summary: "ML model accuracy critically low"
+              description: "ML accuracy is {{ $value }}%. Expected >80%."
+              runbook_url: "https://docs.agogsaas.com/runbooks/bin-optimization/ml-accuracy-low"
+
+          - alert: MLModelAccuracyDegraded
+            expr: ml_model_accuracy_percentage < 80
+            for: 30m
+            labels:
+              severity: warning
+              component: bin-optimization
+            annotations:
+              summary: "ML model accuracy degraded"
+              description: "ML accuracy is {{ $value }}%. Expected >85%."
+
+          # Performance alerts
+          - alert: PutawayProcessingTimeSlow
+            expr: histogram_quantile(0.95, batch_putaway_processing_time_ms_bucket) > 2000
+            for: 15m
+            labels:
+              severity: warning
+              component: bin-optimization
+            annotations:
+              summary: "Putaway processing time is slow"
+              description: "P95 processing time is {{ $value }}ms. Expected <2000ms."
+
+          - alert: PutawayProcessingTimeCritical
+            expr: histogram_quantile(0.95, batch_putaway_processing_time_ms_bucket) > 5000
+            for: 10m
+            labels:
+              severity: critical
+              component: bin-optimization
+            annotations:
+              summary: "Putaway processing time critically slow"
+              description: "P95 processing time is {{ $value }}ms. Expected <2000ms."
+              runbook_url: "https://docs.agogsaas.com/runbooks/bin-optimization/slow-processing"
+
+          # Acceptance rate alerts
+          - alert: PutawayAcceptanceRateLow
+            expr: putaway_acceptance_rate_percentage < 60
+            for: 2h
+            labels:
+              severity: warning
+              component: bin-optimization
+            annotations:
+              summary: "Putaway acceptance rate is low"
+              description: "Acceptance rate is {{ $value }}%. Expected >80%."
+
+          # Confidence score alerts
+          - alert: PutawayConfidenceLow
+            expr: histogram_quantile(0.50, putaway_recommendation_confidence_score_bucket) < 0.65
+            for: 1h
+            labels:
+              severity: warning
+              component: bin-optimization
+            annotations:
+              summary: "Putaway confidence scores are low"
+              description: "Median confidence is {{ $value }}. Expected >0.75."
+
+          # Error rate alerts
+          - alert: BinOptimizationErrorRateHigh
+            expr: rate(putaway_recommendations_total{status="error"}[5m]) / rate(putaway_recommendations_total[5m]) > 0.05
+            for: 10m
+            labels:
+              severity: critical
+              component: bin-optimization
+            annotations:
+              summary: "Bin optimization error rate is high"
+              description: "Error rate is {{ $value | humanizePercentage }}. Expected <1%."
+              runbook_url: "https://docs.agogsaas.com/runbooks/bin-optimization/high-error-rate"

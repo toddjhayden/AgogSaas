@@ -1,0 +1,353 @@
+# CI/CD Pipeline for Bin Utilization Optimization Feature
+# REQ-STRATEGIC-AUTO-1766516942302
+#
+# This workflow:
+# 1. Runs tests on backend and frontend
+# 2. Builds Docker images
+# 3. Deploys to staging/production
+# 4. Verifies health checks
+
+name: Bin Optimization CI/CD
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'print-industry-erp/backend/src/modules/wms/**'
+      - 'print-industry-erp/backend/migrations/V0.0.1[5-8]**'
+      - 'print-industry-erp/frontend/src/pages/BinOptimization**'
+      - '.github/workflows/bin-optimization-ci.yml'
+  pull_request:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'print-industry-erp/backend/src/modules/wms/**'
+      - 'print-industry-erp/backend/migrations/V0.0.1[5-8]**'
+      - 'print-industry-erp/frontend/src/pages/BinOptimization**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================================================
+  # JOB 1: BACKEND TESTS
+  # ============================================================================
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: agogsaas_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: print-industry-erp/backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: print-industry-erp/backend
+        run: npm ci
+
+      - name: Run migrations
+        working-directory: print-industry-erp/backend
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/agogsaas_test
+        run: |
+          npm run migrate
+
+      - name: Run unit tests
+        working-directory: print-industry-erp/backend
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/agogsaas_test
+          NODE_ENV: test
+        run: npm test -- --coverage
+
+      - name: Run integration tests
+        working-directory: print-industry-erp/backend
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/agogsaas_test
+          NODE_ENV: test
+        run: npm run test:integration
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./print-industry-erp/backend/coverage/lcov.info
+          flags: backend
+          name: backend-coverage
+
+      - name: Check TypeScript compilation
+        working-directory: print-industry-erp/backend
+        run: npm run build
+
+  # ============================================================================
+  # JOB 2: FRONTEND TESTS
+  # ============================================================================
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: print-industry-erp/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: print-industry-erp/frontend
+        run: npm ci
+
+      - name: Run linting
+        working-directory: print-industry-erp/frontend
+        run: npm run lint
+
+      - name: Run unit tests
+        working-directory: print-industry-erp/frontend
+        run: npm test -- --coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./print-industry-erp/frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+
+      - name: Build frontend
+        working-directory: print-industry-erp/frontend
+        run: npm run build
+
+  # ============================================================================
+  # JOB 3: SECURITY SCAN
+  # ============================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner (Backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'print-industry-erp/backend'
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-backend-results.sarif'
+          category: 'backend-dependencies'
+
+      - name: Run npm audit (Backend)
+        working-directory: print-industry-erp/backend
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+  # ============================================================================
+  # JOB 4: BUILD DOCKER IMAGES
+  # ============================================================================
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, security-scan]
+    if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (Backend)
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+
+      - name: Build and push Backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./print-industry-erp/backend
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: production
+
+      - name: Extract metadata (Frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./print-industry-erp/frontend
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================================
+  # JOB 5: DEPLOY TO STAGING
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-images]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.agogsaas.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Kubernetes
+        working-directory: .
+        run: |
+          kubectl apply -f k8s/staging/bin-optimization/
+          kubectl rollout status deployment/backend -n staging
+          kubectl rollout status deployment/frontend -n staging
+
+      - name: Verify health checks
+        run: |
+          sleep 30
+          kubectl exec -n staging deployment/backend -- curl -f http://localhost:4000/api/wms/optimization/health || exit 1
+
+      - name: Run smoke tests
+        run: |
+          curl -f https://staging.agogsaas.com/api/wms/optimization/health
+          curl -f https://staging.agogsaas.com/api/wms/optimization/metrics
+
+  # ============================================================================
+  # JOB 6: DEPLOY TO PRODUCTION
+  # ============================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-images]
+    if: github.ref == 'refs/heads/master'
+    environment:
+      name: production
+      url: https://app.agogsaas.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Kubernetes (Canary)
+        working-directory: .
+        run: |
+          # Deploy to 10% of pods first (canary deployment)
+          kubectl apply -f k8s/production/bin-optimization/canary/
+          kubectl rollout status deployment/backend-canary -n production
+
+      - name: Verify canary health
+        run: |
+          sleep 60
+          kubectl exec -n production deployment/backend-canary -- curl -f http://localhost:4000/api/wms/optimization/health || exit 1
+
+      - name: Monitor canary metrics
+        run: |
+          # Check error rate from Prometheus
+          # If error rate >1%, rollback
+          echo "Monitoring canary for 5 minutes..."
+          sleep 300
+
+      - name: Full deployment
+        run: |
+          kubectl apply -f k8s/production/bin-optimization/
+          kubectl rollout status deployment/backend -n production
+          kubectl rollout status deployment/frontend -n production
+
+      - name: Cleanup canary
+        run: |
+          kubectl delete -f k8s/production/bin-optimization/canary/
+
+      - name: Verify production health
+        run: |
+          curl -f https://app.agogsaas.com/api/wms/optimization/health
+          curl -f https://app.agogsaas.com/api/wms/optimization/metrics
+
+      - name: Notify deployment
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Bin Optimization Feature deployed to Production'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: always()

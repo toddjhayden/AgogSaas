@@ -1,0 +1,260 @@
+{
+  "dashboard": {
+    "title": "Bin Utilization Optimization - Production",
+    "tags": ["wms", "bin-optimization", "production"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Health Status",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "up{job=\"backend-service\", component=\"wms\"}",
+            "legendFormat": "Service Status"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "value": "0", "text": "DOWN", "color": "red"},
+              {"type": "value", "value": "1", "text": "UP", "color": "green"}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Cache Age (minutes)",
+        "type": "gauge",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "bin_utilization_cache_age_seconds / 60",
+            "legendFormat": "Cache Age"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "m",
+            "min": 0,
+            "max": 30,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 15, "color": "yellow"},
+                {"value": 30, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "ML Model Accuracy (%)",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "ml_model_accuracy_percentage",
+            "legendFormat": "Accuracy"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 70, "color": "yellow"},
+                {"value": 80, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Acceptance Rate (%)",
+        "type": "gauge",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "putaway_acceptance_rate_percentage",
+            "legendFormat": "Acceptance Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 60, "color": "yellow"},
+                {"value": 80, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Recommendations per Minute",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(putaway_recommendations_total[5m]) * 60",
+            "legendFormat": "Total Recommendations/min"
+          },
+          {
+            "expr": "rate(putaway_recommendations_total{status=\"accepted\"}[5m]) * 60",
+            "legendFormat": "Accepted/min"
+          },
+          {
+            "expr": "rate(putaway_recommendations_total{status=\"rejected\"}[5m]) * 60",
+            "legendFormat": "Rejected/min"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Recommendations/min"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Processing Time (P50, P95, P99)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(batch_putaway_processing_time_ms_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(batch_putaway_processing_time_ms_bucket[5m]))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(batch_putaway_processing_time_ms_bucket[5m]))",
+            "legendFormat": "P99"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Processing Time"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "name": "High Processing Time",
+          "conditions": [
+            {
+              "evaluator": {"params": [2000], "type": "gt"},
+              "query": {"params": ["B", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ]
+        }
+      },
+      {
+        "id": 7,
+        "title": "Confidence Score Distribution",
+        "type": "heatmap",
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(putaway_recommendation_confidence_score_bucket[5m])",
+            "legendFormat": "Confidence: {{le}}"
+          }
+        ],
+        "dataFormat": "tsbuckets"
+      },
+      {
+        "id": 8,
+        "title": "Cache Age Trend (24h)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "bin_utilization_cache_age_seconds / 60",
+            "legendFormat": "Cache Age (minutes)"
+          }
+        ],
+        "yaxes": [
+          {"format": "m", "label": "Minutes"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "ML Accuracy Trend (7 days)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "ml_model_accuracy_percentage",
+            "legendFormat": "Accuracy (%)"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Accuracy", "min": 0, "max": 100},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(putaway_recommendations_total{status=\"error\"}[5m]) / rate(putaway_recommendations_total[5m]) * 100",
+            "legendFormat": "Error Rate (%)"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Error Rate"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "name": "High Error Rate",
+          "conditions": [
+            {
+              "evaluator": {"params": [1], "type": "gt"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

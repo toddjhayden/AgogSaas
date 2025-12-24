@@ -1,0 +1,198 @@
+# CronJob for Materialized View Refresh
+# REQ-STRATEGIC-AUTO-1766516942302
+#
+# Backup mechanism to refresh materialized views every 10 minutes
+# Primary refresh is via database triggers, this is a safety net
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bin-utilization-cache-refresh
+  namespace: production
+  labels:
+    app: agogsaas-backend
+    component: wms
+    feature: bin-optimization
+spec:
+  # Run every 10 minutes
+  schedule: "*/10 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # Don't run multiple instances
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: agogsaas-backend
+        component: wms
+        feature: bin-optimization
+        job: cache-refresh
+    spec:
+      template:
+        metadata:
+          labels:
+            app: agogsaas-backend
+            job: cache-refresh
+        spec:
+          serviceAccountName: agogsaas-backend
+          restartPolicy: OnFailure
+
+          containers:
+            - name: refresh-cache
+              image: postgres:16
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  psql $DATABASE_URL -c "SELECT scheduled_refresh_bin_utilization();"
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: url
+              resources:
+                limits:
+                  memory: "256Mi"
+                  cpu: "250m"
+                requests:
+                  memory: "128Mi"
+                  cpu: "100m"
+
+---
+# CronJob for ML Model Training
+# Runs weekly to retrain the ML model with feedback data
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bin-optimization-ml-training
+  namespace: production
+  labels:
+    app: agogsaas-backend
+    component: wms
+    feature: bin-optimization
+spec:
+  # Run every Sunday at 2 AM
+  schedule: "0 2 * * 0"
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: agogsaas-backend
+        component: wms
+        feature: bin-optimization
+        job: ml-training
+    spec:
+      template:
+        metadata:
+          labels:
+            app: agogsaas-backend
+            job: ml-training
+        spec:
+          serviceAccountName: agogsaas-backend
+          restartPolicy: OnFailure
+
+          containers:
+            - name: ml-training
+              image: ghcr.io/agogsaas/backend:master
+              command:
+                - node
+                - dist/scripts/train-ml-model.js
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: url
+                - name: NODE_ENV
+                  value: "production"
+              resources:
+                limits:
+                  memory: "4Gi"
+                  cpu: "2000m"
+                requests:
+                  memory: "2Gi"
+                  cpu: "1000m"
+
+---
+# CronJob for Data Quality Audit
+# Runs daily to check for data quality issues
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bin-optimization-data-quality-audit
+  namespace: production
+  labels:
+    app: agogsaas-backend
+    component: wms
+    feature: bin-optimization
+spec:
+  # Run daily at 1 AM
+  schedule: "0 1 * * *"
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: agogsaas-backend
+        component: wms
+        feature: bin-optimization
+        job: data-quality-audit
+    spec:
+      template:
+        metadata:
+          labels:
+            app: agogsaas-backend
+            job: data-quality-audit
+        spec:
+          serviceAccountName: agogsaas-backend
+          restartPolicy: OnFailure
+
+          containers:
+            - name: data-quality-audit
+              image: postgres:16
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Running data quality audit..."
+
+                  # Check for missing dimensions
+                  MISSING_DIMS=$(psql $DATABASE_URL -t -c "SELECT COUNT(*) FROM materials WHERE width_inches IS NULL OR height_inches IS NULL;")
+                  echo "Materials with missing dimensions: $MISSING_DIMS"
+
+                  # Check for missing ABC classification
+                  MISSING_ABC=$(psql $DATABASE_URL -t -c "SELECT COUNT(*) FROM materials WHERE abc_classification IS NULL;")
+                  echo "Materials with missing ABC classification: $MISSING_ABC"
+
+                  # Check for invalid bin capacity
+                  INVALID_BINS=$(psql $DATABASE_URL -t -c "SELECT COUNT(*) FROM inventory_locations WHERE cubic_feet <= 0 OR max_weight_lbs <= 0;")
+                  echo "Invalid bin capacity: $INVALID_BINS"
+
+                  # Alert if issues found
+                  if [ "$MISSING_DIMS" -gt "0" ] || [ "$MISSING_ABC" -gt "100" ] || [ "$INVALID_BINS" -gt "0" ]; then
+                    echo "WARNING: Data quality issues detected!"
+                    exit 1
+                  fi
+
+                  echo "Data quality audit passed."
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: url
+              resources:
+                limits:
+                  memory: "256Mi"
+                  cpu: "250m"
+                requests:
+                  memory: "128Mi"
+                  cpu: "100m"
