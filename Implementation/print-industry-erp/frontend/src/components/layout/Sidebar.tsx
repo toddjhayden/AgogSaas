@@ -13,6 +13,11 @@ import {
   Package,
   Brain,
   Activity,
+  Shield,
+  Box,
+  Layers,
+  Award,
+  Users,
 } from 'lucide-react';
 
 const navItems = [
@@ -22,10 +27,15 @@ const navItems = [
   { path: '/wms/bin-utilization', icon: Package, label: 'nav.binUtilization' },
   { path: '/wms/bin-utilization-enhanced', icon: Brain, label: 'nav.binUtilizationEnhanced' },
   { path: '/wms/health', icon: Activity, label: 'nav.healthMonitoring' },
+  { path: '/wms/data-quality', icon: Shield, label: 'nav.dataQuality' },
+  { path: '/wms/fragmentation', icon: Box, label: 'nav.fragmentation' },
+  { path: '/wms/3d-optimization', icon: Layers, label: 'nav.3dOptimization' },
   { path: '/finance', icon: DollarSign, label: 'nav.finance' },
   { path: '/quality', icon: ShieldCheck, label: 'nav.quality' },
   { path: '/marketplace', icon: ShoppingCart, label: 'nav.marketplace' },
   { path: '/procurement/purchase-orders', icon: FileText, label: 'nav.procurement' },
+  { path: '/procurement/vendor-scorecard', icon: Award, label: 'nav.vendorScorecard' },
+  { path: '/procurement/vendor-comparison', icon: Users, label: 'nav.vendorComparison' },
   { path: '/kpis', icon: BarChart3, label: 'nav.kpis' },
 ];
 

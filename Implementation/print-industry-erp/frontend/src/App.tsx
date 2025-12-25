@@ -21,6 +21,11 @@ import { CreatePurchaseOrderPage } from './pages/CreatePurchaseOrderPage';
 import { BinUtilizationDashboard } from './pages/BinUtilizationDashboard';
 import { BinUtilizationEnhancedDashboard } from './pages/BinUtilizationEnhancedDashboard';
 import { BinOptimizationHealthDashboard } from './pages/BinOptimizationHealthDashboard';
+import { BinDataQualityDashboard } from './pages/BinDataQualityDashboard';
+import { BinFragmentationDashboard } from './pages/BinFragmentationDashboard';
+import { Bin3DOptimizationDashboard } from './pages/Bin3DOptimizationDashboard';
+import { VendorScorecardDashboard } from './pages/VendorScorecardDashboard';
+import { VendorComparisonDashboard } from './pages/VendorComparisonDashboard';
 import './index.css';
 
 const App: React.FC = () => {
@@ -48,6 +53,11 @@ const App: React.FC = () => {
                 <Route path="/wms/bin-utilization" element={<BinUtilizationDashboard />} />
                 <Route path="/wms/bin-utilization-enhanced" element={<BinUtilizationEnhancedDashboard />} />
                 <Route path="/wms/health" element={<BinOptimizationHealthDashboard />} />
+                <Route path="/wms/data-quality" element={<BinDataQualityDashboard />} />
+                <Route path="/wms/fragmentation" element={<BinFragmentationDashboard />} />
+                <Route path="/wms/3d-optimization" element={<Bin3DOptimizationDashboard />} />
+                <Route path="/procurement/vendor-scorecard" element={<VendorScorecardDashboard />} />
+                <Route path="/procurement/vendor-comparison" element={<VendorComparisonDashboard />} />
               </Route>
             </Routes>
           </Router>
