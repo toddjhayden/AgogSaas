@@ -513,7 +513,7 @@ export class BinUtilizationOptimizationEnhancedService extends BinUtilizationOpt
     }
   }
 
-  private async getStagingLocationRecommendation(
+  protected async getStagingLocationRecommendation(
     item: any,
     crossDock: CrossDockOpportunity
   ): Promise<EnhancedPutawayRecommendation | null> {

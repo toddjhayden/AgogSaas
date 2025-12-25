@@ -79,6 +79,188 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
   }
 
   // ==========================================================================
+  // SECURITY & INPUT VALIDATION
+  // ==========================================================================
+
+  /**
+   * Validate input bounds to prevent extreme values
+   * Implements Sylvia's Recommendation: Input Validation
+   */
+  private validateInputBounds(quantity: number, dimensions?: ItemDimensions): void {
+    const errors: string[] = [];
+
+    // Quantity validation
+    if (quantity === null || quantity === undefined || isNaN(quantity)) {
+      errors.push('Quantity must be a valid number');
+    } else if (quantity <= 0) {
+      errors.push('Quantity must be greater than 0');
+    } else if (quantity > 1000000) {
+      errors.push('Quantity exceeds maximum limit of 1,000,000');
+    }
+
+    // Dimensions validation (if provided)
+    if (dimensions) {
+      if (dimensions.cubicFeet !== undefined) {
+        if (isNaN(dimensions.cubicFeet) || !isFinite(dimensions.cubicFeet)) {
+          errors.push('Cubic feet must be a valid finite number');
+        } else if (dimensions.cubicFeet <= 0) {
+          errors.push('Cubic feet must be greater than 0');
+        } else if (dimensions.cubicFeet > 10000) {
+          errors.push('Cubic feet exceeds maximum limit of 10,000');
+        }
+      }
+
+      if (dimensions.weightLbsPerUnit !== undefined) {
+        if (isNaN(dimensions.weightLbsPerUnit) || !isFinite(dimensions.weightLbsPerUnit)) {
+          errors.push('Weight must be a valid finite number');
+        } else if (dimensions.weightLbsPerUnit < 0) {
+          errors.push('Weight cannot be negative');
+        } else if (dimensions.weightLbsPerUnit > 50000) {
+          errors.push('Weight exceeds maximum limit of 50,000 lbs');
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Input validation failed: ${errors.join('; ')}`);
+    }
+  }
+
+  /**
+   * Get material properties with tenant isolation
+   * SECURITY FIX: Prevents cross-tenant data access
+   */
+  private async getMaterialPropertiesSecure(materialId: string, tenantId: string): Promise<any> {
+    const query = `
+      SELECT
+        material_id,
+        material_code,
+        description,
+        weight_lbs_per_unit,
+        width_inches,
+        height_inches,
+        thickness_inches,
+        cubic_feet,
+        abc_classification,
+        facility_id,
+        temperature_controlled,
+        security_zone
+      FROM materials
+      WHERE material_id = $1
+        AND tenant_id = $2
+        AND deleted_at IS NULL
+    `;
+
+    const result = await this.pool.query(query, [materialId, tenantId]);
+
+    if (result.rows.length === 0) {
+      throw new Error(`Material ${materialId} not found or access denied for tenant ${tenantId}`);
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Get candidate locations with MANDATORY tenant_id filter
+   * SECURITY FIX: Multi-tenancy isolation
+   */
+  private async getCandidateLocationsSecure(
+    facilityId: string,
+    tenantId: string,
+    abcClassification: string,
+    temperatureControlled: boolean,
+    securityZone: string,
+    preferredLocationType?: string
+  ): Promise<BinCapacity[]> {
+    const query = `
+      WITH location_usage AS (
+        SELECT
+          il.location_id,
+          COALESCE(SUM(
+            l.quantity_on_hand *
+            (m.width_inches * m.height_inches * COALESCE(m.thickness_inches, 1)) / 1728.0
+          ), 0) as used_cubic_feet,
+          COALESCE(SUM(l.quantity_on_hand * m.weight_lbs_per_unit), 0) as current_weight
+        FROM inventory_locations il
+        LEFT JOIN lots l
+          ON il.location_id = l.location_id
+          AND l.quality_status = 'RELEASED'
+          AND l.tenant_id = $2
+        LEFT JOIN materials m
+          ON l.material_id = m.material_id
+          AND m.tenant_id = $2
+        WHERE il.facility_id = $1
+          AND il.tenant_id = $2
+        GROUP BY il.location_id
+      )
+      SELECT
+        il.location_id,
+        il.location_code,
+        il.location_type,
+        il.cubic_feet as total_cubic_feet,
+        COALESCE(lu.used_cubic_feet, 0) as used_cubic_feet,
+        (il.cubic_feet - COALESCE(lu.used_cubic_feet, 0)) as available_cubic_feet,
+        il.max_weight_lbs,
+        COALESCE(lu.current_weight, 0) as current_weight_lbs,
+        (il.max_weight_lbs - COALESCE(lu.current_weight, 0)) as available_weight_lbs,
+        CASE
+          WHEN il.cubic_feet > 0
+          THEN (COALESCE(lu.used_cubic_feet, 0) / il.cubic_feet) * 100
+          ELSE 0
+        END as utilization_percentage,
+        COALESCE(il.abc_classification, 'C') as abc_classification,
+        il.pick_sequence,
+        il.temperature_controlled,
+        il.security_zone,
+        il.aisle_code,
+        il.zone_code
+      FROM inventory_locations il
+      LEFT JOIN location_usage lu ON il.location_id = lu.location_id
+      WHERE il.facility_id = $1
+        AND il.tenant_id = $2
+        AND il.is_active = TRUE
+        AND il.is_available = TRUE
+        AND il.deleted_at IS NULL
+        AND (il.temperature_controlled = $3 OR $3 = FALSE)
+        AND (il.security_zone = $4 OR $4 = 'STANDARD')
+        AND il.cubic_feet > 0
+        AND il.max_weight_lbs > 0
+      ORDER BY
+        CASE WHEN COALESCE(il.abc_classification, 'C') = $5 THEN 0 ELSE 1 END,
+        il.pick_sequence ASC NULLS LAST,
+        utilization_percentage ASC
+      LIMIT 50
+    `;
+
+    const result = await this.pool.query(query, [
+      facilityId,
+      tenantId,
+      temperatureControlled,
+      securityZone,
+      abcClassification,
+    ]);
+
+    return result.rows.map(row => ({
+      locationId: row.location_id,
+      locationCode: row.location_code,
+      locationType: row.location_type,
+      totalCubicFeet: parseFloat(row.total_cubic_feet) || 0,
+      usedCubicFeet: parseFloat(row.used_cubic_feet) || 0,
+      availableCubicFeet: parseFloat(row.available_cubic_feet) || 0,
+      maxWeightLbs: parseFloat(row.max_weight_lbs) || 0,
+      currentWeightLbs: parseFloat(row.current_weight_lbs) || 0,
+      availableWeightLbs: parseFloat(row.available_weight_lbs) || 0,
+      utilizationPercentage: parseFloat(row.utilization_percentage) || 0,
+      abcClassification: row.abc_classification,
+      pickSequence: row.pick_sequence,
+      temperatureControlled: row.temperature_controlled,
+      securityZone: row.security_zone,
+      aisleCode: row.aisle_code,
+      zoneCode: row.zone_code,
+    }));
+  }
+
+  // ==========================================================================
   // OPTIMIZATION 1: HYBRID FFD/BFD ALGORITHM
   // ==========================================================================
 
@@ -157,6 +339,9 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
   /**
    * Enhanced batch putaway with hybrid FFD/BFD algorithm selection
    * Overrides parent method with adaptive algorithm
+   *
+   * SECURITY: Enforces multi-tenancy isolation
+   * VALIDATION: Input bounds checking for extreme values
    */
   async suggestBatchPutawayHybrid(
     items: Array<{
@@ -164,12 +349,22 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
       lotNumber: string;
       quantity: number;
       dimensions?: ItemDimensions;
-    }>
+    }>,
+    tenantId: string  // SECURITY FIX: Required parameter for tenant isolation
   ): Promise<Map<string, EnhancedPutawayRecommendation & { strategy?: HybridAlgorithmStrategy }>> {
-    // 1. Pre-process: Calculate dimensions and volumes
+    // VALIDATION FIX: Check for empty batch
+    if (!items || items.length === 0) {
+      return new Map(); // Empty result for empty input
+    }
+
+    // VALIDATION FIX: Input bounds checking
+    for (const item of items) {
+      this.validateInputBounds(item.quantity, item.dimensions);
+    }
+    // 1. Pre-process: Calculate dimensions and volumes WITH tenant validation
     const itemsWithVolume = await Promise.all(
       items.map(async item => {
-        const material = await this.getMaterialProperties(item.materialId);
+        const material = await this.getMaterialPropertiesSecure(item.materialId, tenantId);
         const dims = item.dimensions || this.calculateItemDimensions(material, item.quantity);
         return {
           ...item,
@@ -181,14 +376,15 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
       })
     );
 
-    // 2. Get candidate locations ONCE
+    // 2. Get candidate locations ONCE WITH tenant isolation
     const facilityId = itemsWithVolume[0]?.material.facility_id;
     if (!facilityId) {
       throw new Error('No facility found for materials');
     }
 
-    const candidateLocations = await this.getCandidateLocations(
+    const candidateLocations = await this.getCandidateLocationsSecure(
       facilityId,
+      tenantId,  // SECURITY FIX: Enforce tenant isolation
       'A',
       false,
       'STANDARD'
@@ -416,8 +612,18 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
       SELECT
         material_b,
         co_pick_count,
-        -- Normalize to 0-1 scale (assuming 100 co-picks = 1.0)
-        LEAST(co_pick_count / 100.0, 1.0) as affinity_score
+        -- Dynamic normalization based on facility max co-picks (Sylvia Issue #3)
+        -- Uses 50th percentile (median) of max co-picks as normalization factor
+        LEAST(
+          co_pick_count / NULLIF(
+            (SELECT MAX(co_pick_count) * 0.5
+             FROM co_picks
+             WHERE material_a = $1
+            ),
+            0
+          ),
+          1.0
+        ) as affinity_score
       FROM co_picks
       WHERE material_b = ANY($2)
       ORDER BY co_pick_count DESC
@@ -472,7 +678,18 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
         material_b,
         material_code,
         co_pick_count,
-        LEAST(co_pick_count / 100.0, 1.0) as affinity_score
+        -- Dynamic normalization based on facility max co-picks (Sylvia Issue #3)
+        -- Uses 50th percentile (median) of max co-picks per material as normalization factor
+        LEAST(
+          co_pick_count / NULLIF(
+            (SELECT MAX(co_pick_count) * 0.5
+             FROM co_picks cp2
+             WHERE cp2.material_a = co_picks.material_a
+            ),
+            0
+          ),
+          1.0
+        ) as affinity_score
       FROM co_picks
       WHERE co_pick_count >= 3  -- Minimum threshold for meaningful affinity
       ORDER BY material_a, co_pick_count DESC
