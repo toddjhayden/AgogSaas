@@ -258,6 +258,10 @@ type Vendor {
   # Vendor type
   vendorType: VendorType
 
+  # Vendor tier segmentation (Phase 1)
+  vendorTier: VendorTier!
+  tierCalculationBasis: JSON
+
   # Contact
   primaryContactName: String
   primaryContactEmail: String
@@ -310,6 +314,13 @@ enum VendorType {
   MRO_SUPPLIER
   FREIGHT_CARRIER
   EQUIPMENT_VENDOR
+}
+
+# Vendor tier segmentation enum (Phase 1)
+enum VendorTier {
+  STRATEGIC      # High-spend, critical to operations, monthly review
+  PREFERRED      # Medium-spend, proven performance, quarterly review
+  TRANSACTIONAL  # Low-spend, commodity purchases, annual review
 }
 
 type MaterialSupplier {
@@ -553,36 +564,7 @@ type VendorPerformance {
 }
 
 # Enhanced vendor performance tracking types
-
-type VendorScorecard {
-  vendorId: ID!
-  vendorCode: String!
-  vendorName: String!
-  currentRating: Float!
-
-  # 12-month rolling metrics
-  rollingOnTimePercentage: Float!
-  rollingQualityPercentage: Float!
-  rollingAvgRating: Float!
-
-  # Trend indicators
-  trendDirection: VendorTrendDirection!
-  monthsTracked: Int!
-
-  # Recent performance
-  lastMonthRating: Float!
-  last3MonthsAvgRating: Float!
-  last6MonthsAvgRating: Float!
-
-  # Performance history
-  monthlyPerformance: [VendorPerformance!]!
-}
-
-enum VendorTrendDirection {
-  IMPROVING
-  STABLE
-  DECLINING
-}
+# Note: VendorScorecard and TrendDirection types are defined in vendor-performance.graphql
 
 type VendorComparisonReport {
   evaluationPeriodYear: Int!
@@ -609,6 +591,93 @@ type VendorAverageMetrics {
   avgQualityPercentage: Float!
   avgOverallRating: Float!
   totalVendorsEvaluated: Int!
+}
+
+# =====================================================
+# VENDOR ALERTS (Phase 1)
+# =====================================================
+
+type VendorPerformanceAlert {
+  id: ID!
+  tenantId: ID!
+  vendorId: ID!
+
+  # Alert classification
+  alertType: AlertType!
+  alertCategory: AlertCategory!
+
+  # Alert details
+  alertMessage: String!
+  metricValue: Float
+  thresholdValue: Float
+
+  # Alert status workflow
+  alertStatus: AlertStatus!
+
+  # Status transitions
+  acknowledgedAt: DateTime
+  acknowledgedByUserId: ID
+  resolvedAt: DateTime
+  resolvedByUserId: ID
+  dismissalReason: String
+
+  # Audit trail
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+enum AlertType {
+  CRITICAL  # Immediate action required (OTD <80%, Quality <85%, Rating <2.0)
+  WARNING   # Review needed (OTD 80-90%, Quality 85-95%, Rating 2.0-3.0)
+  TREND     # Declining performance (3+ consecutive months)
+}
+
+enum AlertCategory {
+  OTD        # On-time delivery issues
+  QUALITY    # Quality acceptance issues
+  RATING     # Overall rating issues
+  COMPLIANCE # Certification/compliance issues
+}
+
+enum AlertStatus {
+  ACTIVE        # Alert is active, no action taken
+  ACKNOWLEDGED  # Alert acknowledged by user
+  RESOLVED      # Issue resolved
+  DISMISSED     # Alert dismissed with reason
+}
+
+# Alert threshold configuration
+type VendorAlertThreshold {
+  id: ID!
+  tenantId: ID!
+
+  # Threshold configuration
+  thresholdName: String!
+  thresholdType: AlertThresholdType!
+
+  # Threshold value
+  thresholdValue: Float!
+  thresholdOperator: String!
+
+  # Configuration
+  isActive: Boolean!
+  description: String
+
+  # Audit trail
+  createdAt: DateTime!
+  updatedAt: DateTime
+  createdBy: ID
+  updatedBy: ID
+}
+
+enum AlertThresholdType {
+  OTD_CRITICAL
+  OTD_WARNING
+  QUALITY_CRITICAL
+  QUALITY_WARNING
+  RATING_CRITICAL
+  RATING_WARNING
+  TREND_DECLINING
 }
 
 # =====================================================
@@ -1161,6 +1230,26 @@ type Query {
     topN: Int = 5
   ): VendorComparisonReport
 
+  # Vendor alerts (Phase 1)
+  vendorPerformanceAlerts(
+    tenantId: ID!
+    vendorId: ID
+    alertType: AlertType
+    alertCategory: AlertCategory
+    alertStatus: AlertStatus
+    limit: Int = 100
+    offset: Int = 0
+  ): [VendorPerformanceAlert!]!
+
+  vendorPerformanceAlert(id: ID!): VendorPerformanceAlert
+
+  # Alert thresholds
+  vendorAlertThresholds(
+    tenantId: ID!
+    thresholdType: AlertThresholdType
+    isActive: Boolean
+  ): [VendorAlertThreshold!]!
+
   # Customers
   customers(
     tenantId: ID!
@@ -1352,6 +1441,46 @@ type Mutation {
     responsivenessScore: Float
     notes: String
   ): VendorPerformance!
+
+  # Vendor tier management (Phase 1)
+  assignVendorTier(
+    vendorId: ID!
+    tier: VendorTier!
+    tierCalculationBasis: JSON
+  ): Vendor!
+
+  # Vendor alert management (Phase 1)
+  createVendorPerformanceAlert(
+    tenantId: ID!
+    vendorId: ID!
+    alertType: AlertType!
+    alertCategory: AlertCategory!
+    alertMessage: String!
+    metricValue: Float
+    thresholdValue: Float
+  ): VendorPerformanceAlert!
+
+  acknowledgeVendorAlert(
+    id: ID!
+    acknowledgedByUserId: ID!
+  ): VendorPerformanceAlert!
+
+  resolveVendorAlert(
+    id: ID!
+    resolvedByUserId: ID!
+  ): VendorPerformanceAlert!
+
+  dismissVendorAlert(
+    id: ID!
+    dismissalReason: String!
+  ): VendorPerformanceAlert!
+
+  # Alert threshold management (Phase 1)
+  updateVendorAlertThreshold(
+    id: ID!
+    thresholdValue: Float
+    isActive: Boolean
+  ): VendorAlertThreshold!
 
   # Customers
   createCustomer(

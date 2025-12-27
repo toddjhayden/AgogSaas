@@ -15,6 +15,7 @@
  * - Alert history and audit trail
  */
 
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import * as https from 'https';
 
@@ -57,16 +58,17 @@ export interface AlertHistory {
   channels: string[];
 }
 
+@Injectable()
 export class DevOpsAlertingService {
   private config: AlertConfig;
   private alertCache: Map<string, Alert[]> = new Map();
   private aggregationWindowMs = 300000; // 5 minutes
 
   constructor(
-    private pool: Pool,
-    config: AlertConfig = {}
+    @Inject('DATABASE_POOL') private readonly pool: Pool,
+    @Optional() config?: AlertConfig
   ) {
-    this.config = this.loadConfig(config);
+    this.config = this.loadConfig(config || {});
   }
 
   /**

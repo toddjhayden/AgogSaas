@@ -1,4 +1,5 @@
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
+import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { BinUtilizationOptimizationService } from '../../modules/wms/services/bin-utilization-optimization.service';
 
@@ -15,15 +16,15 @@ import { BinUtilizationOptimizationService } from '../../modules/wms/services/bi
  * - Carrier Integrations (UPS, FedEx, DHL, etc.)
  * - Kit Definitions (assemblies and bundles)
  * - Inventory Reservations (soft/hard allocations)
+ * - Bin Utilization Optimization (intelligent placement)
  */
 
 @Resolver('WMS')
 export class WMSResolver {
-  private binOptimizationService: BinUtilizationOptimizationService;
-
-  constructor(private readonly db: Pool) {
-    this.binOptimizationService = new BinUtilizationOptimizationService(db);
-  }
+  constructor(
+    @Inject('DATABASE_POOL') private readonly db: Pool,
+    private readonly binOptimizationService: BinUtilizationOptimizationService
+  ) {}
 
   // =====================================================
   // INVENTORY LOCATION QUERIES

@@ -1,3 +1,4 @@
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import {
   BinUtilizationOptimizationEnhancedService,
@@ -59,6 +60,7 @@ export interface EnhancedScoreResult {
 // HYBRID OPTIMIZATION SERVICE
 // ============================================================================
 
+@Injectable()
 export class BinUtilizationOptimizationHybridService extends BinUtilizationOptimizationEnhancedService {
   // SKU affinity cache (90-day rolling window, refreshed daily)
   private affinityCache: Map<string, SKUAffinityMetrics> = new Map();
@@ -74,7 +76,7 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
   // SKU affinity scoring weight
   private readonly AFFINITY_WEIGHT = 10; // Up to 10 points boost
 
-  constructor(pool?: Pool) {
+  constructor(@Inject('DATABASE_POOL') pool: Pool) {
     super(pool);
   }
 
@@ -834,6 +836,20 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
       const result = await this.pool.query(query, [facilityId, topN * 5]);
 
       // Group by material_a
+      interface GroupedAffinity {
+        materialId: string;
+        materialCode: string;
+        description: string;
+        topAffinities: Array<{
+          materialId: string;
+          materialCode: string;
+          coPickCount: number;
+          currentlyCoLocated: boolean;
+          distanceBetweenLocations?: number;
+          potentialTravelSavings?: string;
+        }>;
+      }
+
       const grouped = result.rows.reduce((acc, row) => {
         if (!acc[row.material_a]) {
           acc[row.material_a] = {
@@ -855,9 +871,9 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
         });
 
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, GroupedAffinity>);
 
-      return Object.values(grouped).slice(0, topN);
+      return Object.values(grouped).slice(0, topN) as GroupedAffinity[];
     } catch (error) {
       console.warn('Could not analyze SKU affinity:', error);
       return [];

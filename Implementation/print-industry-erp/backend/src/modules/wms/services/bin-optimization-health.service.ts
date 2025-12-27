@@ -10,6 +10,7 @@
  * - Algorithm performance
  */
 
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 export interface HealthCheckResult {
@@ -30,12 +31,9 @@ export interface BinOptimizationHealthCheck {
   timestamp: Date;
 }
 
+@Injectable()
 export class BinOptimizationHealthService {
-  private pool: Pool;
-
-  constructor(pool: Pool) {
-    this.pool = pool;
-  }
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Run all health checks

@@ -1,0 +1,208 @@
+# =====================================================
+# SALES QUOTE AUTOMATION EXTENSION
+# REQ-STRATEGIC-AUTO-1735125600000
+# =====================================================
+# Purpose: Extended GraphQL schema for automated quote operations
+# Includes: Quote line CRUD, automated pricing/costing, margin validation
+# =====================================================
+
+# =====================================================
+# QUOTE LINE OPERATIONS
+# =====================================================
+
+input AddQuoteLineInput {
+  quoteId: ID!
+  productId: ID!
+  quantityQuoted: Float!
+  unitOfMeasure: String
+  description: String
+  manufacturingStrategy: String
+  leadTimeDays: Int
+  promisedDeliveryDate: Date
+  # Manual overrides (optional)
+  manualUnitPrice: Float
+  manualDiscountPercentage: Float
+}
+
+input UpdateQuoteLineInput {
+  quoteLineId: ID!
+  quantityQuoted: Float
+  unitOfMeasure: String
+  description: String
+  manufacturingStrategy: String
+  leadTimeDays: Int
+  promisedDeliveryDate: Date
+  # Manual overrides
+  manualUnitPrice: Float
+  manualDiscountPercentage: Float
+}
+
+input CreateQuoteWithLinesInput {
+  tenantId: ID!
+  facilityId: ID
+  customerId: ID!
+  quoteDate: Date!
+  expirationDate: Date
+  quoteCurrencyCode: String!
+  salesRepUserId: ID
+  contactName: String
+  contactEmail: String
+  notes: String
+  termsAndConditions: String
+  lines: [AddQuoteLineInputForCreate!]!
+}
+
+input AddQuoteLineInputForCreate {
+  productId: ID!
+  quantityQuoted: Float!
+  unitOfMeasure: String
+  description: String
+  manufacturingStrategy: String
+  leadTimeDays: Int
+  promisedDeliveryDate: Date
+  manualUnitPrice: Float
+}
+
+# =====================================================
+# PRICING AND COSTING TYPES
+# =====================================================
+
+type PricingCalculation {
+  unitPrice: Float!
+  lineAmount: Float!
+  discountPercentage: Float!
+  discountAmount: Float!
+  unitCost: Float!
+  lineCost: Float!
+  lineMargin: Float!
+  marginPercentage: Float!
+  appliedRules: [AppliedPricingRule!]!
+  priceSource: PriceSource!
+}
+
+type AppliedPricingRule {
+  ruleId: ID!
+  ruleCode: String!
+  ruleName: String!
+  ruleType: String!
+  pricingAction: String!
+  actionValue: Float!
+  priority: Int!
+  discountApplied: Float!
+}
+
+enum PriceSource {
+  CUSTOMER_PRICING
+  PRICING_RULE
+  LIST_PRICE
+  MANUAL_OVERRIDE
+}
+
+type CostCalculation {
+  unitCost: Float!
+  totalCost: Float!
+  materialCost: Float!
+  laborCost: Float!
+  overheadCost: Float!
+  setupCost: Float!
+  setupCostPerUnit: Float!
+  costMethod: CostMethod!
+  costBreakdown: [CostComponent!]!
+}
+
+enum CostMethod {
+  STANDARD_COST
+  BOM_EXPLOSION
+  FIFO
+  LIFO
+  AVERAGE
+}
+
+type CostComponent {
+  componentType: String!
+  componentCode: String!
+  componentName: String!
+  quantity: Float!
+  unitOfMeasure: String!
+  unitCost: Float!
+  totalCost: Float!
+  scrapPercentage: Float!
+}
+
+# =====================================================
+# MARGIN VALIDATION
+# =====================================================
+
+type MarginValidation {
+  isValid: Boolean!
+  minimumMarginPercentage: Float!
+  actualMarginPercentage: Float!
+  requiresApproval: Boolean!
+  approvalLevel: ApprovalLevel
+}
+
+enum ApprovalLevel {
+  SALES_REP
+  SALES_MANAGER
+  SALES_VP
+  CFO
+}
+
+# =====================================================
+# QUOTE AUTOMATION QUERIES
+# =====================================================
+
+extend type Query {
+  # Preview pricing without creating a quote line
+  previewQuoteLinePricing(
+    tenantId: ID!
+    productId: ID!
+    customerId: ID!
+    quantity: Float!
+    quoteDate: Date
+  ): PricingCalculation!
+
+  # Preview cost calculation
+  previewProductCost(
+    tenantId: ID!
+    productId: ID!
+    quantity: Float!
+  ): CostCalculation!
+
+  # Test pricing rule evaluation (for admin UI)
+  testPricingRule(
+    ruleId: ID!
+    productId: ID
+    customerId: ID
+    quantity: Float
+    basePrice: Float!
+  ): JSON!
+}
+
+# =====================================================
+# QUOTE AUTOMATION MUTATIONS
+# =====================================================
+
+extend type Mutation {
+  # Create quote with automated line calculations
+  createQuoteWithLines(input: CreateQuoteWithLinesInput!): Quote!
+
+  # Add quote line with automatic pricing/costing
+  addQuoteLine(input: AddQuoteLineInput!): QuoteLine!
+
+  # Update quote line and recalculate
+  updateQuoteLine(input: UpdateQuoteLineInput!): QuoteLine!
+
+  # Delete quote line and recalculate quote totals
+  deleteQuoteLine(quoteLineId: ID!): Boolean!
+
+  # Recalculate all pricing and costs for a quote
+  recalculateQuote(
+    quoteId: ID!
+    recalculateCosts: Boolean = true
+    recalculatePricing: Boolean = true
+  ): Quote!
+
+  # Validate quote margin requirements
+  validateQuoteMargin(quoteId: ID!): MarginValidation!
+}

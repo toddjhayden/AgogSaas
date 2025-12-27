@@ -70,6 +70,10 @@ export interface VendorScorecard {
   vendorName: string;
   currentRating: number;
 
+  // Vendor tier classification
+  vendorTier?: string; // STRATEGIC, PREFERRED, TRANSACTIONAL
+  tierClassificationDate?: string;
+
   // 12-month rolling metrics
   rollingOnTimePercentage: number;
   rollingQualityPercentage: number;
@@ -84,8 +88,80 @@ export interface VendorScorecard {
   last3MonthsAvgRating: number;
   last6MonthsAvgRating: number;
 
+  // ESG metrics (if available)
+  esgOverallScore?: number;
+  esgRiskLevel?: string;
+
   // Performance history
   monthlyPerformance: VendorPerformanceMetrics[];
+}
+
+export interface VendorESGMetrics {
+  id?: string;
+  tenantId: string;
+  vendorId: string;
+  evaluationPeriodYear: number;
+  evaluationPeriodMonth: number;
+
+  // Environmental metrics
+  carbonFootprintTonsCO2e?: number;
+  carbonFootprintTrend?: 'IMPROVING' | 'STABLE' | 'WORSENING';
+  wasteReductionPercentage?: number;
+  renewableEnergyPercentage?: number;
+  packagingSustainabilityScore?: number;
+  environmentalCertifications?: any; // JSONB
+
+  // Social metrics
+  laborPracticesScore?: number;
+  humanRightsComplianceScore?: number;
+  diversityScore?: number;
+  workerSafetyRating?: number;
+  socialCertifications?: any; // JSONB
+
+  // Governance metrics
+  ethicsComplianceScore?: number;
+  antiCorruptionScore?: number;
+  supplyChainTransparencyScore?: number;
+  governanceCertifications?: any; // JSONB
+
+  // Overall ESG
+  esgOverallScore?: number;
+  esgRiskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'UNKNOWN';
+
+  // Metadata
+  dataSource?: string;
+  lastAuditDate?: string;
+  nextAuditDueDate?: string;
+  notes?: string;
+}
+
+export interface ScorecardConfig {
+  id?: string;
+  tenantId: string;
+  configName: string;
+  vendorType?: string;
+  vendorTier?: string;
+
+  // Metric weights (must sum to 100)
+  qualityWeight: number;
+  deliveryWeight: number;
+  costWeight: number;
+  serviceWeight: number;
+  innovationWeight: number;
+  esgWeight: number;
+
+  // Thresholds
+  excellentThreshold: number;
+  goodThreshold: number;
+  acceptableThreshold: number;
+
+  // Review frequency
+  reviewFrequencyMonths: number;
+
+  // Active/versioning
+  isActive: boolean;
+  effectiveFromDate: string;
+  effectiveToDate?: string;
 }
 
 export interface VendorComparisonReport {
@@ -556,6 +632,387 @@ export class VendorPerformanceService {
         avgOverallRating: Math.round(avgOverallRating * 10) / 10,
         totalVendorsEvaluated: allVendors.length
       }
+    };
+  }
+
+  /**
+   * Record ESG metrics for a vendor in a specific period
+   */
+  async recordESGMetrics(
+    esgMetrics: VendorESGMetrics
+  ): Promise<VendorESGMetrics> {
+    const result = await this.db.query(
+      `INSERT INTO vendor_esg_metrics (
+        tenant_id, vendor_id, evaluation_period_year, evaluation_period_month,
+        carbon_footprint_tons_co2e, carbon_footprint_trend,
+        waste_reduction_percentage, renewable_energy_percentage, packaging_sustainability_score,
+        environmental_certifications,
+        labor_practices_score, human_rights_compliance_score, diversity_score, worker_safety_rating,
+        social_certifications,
+        ethics_compliance_score, anti_corruption_score, supply_chain_transparency_score,
+        governance_certifications,
+        esg_overall_score, esg_risk_level,
+        data_source, last_audit_date, next_audit_due_date, notes,
+        created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW()
+      )
+      ON CONFLICT (tenant_id, vendor_id, evaluation_period_year, evaluation_period_month)
+      DO UPDATE SET
+        carbon_footprint_tons_co2e = EXCLUDED.carbon_footprint_tons_co2e,
+        carbon_footprint_trend = EXCLUDED.carbon_footprint_trend,
+        waste_reduction_percentage = EXCLUDED.waste_reduction_percentage,
+        renewable_energy_percentage = EXCLUDED.renewable_energy_percentage,
+        packaging_sustainability_score = EXCLUDED.packaging_sustainability_score,
+        environmental_certifications = EXCLUDED.environmental_certifications,
+        labor_practices_score = EXCLUDED.labor_practices_score,
+        human_rights_compliance_score = EXCLUDED.human_rights_compliance_score,
+        diversity_score = EXCLUDED.diversity_score,
+        worker_safety_rating = EXCLUDED.worker_safety_rating,
+        social_certifications = EXCLUDED.social_certifications,
+        ethics_compliance_score = EXCLUDED.ethics_compliance_score,
+        anti_corruption_score = EXCLUDED.anti_corruption_score,
+        supply_chain_transparency_score = EXCLUDED.supply_chain_transparency_score,
+        governance_certifications = EXCLUDED.governance_certifications,
+        esg_overall_score = EXCLUDED.esg_overall_score,
+        esg_risk_level = EXCLUDED.esg_risk_level,
+        data_source = EXCLUDED.data_source,
+        last_audit_date = EXCLUDED.last_audit_date,
+        next_audit_due_date = EXCLUDED.next_audit_due_date,
+        notes = EXCLUDED.notes,
+        updated_at = NOW()
+      RETURNING *`,
+      [
+        esgMetrics.tenantId,
+        esgMetrics.vendorId,
+        esgMetrics.evaluationPeriodYear,
+        esgMetrics.evaluationPeriodMonth,
+        esgMetrics.carbonFootprintTonsCO2e,
+        esgMetrics.carbonFootprintTrend,
+        esgMetrics.wasteReductionPercentage,
+        esgMetrics.renewableEnergyPercentage,
+        esgMetrics.packagingSustainabilityScore,
+        esgMetrics.environmentalCertifications ? JSON.stringify(esgMetrics.environmentalCertifications) : null,
+        esgMetrics.laborPracticesScore,
+        esgMetrics.humanRightsComplianceScore,
+        esgMetrics.diversityScore,
+        esgMetrics.workerSafetyRating,
+        esgMetrics.socialCertifications ? JSON.stringify(esgMetrics.socialCertifications) : null,
+        esgMetrics.ethicsComplianceScore,
+        esgMetrics.antiCorruptionScore,
+        esgMetrics.supplyChainTransparencyScore,
+        esgMetrics.governanceCertifications ? JSON.stringify(esgMetrics.governanceCertifications) : null,
+        esgMetrics.esgOverallScore,
+        esgMetrics.esgRiskLevel,
+        esgMetrics.dataSource,
+        esgMetrics.lastAuditDate,
+        esgMetrics.nextAuditDueDate,
+        esgMetrics.notes
+      ]
+    );
+
+    return this.mapESGMetricsRow(result.rows[0]);
+  }
+
+  /**
+   * Get ESG metrics for a vendor
+   */
+  async getVendorESGMetrics(
+    tenantId: string,
+    vendorId: string,
+    year?: number,
+    month?: number
+  ): Promise<VendorESGMetrics[]> {
+    let query = `SELECT * FROM vendor_esg_metrics WHERE tenant_id = $1 AND vendor_id = $2`;
+    const params: any[] = [tenantId, vendorId];
+
+    if (year && month) {
+      query += ` AND evaluation_period_year = $3 AND evaluation_period_month = $4`;
+      params.push(year, month);
+    }
+
+    query += ` ORDER BY evaluation_period_year DESC, evaluation_period_month DESC LIMIT 12`;
+
+    const result = await this.db.query(query, params);
+    return result.rows.map(row => this.mapESGMetricsRow(row));
+  }
+
+  /**
+   * Get active scorecard configuration for a vendor
+   */
+  async getScorecardConfig(
+    tenantId: string,
+    vendorType?: string,
+    vendorTier?: string
+  ): Promise<ScorecardConfig | null> {
+    let query = `
+      SELECT * FROM vendor_scorecard_config
+      WHERE tenant_id = $1
+        AND is_active = TRUE
+        AND effective_from_date <= CURRENT_DATE
+        AND (effective_to_date IS NULL OR effective_to_date >= CURRENT_DATE)
+    `;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    // Try to find exact match first (vendor type AND tier)
+    if (vendorType && vendorTier) {
+      query += ` AND vendor_type = $${paramIndex} AND vendor_tier = $${paramIndex + 1}`;
+      params.push(vendorType, vendorTier);
+      paramIndex += 2;
+    } else if (vendorType) {
+      query += ` AND vendor_type = $${paramIndex} AND vendor_tier IS NULL`;
+      params.push(vendorType);
+      paramIndex += 1;
+    } else if (vendorTier) {
+      query += ` AND vendor_tier = $${paramIndex} AND vendor_type IS NULL`;
+      params.push(vendorTier);
+      paramIndex += 1;
+    } else {
+      query += ` AND vendor_type IS NULL AND vendor_tier IS NULL`;
+    }
+
+    query += ` ORDER BY effective_from_date DESC LIMIT 1`;
+
+    const result = await this.db.query(query, params);
+
+    if (result.rows.length === 0) {
+      // Fallback to default config (no vendor type/tier specified)
+      const defaultResult = await this.db.query(
+        `SELECT * FROM vendor_scorecard_config
+         WHERE tenant_id = $1
+           AND is_active = TRUE
+           AND vendor_type IS NULL
+           AND vendor_tier IS NULL
+           AND effective_from_date <= CURRENT_DATE
+           AND (effective_to_date IS NULL OR effective_to_date >= CURRENT_DATE)
+         ORDER BY effective_from_date DESC
+         LIMIT 1`,
+        [tenantId]
+      );
+
+      if (defaultResult.rows.length === 0) {
+        return null;
+      }
+
+      return this.mapScorecardConfigRow(defaultResult.rows[0]);
+    }
+
+    return this.mapScorecardConfigRow(result.rows[0]);
+  }
+
+  /**
+   * Calculate weighted score based on config
+   */
+  calculateWeightedScore(
+    performance: any,
+    esgMetrics: VendorESGMetrics | null,
+    config: ScorecardConfig
+  ): number {
+    let totalScore = 0;
+    let totalWeight = 0;
+
+    // Quality score (0-100 scale from percentage)
+    if (performance.qualityPercentage !== null && performance.qualityPercentage !== undefined) {
+      totalScore += performance.qualityPercentage * (config.qualityWeight / 100);
+      totalWeight += config.qualityWeight;
+    }
+
+    // Delivery score (0-100 scale from on-time percentage)
+    if (performance.onTimePercentage !== null && performance.onTimePercentage !== undefined) {
+      totalScore += performance.onTimePercentage * (config.deliveryWeight / 100);
+      totalWeight += config.deliveryWeight;
+    }
+
+    // Cost score (0-100 scale, 100 - TCO index deviation)
+    // If TCO index < 100 (below average cost), score is higher
+    if (performance.totalCostOfOwnershipIndex !== null && performance.totalCostOfOwnershipIndex !== undefined) {
+      const costScore = Math.max(0, Math.min(100, 200 - performance.totalCostOfOwnershipIndex));
+      totalScore += costScore * (config.costWeight / 100);
+      totalWeight += config.costWeight;
+    }
+
+    // Service score (average of service metrics, converted to 0-100 scale)
+    const serviceMetrics = [
+      performance.responsivenessScore,
+      performance.communicationScore,
+      performance.issueResolutionRate
+    ].filter(m => m !== null && m !== undefined);
+
+    if (serviceMetrics.length > 0) {
+      const avgServiceScore = serviceMetrics.reduce((sum, m) => sum + m, 0) / serviceMetrics.length;
+      // Convert 0-5 star rating to 0-100 scale, or use percentage directly
+      const serviceScore = avgServiceScore <= 5 ? (avgServiceScore / 5) * 100 : avgServiceScore;
+      totalScore += serviceScore * (config.serviceWeight / 100);
+      totalWeight += config.serviceWeight;
+    }
+
+    // Innovation score (0-5 stars converted to 0-100 scale)
+    if (performance.innovationScore !== null && performance.innovationScore !== undefined) {
+      const innovationScore = (performance.innovationScore / 5) * 100;
+      totalScore += innovationScore * (config.innovationWeight / 100);
+      totalWeight += config.innovationWeight;
+    }
+
+    // ESG score (0-5 stars converted to 0-100 scale)
+    if (esgMetrics && esgMetrics.esgOverallScore !== null && esgMetrics.esgOverallScore !== undefined) {
+      const esgScore = (esgMetrics.esgOverallScore / 5) * 100;
+      totalScore += esgScore * (config.esgWeight / 100);
+      totalWeight += config.esgWeight;
+    }
+
+    // Normalize score if not all metrics available
+    if (totalWeight === 0) {
+      return 0;
+    }
+
+    // Return weighted average normalized to original 100% scale
+    return (totalScore / totalWeight) * 100;
+  }
+
+  /**
+   * Get vendor scorecard with ESG metrics (enhanced version)
+   */
+  async getVendorScorecardEnhanced(
+    tenantId: string,
+    vendorId: string
+  ): Promise<VendorScorecard> {
+    // Get basic scorecard
+    const scorecard = await this.getVendorScorecard(tenantId, vendorId);
+
+    // Get most recent performance record to extract vendor tier
+    const latestPerformance = await this.db.query(
+      `SELECT vendor_tier, tier_classification_date
+       FROM vendor_performance
+       WHERE tenant_id = $1 AND vendor_id = $2
+       ORDER BY evaluation_period_year DESC, evaluation_period_month DESC
+       LIMIT 1`,
+      [tenantId, vendorId]
+    );
+
+    if (latestPerformance.rows.length > 0) {
+      scorecard.vendorTier = latestPerformance.rows[0].vendor_tier;
+      scorecard.tierClassificationDate = latestPerformance.rows[0].tier_classification_date;
+    }
+
+    // Get most recent ESG metrics
+    const esgMetrics = await this.getVendorESGMetrics(tenantId, vendorId);
+    if (esgMetrics.length > 0) {
+      scorecard.esgOverallScore = esgMetrics[0].esgOverallScore;
+      scorecard.esgRiskLevel = esgMetrics[0].esgRiskLevel;
+    }
+
+    return scorecard;
+  }
+
+  /**
+   * Create or update scorecard configuration
+   */
+  async upsertScorecardConfig(
+    config: ScorecardConfig,
+    userId?: string
+  ): Promise<ScorecardConfig> {
+    const result = await this.db.query(
+      `INSERT INTO vendor_scorecard_config (
+        tenant_id, config_name, vendor_type, vendor_tier,
+        quality_weight, delivery_weight, cost_weight, service_weight, innovation_weight, esg_weight,
+        excellent_threshold, good_threshold, acceptable_threshold,
+        review_frequency_months,
+        is_active, effective_from_date,
+        created_at, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17)
+      RETURNING *`,
+      [
+        config.tenantId,
+        config.configName,
+        config.vendorType,
+        config.vendorTier,
+        config.qualityWeight,
+        config.deliveryWeight,
+        config.costWeight,
+        config.serviceWeight,
+        config.innovationWeight,
+        config.esgWeight,
+        config.excellentThreshold,
+        config.goodThreshold,
+        config.acceptableThreshold,
+        config.reviewFrequencyMonths,
+        config.isActive,
+        config.effectiveFromDate,
+        userId
+      ]
+    );
+
+    return this.mapScorecardConfigRow(result.rows[0]);
+  }
+
+  /**
+   * Get all active scorecard configurations for a tenant
+   */
+  async getScorecardConfigs(tenantId: string): Promise<ScorecardConfig[]> {
+    const result = await this.db.query(
+      `SELECT * FROM vendor_scorecard_config
+       WHERE tenant_id = $1 AND is_active = TRUE
+       ORDER BY config_name, effective_from_date DESC`,
+      [tenantId]
+    );
+
+    return result.rows.map(row => this.mapScorecardConfigRow(row));
+  }
+
+  // Helper methods for row mapping
+
+  private mapESGMetricsRow(row: any): VendorESGMetrics {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      vendorId: row.vendor_id,
+      evaluationPeriodYear: row.evaluation_period_year,
+      evaluationPeriodMonth: row.evaluation_period_month,
+      carbonFootprintTonsCO2e: row.carbon_footprint_tons_co2e ? parseFloat(row.carbon_footprint_tons_co2e) : undefined,
+      carbonFootprintTrend: row.carbon_footprint_trend,
+      wasteReductionPercentage: row.waste_reduction_percentage ? parseFloat(row.waste_reduction_percentage) : undefined,
+      renewableEnergyPercentage: row.renewable_energy_percentage ? parseFloat(row.renewable_energy_percentage) : undefined,
+      packagingSustainabilityScore: row.packaging_sustainability_score ? parseFloat(row.packaging_sustainability_score) : undefined,
+      environmentalCertifications: row.environmental_certifications,
+      laborPracticesScore: row.labor_practices_score ? parseFloat(row.labor_practices_score) : undefined,
+      humanRightsComplianceScore: row.human_rights_compliance_score ? parseFloat(row.human_rights_compliance_score) : undefined,
+      diversityScore: row.diversity_score ? parseFloat(row.diversity_score) : undefined,
+      workerSafetyRating: row.worker_safety_rating ? parseFloat(row.worker_safety_rating) : undefined,
+      socialCertifications: row.social_certifications,
+      ethicsComplianceScore: row.ethics_compliance_score ? parseFloat(row.ethics_compliance_score) : undefined,
+      antiCorruptionScore: row.anti_corruption_score ? parseFloat(row.anti_corruption_score) : undefined,
+      supplyChainTransparencyScore: row.supply_chain_transparency_score ? parseFloat(row.supply_chain_transparency_score) : undefined,
+      governanceCertifications: row.governance_certifications,
+      esgOverallScore: row.esg_overall_score ? parseFloat(row.esg_overall_score) : undefined,
+      esgRiskLevel: row.esg_risk_level,
+      dataSource: row.data_source,
+      lastAuditDate: row.last_audit_date,
+      nextAuditDueDate: row.next_audit_due_date,
+      notes: row.notes
+    };
+  }
+
+  private mapScorecardConfigRow(row: any): ScorecardConfig {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      configName: row.config_name,
+      vendorType: row.vendor_type,
+      vendorTier: row.vendor_tier,
+      qualityWeight: parseFloat(row.quality_weight),
+      deliveryWeight: parseFloat(row.delivery_weight),
+      costWeight: parseFloat(row.cost_weight),
+      serviceWeight: parseFloat(row.service_weight),
+      innovationWeight: parseFloat(row.innovation_weight),
+      esgWeight: parseFloat(row.esg_weight),
+      excellentThreshold: row.excellent_threshold,
+      goodThreshold: row.good_threshold,
+      acceptableThreshold: row.acceptable_threshold,
+      reviewFrequencyMonths: row.review_frequency_months,
+      isActive: row.is_active,
+      effectiveFromDate: row.effective_from_date,
+      effectiveToDate: row.effective_to_date
     };
   }
 }

@@ -1,0 +1,650 @@
+# ==================================================================
+# VENDOR PERFORMANCE & SCORECARD GRAPHQL SCHEMA
+# ==================================================================
+#
+# Purpose: Vendor performance tracking and scorecard management
+# Feature: REQ-STRATEGIC-AUTO-1766627342634 - Vendor Scorecards
+# Author: Roy (Backend Developer)
+# Date: 2025-12-26
+#
+# This schema provides comprehensive vendor scorecard capabilities including:
+# - Performance metrics calculation and tracking
+# - ESG (Environmental, Social, Governance) metrics
+# - Configurable weighted scoring
+# - Automated performance alerts
+# - Vendor tier segmentation
+# - Historical trend analysis
+# ==================================================================
+
+# ==================================================================
+# CORE TYPES
+# ==================================================================
+
+"""
+Vendor performance metrics for a specific evaluation period
+"""
+type VendorPerformanceMetrics {
+  vendorId: ID!
+  vendorCode: String!
+  vendorName: String!
+  evaluationPeriodYear: Int!
+  evaluationPeriodMonth: Int!
+
+  # Purchase order metrics
+  totalPosIssued: Int!
+  totalPosValue: Float!
+
+  # Delivery metrics
+  onTimeDeliveries: Int!
+  totalDeliveries: Int!
+  onTimePercentage: Float!
+  leadTimeAccuracyPercentage: Float
+  orderFulfillmentRate: Float
+  shippingDamageRate: Float
+
+  # Quality metrics
+  qualityAcceptances: Int!
+  qualityRejections: Int!
+  qualityPercentage: Float!
+  defectRatePpm: Float
+  returnRatePercentage: Float
+  qualityAuditScore: Float
+
+  # Service metrics
+  responsivenessScore: Float!
+  responseTimeHours: Float
+  issueResolutionRate: Float
+  communicationScore: Float
+
+  # Compliance metrics
+  contractCompliancePercentage: Float
+  documentationAccuracyPercentage: Float
+
+  # Cost & Innovation metrics
+  priceCompetitivenessScore: Float!
+  innovationScore: Float
+  totalCostOfOwnershipIndex: Float
+  paymentComplianceScore: Float
+  priceVariancePercentage: Float
+
+  # Overall rating (0-5 stars)
+  overallRating: Float!
+
+  # Vendor tier
+  vendorTier: VendorTier
+  tierClassificationDate: String
+
+  # Metadata
+  notes: String
+}
+
+"""
+Comprehensive vendor scorecard with 12-month rolling metrics
+"""
+type VendorScorecard {
+  vendorId: ID!
+  vendorCode: String!
+  vendorName: String!
+  currentRating: Float!
+
+  # Vendor tier classification
+  vendorTier: VendorTier
+  tierClassificationDate: String
+
+  # 12-month rolling metrics
+  rollingOnTimePercentage: Float!
+  rollingQualityPercentage: Float!
+  rollingAvgRating: Float!
+
+  # Trend indicators
+  trendDirection: TrendDirection!
+  monthsTracked: Int!
+
+  # Recent performance
+  lastMonthRating: Float!
+  last3MonthsAvgRating: Float!
+  last6MonthsAvgRating: Float!
+
+  # ESG metrics (if available)
+  esgOverallScore: Float
+  esgRiskLevel: ESGRiskLevel
+
+  # Performance history (last 12 months)
+  monthlyPerformance: [VendorPerformanceMetrics!]!
+}
+
+"""
+Vendor comparison report showing top and bottom performers
+"""
+type VendorComparisonReport {
+  evaluationPeriodYear: Int!
+  evaluationPeriodMonth: Int!
+  vendorType: String
+
+  topPerformers: [VendorPerformer!]!
+  bottomPerformers: [VendorPerformer!]!
+  averageMetrics: AverageMetrics!
+}
+
+"""
+Individual vendor performance summary for comparison
+"""
+type VendorPerformer {
+  vendorId: ID!
+  vendorCode: String!
+  vendorName: String!
+  overallRating: Float!
+  onTimePercentage: Float!
+  qualityPercentage: Float!
+}
+
+"""
+Average performance metrics across all vendors
+"""
+type AverageMetrics {
+  avgOnTimePercentage: Float!
+  avgQualityPercentage: Float!
+  avgOverallRating: Float!
+  totalVendorsEvaluated: Int!
+}
+
+# ==================================================================
+# ESG METRICS
+# ==================================================================
+
+"""
+Environmental, Social, and Governance (ESG) metrics for vendor sustainability
+"""
+type VendorESGMetrics {
+  id: ID!
+  tenantId: ID!
+  vendorId: ID!
+  evaluationPeriodYear: Int!
+  evaluationPeriodMonth: Int!
+
+  # Environmental metrics
+  carbonFootprintTonsCO2e: Float
+  carbonFootprintTrend: CarbonFootprintTrend
+  wasteReductionPercentage: Float
+  renewableEnergyPercentage: Float
+  packagingSustainabilityScore: Float
+  environmentalCertifications: JSON
+
+  # Social metrics
+  laborPracticesScore: Float
+  humanRightsComplianceScore: Float
+  diversityScore: Float
+  workerSafetyRating: Float
+  socialCertifications: JSON
+
+  # Governance metrics
+  ethicsComplianceScore: Float
+  antiCorruptionScore: Float
+  supplyChainTransparencyScore: Float
+  governanceCertifications: JSON
+
+  # Overall ESG
+  esgOverallScore: Float
+  esgRiskLevel: ESGRiskLevel
+
+  # Metadata
+  dataSource: String
+  lastAuditDate: String
+  nextAuditDueDate: String
+  notes: String
+}
+
+# ==================================================================
+# SCORECARD CONFIGURATION
+# ==================================================================
+
+"""
+Configurable weighted scorecard system
+"""
+type ScorecardConfig {
+  id: ID!
+  tenantId: ID!
+  configName: String!
+  vendorType: String
+  vendorTier: VendorTier
+
+  # Metric weights (must sum to 100%)
+  qualityWeight: Float!
+  deliveryWeight: Float!
+  costWeight: Float!
+  serviceWeight: Float!
+  innovationWeight: Float!
+  esgWeight: Float!
+
+  # Thresholds (0-100 scale)
+  excellentThreshold: Int!
+  goodThreshold: Int!
+  acceptableThreshold: Int!
+
+  # Review frequency
+  reviewFrequencyMonths: Int!
+
+  # Active/versioning
+  isActive: Boolean!
+  effectiveFromDate: String!
+  effectiveToDate: String
+}
+
+# ==================================================================
+# PERFORMANCE ALERTS
+# ==================================================================
+
+"""
+Automated performance alerts for threshold breaches and tier changes
+"""
+type VendorPerformanceAlert {
+  id: ID!
+  tenantId: ID!
+  vendorId: ID!
+
+  # Alert classification
+  alertType: AlertType!
+  alertCategory: AlertCategory!
+  severity: AlertSeverity!
+
+  # Alert details
+  alertMessage: String!
+  metricValue: Float
+  thresholdValue: Float
+
+  # Alert status workflow
+  alertStatus: AlertStatus!
+
+  # Status transitions
+  acknowledgedAt: String
+  acknowledgedByUserId: ID
+  resolvedAt: String
+  resolvedByUserId: ID
+  dismissalReason: String
+
+  # Audit trail
+  createdAt: String!
+  updatedAt: String
+}
+
+# ==================================================================
+# ENUMS
+# ==================================================================
+
+"""
+Vendor tier segmentation levels
+"""
+enum VendorTier {
+  STRATEGIC
+  PREFERRED
+  TRANSACTIONAL
+}
+
+"""
+Performance trend direction
+"""
+enum TrendDirection {
+  IMPROVING
+  STABLE
+  DECLINING
+}
+
+"""
+ESG risk level classification
+"""
+enum ESGRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  UNKNOWN
+}
+
+"""
+Carbon footprint trend
+"""
+enum CarbonFootprintTrend {
+  IMPROVING
+  STABLE
+  WORSENING
+}
+
+"""
+Alert type classification (BUG-001 FIX: Updated to match service implementation)
+"""
+enum AlertType {
+  THRESHOLD_BREACH
+  TIER_CHANGE
+  ESG_RISK
+  REVIEW_DUE
+}
+
+"""
+Alert severity level (BUG-002 FIX: Added to match service implementation)
+"""
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+"""
+Alert category
+"""
+enum AlertCategory {
+  OTD
+  QUALITY
+  RATING
+  COMPLIANCE
+  ESG_RISK
+  TIER_CLASSIFICATION
+  OVERALL_SCORE
+  DELIVERY
+  COST
+  SERVICE
+}
+
+"""
+Alert status workflow
+"""
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+# ==================================================================
+# INPUT TYPES
+# ==================================================================
+
+"""
+Input for recording ESG metrics
+"""
+input VendorESGMetricsInput {
+  tenantId: ID!
+  vendorId: ID!
+  evaluationPeriodYear: Int!
+  evaluationPeriodMonth: Int!
+
+  # Environmental metrics
+  carbonFootprintTonsCO2e: Float
+  carbonFootprintTrend: CarbonFootprintTrend
+  wasteReductionPercentage: Float
+  renewableEnergyPercentage: Float
+  packagingSustainabilityScore: Float
+  environmentalCertifications: JSON
+
+  # Social metrics
+  laborPracticesScore: Float
+  humanRightsComplianceScore: Float
+  diversityScore: Float
+  workerSafetyRating: Float
+  socialCertifications: JSON
+
+  # Governance metrics
+  ethicsComplianceScore: Float
+  antiCorruptionScore: Float
+  supplyChainTransparencyScore: Float
+  governanceCertifications: JSON
+
+  # Overall ESG
+  esgOverallScore: Float
+  esgRiskLevel: ESGRiskLevel
+
+  # Metadata
+  dataSource: String
+  lastAuditDate: String
+  nextAuditDueDate: String
+  notes: String
+}
+
+"""
+Input for creating or updating scorecard configuration
+"""
+input ScorecardConfigInput {
+  tenantId: ID!
+  configName: String!
+  vendorType: String
+  vendorTier: VendorTier
+
+  # Metric weights (must sum to 100%)
+  qualityWeight: Float!
+  deliveryWeight: Float!
+  costWeight: Float!
+  serviceWeight: Float!
+  innovationWeight: Float!
+  esgWeight: Float!
+
+  # Thresholds
+  excellentThreshold: Int!
+  goodThreshold: Int!
+  acceptableThreshold: Int!
+
+  # Review frequency
+  reviewFrequencyMonths: Int!
+
+  # Active/versioning
+  isActive: Boolean!
+  effectiveFromDate: String!
+  effectiveToDate: String
+}
+
+"""
+Input for updating vendor performance scores manually
+"""
+input VendorPerformanceUpdateInput {
+  priceCompetitivenessScore: Float
+  responsivenessScore: Float
+  innovationScore: Float
+  communicationScore: Float
+  qualityAuditScore: Float
+  notes: String
+}
+
+"""
+Input for updating vendor tier
+"""
+input VendorTierUpdateInput {
+  vendorId: ID!
+  vendorTier: VendorTier!
+  tierCalculationBasis: JSON
+}
+
+"""
+Input for alert acknowledgment
+"""
+input AlertAcknowledgmentInput {
+  alertId: ID!
+  acknowledgedByUserId: ID!
+}
+
+"""
+Input for alert resolution
+"""
+input AlertResolutionInput {
+  alertId: ID!
+  resolvedByUserId: ID!
+  resolutionNotes: String
+}
+
+"""
+Input for alert dismissal
+"""
+input AlertDismissalInput {
+  alertId: ID!
+  dismissalReason: String!
+}
+
+# ==================================================================
+# QUERIES
+# ==================================================================
+
+type Query {
+  """
+  Get vendor scorecard with 12-month rolling metrics
+  """
+  getVendorScorecard(
+    tenantId: ID!
+    vendorId: ID!
+  ): VendorScorecard
+
+  """
+  Get vendor scorecard with ESG integration (enhanced version)
+  """
+  getVendorScorecardEnhanced(
+    tenantId: ID!
+    vendorId: ID!
+  ): VendorScorecard
+
+  """
+  Get vendor performance for a specific period
+  """
+  getVendorPerformance(
+    tenantId: ID!
+    vendorId: ID!
+    year: Int!
+    month: Int!
+  ): VendorPerformanceMetrics
+
+  """
+  Get vendor comparison report (top/bottom performers)
+  """
+  getVendorComparisonReport(
+    tenantId: ID!
+    year: Int!
+    month: Int!
+    vendorType: String
+    topN: Int
+  ): VendorComparisonReport
+
+  """
+  Get ESG metrics for a vendor
+  """
+  getVendorESGMetrics(
+    tenantId: ID!
+    vendorId: ID!
+    year: Int
+    month: Int
+  ): [VendorESGMetrics!]!
+
+  """
+  Get active scorecard configuration
+  """
+  getScorecardConfig(
+    tenantId: ID!
+    vendorType: String
+    vendorTier: VendorTier
+  ): ScorecardConfig
+
+  """
+  Get all scorecard configurations for a tenant
+  """
+  getScorecardConfigs(
+    tenantId: ID!
+  ): [ScorecardConfig!]!
+
+  """
+  Get performance alerts with optional filtering
+  """
+  getVendorPerformanceAlerts(
+    tenantId: ID!
+    vendorId: ID
+    alertStatus: AlertStatus
+    alertType: AlertType
+    alertCategory: AlertCategory
+    severity: AlertSeverity
+  ): [VendorPerformanceAlert!]!
+}
+
+# ==================================================================
+# MUTATIONS
+# ==================================================================
+
+type Mutation {
+  """
+  Calculate vendor performance for a specific period
+  """
+  calculateVendorPerformance(
+    tenantId: ID!
+    vendorId: ID!
+    year: Int!
+    month: Int!
+  ): VendorPerformanceMetrics!
+
+  """
+  Calculate performance for all active vendors in a period
+  """
+  calculateAllVendorsPerformance(
+    tenantId: ID!
+    year: Int!
+    month: Int!
+  ): [VendorPerformanceMetrics!]!
+
+  """
+  Update vendor performance scores manually
+  """
+  updateVendorPerformanceScores(
+    tenantId: ID!
+    vendorId: ID!
+    year: Int!
+    month: Int!
+    scores: VendorPerformanceUpdateInput!
+  ): VendorPerformanceMetrics!
+
+  """
+  Record ESG metrics for a vendor
+  """
+  recordESGMetrics(
+    esgMetrics: VendorESGMetricsInput!
+  ): VendorESGMetrics!
+
+  """
+  Create or update scorecard configuration
+  """
+  upsertScorecardConfig(
+    config: ScorecardConfigInput!
+    userId: ID
+  ): ScorecardConfig!
+
+  """
+  Update vendor tier classification
+  """
+  updateVendorTier(
+    tenantId: ID!
+    input: VendorTierUpdateInput!
+  ): Boolean!
+
+  """
+  Acknowledge a performance alert
+  """
+  acknowledgeAlert(
+    tenantId: ID!
+    input: AlertAcknowledgmentInput!
+  ): VendorPerformanceAlert!
+
+  """
+  Resolve a performance alert
+  """
+  resolveAlert(
+    tenantId: ID!
+    input: AlertResolutionInput!
+  ): VendorPerformanceAlert!
+
+  """
+  Dismiss a performance alert
+  """
+  dismissAlert(
+    tenantId: ID!
+    input: AlertDismissalInput!
+  ): VendorPerformanceAlert!
+}
+
+# ==================================================================
+# SCALAR TYPES
+# ==================================================================
+
+"""
+JSON scalar type for storing arbitrary JSON data
+"""
+scalar JSON

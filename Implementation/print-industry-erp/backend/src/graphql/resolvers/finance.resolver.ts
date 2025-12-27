@@ -1,4 +1,5 @@
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
+import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 /**
@@ -18,7 +19,7 @@ import { Pool } from 'pg';
 
 @Resolver('Finance')
 export class FinanceResolver {
-  constructor(private readonly db: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
 
   // =====================================================
   // FINANCIAL PERIOD QUERIES

@@ -1,3 +1,4 @@
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 /**
@@ -49,6 +50,9 @@ export interface BinCapacity {
   securityZone: string;
   aisleCode?: string;
   zoneCode?: string;
+  lengthInches?: number;
+  widthInches?: number;
+  heightInches?: number;
 }
 
 export interface CapacityValidation {
@@ -123,6 +127,7 @@ export interface ZoneUtilization {
 // SERVICE CLASS
 // ============================================================================
 
+@Injectable()
 export class BinUtilizationOptimizationService {
   protected pool: Pool;
 
@@ -133,20 +138,8 @@ export class BinUtilizationOptimizationService {
   private readonly CONSOLIDATION_THRESHOLD = 25;    // Bins below this should be consolidated
   private readonly HIGH_CONFIDENCE_THRESHOLD = 0.8; // Confidence score threshold
 
-  constructor(pool?: Pool) {
-    if (pool) {
-      this.pool = pool;
-    } else {
-      // Use DATABASE_URL connection string (set by docker-compose)
-      const connectionString = process.env.DATABASE_URL ||
-        'postgresql://agogsaas_user:changeme@localhost:5433/agogsaas';
-      this.pool = new Pool({
-        connectionString,
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
-      });
-    }
+  constructor(@Inject('DATABASE_POOL') pool: Pool) {
+    this.pool = pool;
   }
 
   // ==========================================================================
@@ -438,6 +431,42 @@ export class BinUtilizationOptimizationService {
   // ==========================================================================
 
   /**
+   * Check if item dimensions fit within bin dimensions with rotation
+   *
+   * REQ-STRATEGIC-AUTO-1766527796497: Production Blocker #1 Fix
+   * Implements proper 3D dimension validation with rotation logic
+   *
+   * Algorithm: Sort both item and bin dimensions, then compare pairwise
+   * This allows for optimal rotation while ensuring physical fit
+   */
+  protected check3DFit(
+    item: { lengthInches: number; widthInches: number; heightInches: number },
+    bin: { lengthInches?: number; widthInches?: number; heightInches?: number },
+    options: { allowRotation: boolean } = { allowRotation: true }
+  ): boolean {
+    // If bin dimensions are not available, fall back to cubic feet check only
+    if (!bin.lengthInches || !bin.widthInches || !bin.heightInches) {
+      return true; // Will be caught by cubic feet validation
+    }
+
+    if (options.allowRotation) {
+      // Sort dimensions from smallest to largest for both item and bin
+      const itemDims = [item.lengthInches, item.widthInches, item.heightInches].sort((a, b) => a - b);
+      const binDims = [bin.lengthInches, bin.widthInches, bin.heightInches].sort((a, b) => a - b);
+
+      // Each sorted dimension of item must fit in corresponding bin dimension
+      return itemDims.every((dim, index) => dim <= binDims[index]);
+    } else {
+      // No rotation allowed - check exact orientation
+      return (
+        item.lengthInches <= bin.lengthInches &&
+        item.widthInches <= bin.widthInches &&
+        item.heightInches <= bin.heightInches
+      );
+    }
+  }
+
+  /**
    * Validate if item can fit in location with comprehensive checks
    */
   protected validateCapacity(
@@ -469,8 +498,28 @@ export class BinUtilizationOptimizationService {
       );
     }
 
-    // 3. Dimension check (simplified - assumes item can be rotated)
-    const dimensionCheck = true; // Could enhance with actual 3D fitting logic
+    // 3. CRITICAL FIX: Proper 3D dimension check with rotation logic
+    // REQ-STRATEGIC-AUTO-1766527796497: Fixes Production Blocker #1
+    const dimensionCheck = this.check3DFit(
+      {
+        lengthInches: dimensions.lengthInches,
+        widthInches: dimensions.widthInches,
+        heightInches: dimensions.heightInches,
+      },
+      {
+        lengthInches: location.lengthInches,
+        widthInches: location.widthInches,
+        heightInches: location.heightInches,
+      },
+      { allowRotation: true }
+    );
+
+    if (!dimensionCheck && location.lengthInches && location.widthInches && location.heightInches) {
+      violations.push(
+        `Item dimensions (${dimensions.lengthInches.toFixed(1)}" × ${dimensions.widthInches.toFixed(1)}" × ${dimensions.heightInches.toFixed(1)}") ` +
+        `do not fit in bin (${location.lengthInches.toFixed(1)}" × ${location.widthInches.toFixed(1)}" × ${location.heightInches.toFixed(1)}")`
+      );
+    }
 
     const canFit = cubicCheck && weightCheck && dimensionCheck;
 
@@ -724,7 +773,10 @@ export class BinUtilizationOptimizationService {
         il.abc_classification,
         il.pick_sequence,
         il.temperature_controlled,
-        il.security_zone
+        il.security_zone,
+        il.length_inches,
+        il.width_inches,
+        il.height_inches
       FROM inventory_locations il
       LEFT JOIN location_usage lu ON il.location_id = lu.location_id
       WHERE il.facility_id = $1
@@ -761,6 +813,9 @@ export class BinUtilizationOptimizationService {
       pickSequence: row.pick_sequence,
       temperatureControlled: row.temperature_controlled,
       securityZone: row.security_zone,
+      lengthInches: row.length_inches ? parseFloat(row.length_inches) : undefined,
+      widthInches: row.width_inches ? parseFloat(row.width_inches) : undefined,
+      heightInches: row.height_inches ? parseFloat(row.height_inches) : undefined,
     }));
   }
 

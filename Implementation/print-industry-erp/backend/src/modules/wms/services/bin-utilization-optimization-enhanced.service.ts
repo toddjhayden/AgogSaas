@@ -1,3 +1,4 @@
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { BinUtilizationOptimizationService, ItemDimensions, BinCapacity, PutawayRecommendation, OptimizationRecommendation } from './bin-utilization-optimization.service';
 
@@ -226,13 +227,14 @@ class MLConfidenceAdjuster {
 // ENHANCED SERVICE CLASS
 // ============================================================================
 
+@Injectable()
 export class BinUtilizationOptimizationEnhancedService extends BinUtilizationOptimizationService {
   private mlAdjuster: MLConfidenceAdjuster;
   private congestionCache: Map<string, AisleCongestionMetrics> = new Map();
   private congestionCacheExpiry: number = 0;
   private readonly CONGESTION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-  constructor(pool?: Pool) {
+  constructor(@Inject('DATABASE_POOL') pool: Pool) {
     super(pool);
     this.mlAdjuster = new MLConfidenceAdjuster(this.pool);
   }

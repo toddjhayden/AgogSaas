@@ -1,3 +1,4 @@
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { BinUtilizationOptimizationService, ItemDimensions, BinCapacity } from './bin-utilization-optimization.service';
 
@@ -28,11 +29,16 @@ export interface DataQualityValidation {
 // FIXED SERVICE CLASS
 // ============================================================================
 
+@Injectable()
 export class BinUtilizationOptimizationFixedService extends BinUtilizationOptimizationService {
   // Validation bounds (CONCERN #10: Input validation)
   private readonly MAX_QUANTITY = 1_000_000;
   private readonly MAX_CUBIC_FEET = 10_000;
   private readonly MAX_WEIGHT_LBS = 50_000;
+
+  constructor(@Inject('DATABASE_POOL') pool: Pool) {
+    super(pool);
+  }
 
   /**
    * CRITICAL FIX #3: Pre-flight data quality validation

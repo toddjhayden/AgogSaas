@@ -2,6 +2,12 @@ import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { VendorPerformanceService } from '../../modules/procurement/services/vendor-performance.service';
+import { validateTenantAccess } from '../../common/security/tenant-validation';
+import {
+  validateCalculatePerformanceInput,
+  validateVendorComparisonInput,
+  validateUpdatePerformanceScoresInput,
+} from '../../common/validation/procurement-dtos';
 
 /**
  * SALES, MATERIALS, AND PROCUREMENT RESOLVER
@@ -551,8 +557,12 @@ export class SalesMaterialsResolver {
   @Query('vendorScorecard')
   async getVendorScorecard(
     @Args('tenantId') tenantId: string,
-    @Args('vendorId') vendorId: string
+    @Args('vendorId') vendorId: string,
+    @Context() context: any
   ) {
+    // Security: Validate tenant access
+    validateTenantAccess(context, tenantId);
+
     return this.vendorPerformanceService.getVendorScorecard(tenantId, vendorId);
   }
 
@@ -562,8 +572,15 @@ export class SalesMaterialsResolver {
     @Args('year') year: number,
     @Args('month') month: number,
     @Args('vendorType') vendorType: string | null,
-    @Args('topN') topN: number = 5
+    @Args('topN') topN: number = 5,
+    @Context() context: any
   ) {
+    // Security: Validate tenant access
+    validateTenantAccess(context, tenantId);
+
+    // Validation: Check year, month, and topN ranges
+    validateVendorComparisonInput({ year, month, topN });
+
     return this.vendorPerformanceService.getVendorComparisonReport(
       tenantId,
       year,
@@ -1460,6 +1477,12 @@ export class SalesMaterialsResolver {
     @Args('month') month: number,
     @Context() context: any
   ) {
+    // Security: Validate tenant access
+    validateTenantAccess(context, tenantId);
+
+    // Validation: Check year and month ranges
+    validateCalculatePerformanceInput({ year, month });
+
     return this.vendorPerformanceService.calculateVendorPerformance(
       tenantId,
       vendorId,
@@ -1475,6 +1498,12 @@ export class SalesMaterialsResolver {
     @Args('month') month: number,
     @Context() context: any
   ) {
+    // Security: Validate tenant access
+    validateTenantAccess(context, tenantId);
+
+    // Validation: Check year and month ranges
+    validateCalculatePerformanceInput({ year, month });
+
     return this.vendorPerformanceService.calculateAllVendorsPerformance(
       tenantId,
       year,
@@ -1490,6 +1519,12 @@ export class SalesMaterialsResolver {
     @Args('notes') notes: string | null,
     @Context() context: any
   ) {
+    // Validation: Check score ranges
+    validateUpdatePerformanceScoresInput({
+      priceCompetitivenessScore,
+      responsivenessScore,
+    });
+
     const updates: string[] = [];
     const params: any[] = [];
     let paramIndex = 1;

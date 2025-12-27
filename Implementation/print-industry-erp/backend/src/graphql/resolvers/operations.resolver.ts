@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Args, Context, ID } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 /**
@@ -17,7 +17,7 @@ import { Pool } from 'pg';
 
 @Resolver('Operations')
 export class OperationsResolver {
-  constructor(private readonly db: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
 
   // =====================================================
   // WORK CENTER QUERIES

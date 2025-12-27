@@ -10,6 +10,7 @@
  * - ML model weights initialization
  */
 
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 export interface FacilityBootstrapResult {
@@ -23,8 +24,9 @@ export interface FacilityBootstrapResult {
   warnings: string[];
 }
 
+@Injectable()
 export class FacilityBootstrapService {
-  constructor(private pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Initialize a new facility with all required data

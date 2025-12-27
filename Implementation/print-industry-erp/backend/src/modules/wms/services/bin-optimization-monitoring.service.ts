@@ -1,3 +1,4 @@
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 /**
@@ -66,9 +67,8 @@ export interface AlertThreshold {
 // SERVICE CLASS
 // ============================================================================
 
+@Injectable()
 export class BinOptimizationMonitoringService {
-  private pool: Pool;
-
   // Health check thresholds
   private readonly CACHE_AGE_HEALTHY_MINUTES = 15;
   private readonly CACHE_AGE_DEGRADED_MINUTES = 30;
@@ -77,20 +77,7 @@ export class BinOptimizationMonitoringService {
   private readonly AVG_CONFIDENCE_HEALTHY = 0.75;
   private readonly AVG_CONFIDENCE_DEGRADED = 0.65;
 
-  constructor(pool?: Pool) {
-    if (pool) {
-      this.pool = pool;
-    } else {
-      const connectionString = process.env.DATABASE_URL ||
-        'postgresql://agogsaas_user:changeme@localhost:5433/agogsaas';
-      this.pool = new Pool({
-        connectionString,
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
-      });
-    }
-  }
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   // ==========================================================================
   // HEALTH CHECKS

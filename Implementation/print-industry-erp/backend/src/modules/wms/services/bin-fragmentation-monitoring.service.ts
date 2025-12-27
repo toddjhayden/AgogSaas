@@ -20,6 +20,7 @@
  * - Proactive consolidation recommendations
  */
 
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 
 export interface FragmentationMetrics {
@@ -62,8 +63,9 @@ export interface FragmentationHistory {
   spaceRecovered: number;
 }
 
+@Injectable()
 export class BinFragmentationMonitoringService {
-  constructor(private pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Calculate fragmentation metrics for entire facility
