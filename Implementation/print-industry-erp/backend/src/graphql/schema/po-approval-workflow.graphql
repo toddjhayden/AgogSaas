@@ -1,0 +1,350 @@
+# =====================================================
+# PO APPROVAL WORKFLOW MODULE
+# =====================================================
+# Purpose: Multi-level purchase order approval workflows
+# REQ: REQ-STRATEGIC-AUTO-1766676891764
+# Author: Roy (Backend Specialist)
+# Date: 2025-12-27
+# =====================================================
+
+# =====================================================
+# TYPES
+# =====================================================
+
+type POApprovalWorkflow {
+  id: ID!
+  tenantId: ID!
+  workflowName: String!
+  description: String
+  appliesToFacilityIds: [ID]
+  minAmount: Float
+  maxAmount: Float
+  approvalType: ApprovalType!
+  isActive: Boolean!
+  priority: Int!
+  slaHoursPerStep: Int
+  escalationEnabled: Boolean!
+  escalationUserId: ID
+  autoApproveUnderAmount: Float
+  steps: [POApprovalWorkflowStep!]!
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+enum ApprovalType {
+  SEQUENTIAL   # Must approve in order (step 1, then step 2, etc.)
+  PARALLEL     # All approvers notified, must all approve
+  ANY_ONE      # Any single approver can approve
+}
+
+type POApprovalWorkflowStep {
+  id: ID!
+  workflowId: ID!
+  stepNumber: Int!
+  stepName: String!
+  approverRole: String
+  approverUserId: ID
+  approverUserGroupId: ID
+  isRequired: Boolean!
+  canDelegate: Boolean!
+  canSkip: Boolean!
+  minApprovalLimit: Float
+  createdAt: DateTime!
+}
+
+type POApprovalHistoryEntry {
+  id: ID!
+  purchaseOrderId: ID!
+  workflowId: ID
+  stepId: ID
+  action: ApprovalAction!
+  actionByUserId: ID!
+  actionByUserName: String
+  actionDate: DateTime!
+  stepNumber: Int
+  stepName: String
+  comments: String
+  rejectionReason: String
+  delegatedFromUserId: ID
+  delegatedFromUserName: String
+  delegatedToUserId: ID
+  delegatedToUserName: String
+  slaDeadline: DateTime
+  wasEscalated: Boolean!
+  poSnapshot: JSON
+  createdAt: DateTime!
+}
+
+enum ApprovalAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  DELEGATED
+  ESCALATED
+  REQUESTED_CHANGES
+  CANCELLED
+}
+
+type UserApprovalAuthority {
+  id: ID!
+  tenantId: ID!
+  userId: ID!
+  approvalLimit: Float!
+  currencyCode: String!
+  roleName: String
+  effectiveFromDate: Date!
+  effectiveToDate: Date
+  canDelegate: Boolean!
+  grantedByUserId: ID
+  grantedAt: DateTime!
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+# =====================================================
+# EXTENDED PURCHASE ORDER TYPE
+# =====================================================
+# Extends the existing PurchaseOrder type with approval workflow fields
+
+extend type PurchaseOrder {
+  # Approval workflow tracking
+  currentApprovalWorkflowId: ID
+  currentApprovalStepNumber: Int
+  approvalStartedAt: DateTime
+  approvalCompletedAt: DateTime
+  pendingApproverUserId: ID
+  workflowSnapshot: JSON
+
+  # Computed fields
+  approvalHistory: [POApprovalHistoryEntry!]!
+  approvalProgress: ApprovalProgress
+  isAwaitingMyApproval(userId: ID!): Boolean
+}
+
+type ApprovalProgress {
+  currentStep: Int!
+  totalSteps: Int!
+  percentComplete: Float!
+  nextApproverUserId: ID
+  nextApproverName: String
+  slaDeadline: DateTime
+  hoursRemaining: Float
+  isOverdue: Boolean!
+}
+
+# =====================================================
+# APPROVAL QUEUE ITEM
+# =====================================================
+# Optimized type for "My Pending Approvals" dashboard
+
+type PendingApprovalItem {
+  # PO details
+  purchaseOrderId: ID!
+  tenantId: ID!
+  poNumber: String!
+  poDate: Date!
+  vendorId: ID!
+  vendorName: String!
+  facilityId: ID!
+  facilityName: String!
+  totalAmount: Float!
+  poCurrencyCode: String!
+  status: PurchaseOrderStatus!
+  requestedDeliveryDate: Date
+
+  # Workflow details
+  currentApprovalWorkflowId: ID
+  currentApprovalStepNumber: Int
+  currentStepName: String
+  approvalStartedAt: DateTime!
+  pendingApproverUserId: ID!
+
+  # SLA tracking
+  slaHoursPerStep: Int
+  slaDeadline: DateTime
+  hoursRemaining: Float
+  isOverdue: Boolean!
+  urgencyLevel: UrgencyLevel!
+
+  # Requester details
+  requesterUserId: ID
+  requesterName: String
+
+  # Audit
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+enum UrgencyLevel {
+  URGENT    # Over SLA or >$100k
+  WARNING   # Approaching SLA or >$25k
+  NORMAL    # Within SLA and <$25k
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+extend type Query {
+  # Get all pending approvals for a specific user
+  getMyPendingApprovals(
+    tenantId: ID!
+    userId: ID!
+    amountMin: Float
+    amountMax: Float
+    urgencyLevel: UrgencyLevel
+  ): [PendingApprovalItem!]!
+
+  # Get approval history for a PO
+  getPOApprovalHistory(
+    purchaseOrderId: ID!
+    tenantId: ID!
+  ): [POApprovalHistoryEntry!]!
+
+  # Get all approval workflows for tenant
+  getApprovalWorkflows(
+    tenantId: ID!
+    isActive: Boolean
+  ): [POApprovalWorkflow!]!
+
+  # Get specific approval workflow
+  getApprovalWorkflow(
+    id: ID!
+    tenantId: ID!
+  ): POApprovalWorkflow
+
+  # Get applicable workflow for a PO (based on amount and facility)
+  getApplicableWorkflow(
+    tenantId: ID!
+    facilityId: ID!
+    amount: Float!
+  ): POApprovalWorkflow
+
+  # Get user's approval authority
+  getUserApprovalAuthority(
+    tenantId: ID!
+    userId: ID!
+  ): [UserApprovalAuthority!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+extend type Mutation {
+  # ===== PO Approval Actions =====
+
+  # Submit PO for approval (initiates workflow)
+  submitPOForApproval(
+    purchaseOrderId: ID!
+    submittedByUserId: ID!
+    tenantId: ID!
+  ): PurchaseOrder!
+
+  # Approve PO (advances workflow or completes it)
+  approvePOWorkflowStep(
+    purchaseOrderId: ID!
+    approvedByUserId: ID!
+    tenantId: ID!
+    comments: String
+  ): PurchaseOrder!
+
+  # Reject PO (returns to requester)
+  rejectPO(
+    purchaseOrderId: ID!
+    rejectedByUserId: ID!
+    tenantId: ID!
+    rejectionReason: String!
+  ): PurchaseOrder!
+
+  # Delegate approval to another user
+  delegateApproval(
+    purchaseOrderId: ID!
+    delegatedByUserId: ID!
+    delegatedToUserId: ID!
+    tenantId: ID!
+    comments: String
+  ): PurchaseOrder!
+
+  # Request changes from requester
+  requestPOChanges(
+    purchaseOrderId: ID!
+    requestedByUserId: ID!
+    tenantId: ID!
+    changeRequest: String!
+  ): PurchaseOrder!
+
+  # ===== Workflow Configuration =====
+
+  # Create or update approval workflow
+  upsertApprovalWorkflow(
+    id: ID
+    tenantId: ID!
+    workflowName: String!
+    description: String
+    minAmount: Float
+    maxAmount: Float
+    approvalType: ApprovalType!
+    slaHoursPerStep: Int
+    escalationEnabled: Boolean
+    escalationUserId: ID
+    autoApproveUnderAmount: Float
+    steps: [ApprovalWorkflowStepInput!]!
+  ): POApprovalWorkflow!
+
+  # Delete approval workflow
+  deleteApprovalWorkflow(
+    id: ID!
+    tenantId: ID!
+  ): Boolean!
+
+  # ===== User Approval Authority =====
+
+  # Grant approval authority to user
+  grantApprovalAuthority(
+    tenantId: ID!
+    userId: ID!
+    approvalLimit: Float!
+    currencyCode: String
+    roleName: String
+    effectiveFromDate: Date
+    effectiveToDate: Date
+    canDelegate: Boolean
+    grantedByUserId: ID!
+  ): UserApprovalAuthority!
+
+  # Revoke approval authority
+  revokeApprovalAuthority(
+    id: ID!
+    tenantId: ID!
+  ): Boolean!
+}
+
+# =====================================================
+# INPUT TYPES
+# =====================================================
+
+input ApprovalWorkflowStepInput {
+  stepNumber: Int!
+  stepName: String!
+  approverRole: String
+  approverUserId: ID
+  approverUserGroupId: ID
+  isRequired: Boolean
+  canDelegate: Boolean
+  canSkip: Boolean
+  minApprovalLimit: Float
+}
+
+# =====================================================
+# UPDATE: PurchaseOrderStatus enum
+# =====================================================
+# Extends the existing enum with new approval statuses
+
+extend enum PurchaseOrderStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
