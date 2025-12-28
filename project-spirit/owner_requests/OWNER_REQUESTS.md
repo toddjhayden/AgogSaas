@@ -59,7 +59,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766516942302: Optimize Bin Utilization Algorithm
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Improve warehouse space utilization by 15% through predictive bin assignment. Reduces need for additional warehouse space expansion ($500K savings).
@@ -116,7 +116,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766545799451: Optimize Bin Utilization Algorithm
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Improve warehouse space utilization by 15% through predictive bin assignment. Reduces need for additional warehouse space expansion ($500K savings).
@@ -135,7 +135,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766550547073: Optimize Bin Utilization Algorithm
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Improve warehouse space utilization by 15% through predictive bin assignment. Reduces need for additional warehouse space expansion ($500K savings).
@@ -154,7 +154,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766568547079: Optimize Bin Utilization Algorithm
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Improve warehouse space utilization by 15% through predictive bin assignment. Reduces need for additional warehouse space expansion ($500K savings).
@@ -173,7 +173,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766584106655: Optimize Bin Utilization Algorithm
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Improve warehouse space utilization by 15% through predictive bin assignment. Reduces need for additional warehouse space expansion ($500K savings).
@@ -192,7 +192,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766600259419: Optimize Bin Utilization Algorithm
 
-**Status**: NEW
+**Status**: IN_PROGRESS
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Improve warehouse space utilization by 15% through predictive bin assignment. Reduces need for additional warehouse space expansion ($500K savings).
@@ -211,7 +211,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766627342634: Vendor Scorecards
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
@@ -231,7 +231,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766627757384: Sales Quote Automation
 
-**Status**: NEW
+**Status**: IN_PROGRESS
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Automate sales quote generation to reduce quote turnaround time by 70%, improve pricing accuracy, and increase quote-to-order conversion rates by 25%. Enables sales team to respond faster to customer inquiries and standardize pricing strategies.
@@ -252,7 +252,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766639415938: PO Approval Workflow
 
-**Status**: NEW
+**Status**: IN_PROGRESS
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement automated purchase order approval workflows to reduce approval cycle time by 60%, enforce spending controls, and improve procurement compliance. Enables multi-level approval routing based on PO value, budget availability, and vendor risk assessment.
@@ -273,7 +273,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766639534835: Inventory Forecasting
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
@@ -314,7 +314,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766675619639: Inventory Forecasting
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
@@ -335,7 +335,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766676891764: PO Approval Workflow
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement automated purchase order approval workflows to reduce approval cycle time by 60%, enforce spending controls, and improve procurement compliance. Enables multi-level approval routing based on PO value, budget availability, and vendor risk assessment.
@@ -356,7 +356,7 @@
 
 ### REQ-STRATEGIC-AUTO-1735125600000: Sales Quote Automation
 
-**Status**: PENDING
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Automate sales quote generation to reduce quote turnaround time by 70%, improve pricing accuracy, and increase quote-to-order conversion rates by 25%. Enables sales team to respond faster to customer inquiries and standardize pricing strategies.
@@ -377,7 +377,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766689933757: Vendor Scorecards
 
-**Status**: NEW
+**Status**: IN_PROGRESS
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
@@ -397,7 +397,7 @@
 
 ### REQ-STRATEGIC-AUTO-1735134000000: PO Approval Workflow
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement automated purchase order approval workflows to reduce approval cycle time by 60%, enforce spending controls, and improve procurement compliance. Enables multi-level approval routing based on PO value, budget availability, and vendor risk assessment.
@@ -418,7 +418,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766697133555: Inventory Forecasting
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
@@ -439,7 +439,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766704336590: Sales Quote Automation
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Automate sales quote generation to reduce quote turnaround time by 70%, improve pricing accuracy, and increase quote-to-order conversion rates by 25%. Enables sales team to respond faster to customer inquiries and standardize pricing strategies.
@@ -460,7 +460,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766711533941: Vendor Scorecards
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
@@ -480,7 +480,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766713101438: PO Approval Workflow
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement automated purchase order approval workflows to reduce approval cycle time by 60%, enforce spending controls, and improve procurement compliance. Enables multi-level approval routing based on PO value, budget availability, and vendor risk assessment.
@@ -501,7 +501,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766718736461: Inventory Forecasting
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
@@ -522,7 +522,7 @@
 
 ### REQ-STRATEGIC-AUTO-1735249200000: Sales Quote Automation
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Automate sales quote generation to reduce quote turnaround time by 70%, improve pricing accuracy, and increase quote-to-order conversion rates by 25%. Enables sales team to respond faster to customer inquiries and standardize pricing strategies.
@@ -543,7 +543,7 @@
 
 ### REQ-STRATEGIC-AUTO-1735249636000: Vendor Scorecards
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
@@ -584,7 +584,7 @@
 
 ### REQ-STRATEGIC-AUTO-1735252025000: Inventory Forecasting
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
@@ -626,7 +626,7 @@
 
 ### REQ-STRATEGIC-AUTO-1735255545000: Vendor Scorecards
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
@@ -667,7 +667,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766790735924: Inventory Forecasting
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
@@ -708,7 +708,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766805136685: Sales Quote Automation
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Automate sales quote generation to reduce quote turnaround time by 70%, improve pricing accuracy, and increase quote-to-order conversion rates by 25%. Enables sales team to respond faster to customer inquiries and standardize pricing strategies.
@@ -750,7 +750,7 @@
 
 ### REQ-STRATEGIC-AUTO-1735325347000: Vendor Scorecards
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
@@ -791,7 +791,7 @@
 
 ### REQ-STRATEGIC-AUTO-1766862737958: Sales Quote Automation
 
-**Status**: NEW
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Automate sales quote generation to reduce quote turnaround time by 70%, improve pricing accuracy, and increase quote-to-order conversion rates by 25%. Enables sales team to respond faster to customer inquiries and standardize pricing strategies.
@@ -808,3 +808,160 @@
 - Enable customer self-service quote portal
 
 ---
+
+
+### REQ-STRATEGIC-AUTO-1766869936958: PO Approval Workflow
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Implement automated purchase order approval workflows to reduce approval cycle time by 60%, enforce spending controls, and improve procurement compliance. Enables multi-level approval routing based on PO value, budget availability, and vendor risk assessment.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-27T11:18:56.958Z
+
+**Requirements**:
+
+- Design configurable approval workflow engine with role-based routing
+- Create approval threshold rules based on PO value and categories
+- Implement budget validation and authorization controls
+- Add real-time approval notifications and escalation mechanisms
+- Generate PO approval analytics and bottleneck identification
+- Enable mobile approval capabilities for managers
+
+---
+
+
+### REQ-STRATEGIC-AUTO-1766875111384: Vendor Scorecards
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-27T12:45:11.384Z
+
+**Requirements**:
+
+- Design vendor performance metrics (quality, delivery time, cost, compliance)
+- Create vendor scorecard dashboard with real-time tracking
+- Implement automated vendor evaluation workflows
+- Add vendor comparison and ranking capabilities
+- Generate vendor performance reports and alerts
+
+---
+
+### REQ-DATABASE-WMS-1766892755200: Fix Missing WMS Database Tables
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Critical - WMS pages completely broken. 4 pages failing with database errors. Blocking warehouse operations visibility.
+**Generated By**: claude-code
+**Generated At**: 2025-12-27T21:32:35.200Z
+
+**Requirements**:
+
+- Investigate why WMS migrations V0.0.4 through V0.0.35 failed
+- Create missing tables: inventory_locations, bins, lots, bin_utilization_cache, material_velocity_metrics
+- Fix foreign key dependencies preventing table creation
+- Rebuild WMS materialized views for analytics
+- Test all WMS GraphQL resolvers (bin-utilization, data-quality, health)
+- Verify tenant_id context propagation to WMS queries
+
+**Affected Pages**:
+- /wms/bin-utilization
+- /wms/bin-utilization-enhanced  
+- /wms/health
+- /wms/data-quality
+
+---
+
+### REQ-PO-COLUMN-1766892755201: Fix Purchase Order Column Name Mismatch
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Medium - Purchase Orders page broken. Blocking procurement workflow visibility.
+**Generated By**: claude-code
+**Generated At**: 2025-12-27T21:32:35.201Z
+
+**Requirements**:
+
+- Find GraphQL schema/resolver using incorrect column name "purchase_order_date"
+- Change all references to correct column name "po_date"
+- Update TypeScript types and interfaces
+- Test purchase orders GraphQL query
+- Verify /procurement/purchase-orders page loads successfully
+
+**Affected Page**:
+- /procurement/purchase-orders
+
+---
+
+### REQ-I18N-CHINESE-1766892755202: Complete Chinese Translations for KPIs Page
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Low - UX issue for Chinese-speaking users. Mixed language display unprofessional.
+**Generated By**: claude-code
+**Generated At**: 2025-12-27T21:32:35.202Z
+
+**Requirements**:
+
+- Audit KPIs page components for hardcoded English strings
+- Compare zh-CN.json with en-US.json to find missing translation keys
+- Add all missing Chinese translations to zh-CN.json
+- Ensure all components use i18n translation function t()
+- Test language switching between English and Chinese
+- Verify no mixed language display remains
+
+**Affected Page**:
+- /kpis
+
+---
+
+### REQ-TENANT-CTX-1766892755203: Add Tenant ID Context to WMS GraphQL Queries
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Medium - WMS data-quality page failing. Tenant isolation not working.
+**Generated By**: claude-code
+**Generated At**: 2025-12-27T21:32:35.203Z
+
+**Requirements**:
+
+- Verify JWT token includes tenant_id claim in payload
+- Check auth middleware (jwt.middleware.ts) extracts tenant_id to GraphQL context
+- Ensure frontend Apollo Client includes auth headers in all requests
+- Add tenant_id to GraphQL context TypeScript types
+- Add default tenant for development environment
+- Test WMS queries receive tenant context automatically
+
+**Affected Pages**:
+- /wms/data-quality
+- All multi-tenant WMS queries
+
+---
+
+### REQ-STRATEGIC-AUTO-1766893112869: Inventory Forecasting
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-27T21:38:32.869Z
+
+**Requirements**:
+
+- Design ML-based demand forecasting engine with historical data analysis
+- Create multi-factor forecasting models (seasonality, trends, promotions)
+- Implement automated reorder point and safety stock calculations
+- Add inventory optimization dashboard with forecasting accuracy metrics
+- Generate inventory recommendations and replenishment alerts
+- Enable scenario planning and what-if analysis capabilities
+
+---
+
