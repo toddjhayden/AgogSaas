@@ -28,7 +28,10 @@ async function publishToNats() {
   // Connect to NATS on localhost (running in Docker on port 4223)
   const natsUrl = 'localhost:4223';
   const user = process.env.NATS_USER || 'agents';
-  const pass = process.env.NATS_PASSWORD || 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4';
+  const pass = process.env.NATS_PASSWORD;
+  if (!pass) {
+    throw new Error('NATS_PASSWORD environment variable is required');
+  }
 
   console.log(`Connecting to NATS at ${natsUrl}...`);
   const nc: NatsConnection = await connect({

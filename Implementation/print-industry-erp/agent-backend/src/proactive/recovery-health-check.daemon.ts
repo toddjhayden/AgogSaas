@@ -393,11 +393,14 @@ export class RecoveryHealthCheckDaemon {
     const scriptPath = path.join(__dirname, '../../scripts/start-strategic-orchestrator.ts');
 
     // Ensure NATS credentials are passed to spawned process
+    if (!process.env.NATS_PASSWORD) {
+      throw new Error('NATS_PASSWORD environment variable is required');
+    }
     const env = {
       ...process.env,
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4223',
       NATS_USER: process.env.NATS_USER || 'agents',
-      NATS_PASSWORD: process.env.NATS_PASSWORD || 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4',
+      NATS_PASSWORD: process.env.NATS_PASSWORD,
       OWNER_REQUESTS_PATH: process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md'
     };
 
@@ -443,11 +446,12 @@ export class RecoveryHealthCheckDaemon {
     const scriptPath = path.join(__dirname, '../../scripts/host-agent-listener.ts');
 
     // Ensure NATS credentials are passed to spawned process
+    // NATS_PASSWORD should already be validated in startStrategicOrchestrator()
     const env = {
       ...process.env,
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4223',
       NATS_USER: process.env.NATS_USER || 'agents',
-      NATS_PASSWORD: process.env.NATS_PASSWORD || 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4'
+      NATS_PASSWORD: process.env.NATS_PASSWORD
     };
 
     // Use PowerShell Start-Process with -WindowStyle Hidden

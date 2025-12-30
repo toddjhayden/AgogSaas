@@ -175,9 +175,9 @@ docker ps | findstr nats
 # Check NATS logs
 docker logs agogsaas-agents-nats
 
-# Verify NATS credentials in start-listener.bat:
+# Verify NATS credentials - must be set as environment variable:
 # NATS_USER=agents
-# NATS_PASSWORD=WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4
+# NATS_PASSWORD=<set via environment variable or .env file>
 ```
 
 ### Strategic Orchestrator not scanning OWNER_REQUESTS.md

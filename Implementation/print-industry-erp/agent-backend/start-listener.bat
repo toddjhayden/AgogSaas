@@ -7,7 +7,11 @@ cd /d D:\GitHub\agogsaas\Implementation\print-industry-erp\agent-backend
 
 set NATS_URL=nats://localhost:4223
 set NATS_USER=agents
-set NATS_PASSWORD=WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4
+REM NATS_PASSWORD must be set in environment before running this script
+if "%NATS_PASSWORD%"=="" (
+    echo ERROR: NATS_PASSWORD environment variable is required
+    exit /b 1
+)
 
 echo.
 echo ===================================================================

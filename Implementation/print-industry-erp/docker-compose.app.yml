@@ -42,7 +42,7 @@ services:
       # Agent monitoring via NATS (optional - for monitoring dashboard)
       NATS_URL: nats://nats:4222
       NATS_USER: agents
-      NATS_PASSWORD: WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4
+      NATS_PASSWORD: ${NATS_PASSWORD:-}
     ports:
       - "4001:4000"
     depends_on:

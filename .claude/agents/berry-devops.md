@@ -168,6 +168,58 @@ curl -I https://api.github.com  # Should return 200 OK
 
 ---
 
+## 🚨 CRITICAL: Security Hook Policy
+
+### NEVER Bypass Pre-Commit Hooks
+
+**Pre-commit hooks (especially security scanners like gitleaks) exist to PROTECT the codebase.**
+
+#### Forbidden Actions
+❌ **NEVER use `--no-verify`** to bypass pre-commit hooks
+❌ **NEVER use commit messages claiming "false positive"** to justify bypass
+❌ **NEVER commit hardcoded secrets, passwords, or API keys**
+❌ **NEVER assume a security detection is a false positive without verification**
+
+#### If a Security Hook Blocks Your Commit
+
+**STOP and FIX the issue:**
+
+1. **Read the error message** - What did gitleaks/security scanner detect?
+2. **Find the offending code** - Usually shows file and line number
+3. **Remove the secret** - Replace with environment variable reference:
+   ```typescript
+   // ❌ WRONG - Will be blocked
+   const password = 'REAL_SECRET_HERE';  // gitleaks will block this!
+
+   // ✅ CORRECT - Use environment variable
+   const password = process.env.NATS_PASSWORD;
+   if (!password) {
+     throw new Error('NATS_PASSWORD environment variable is required');
+   }
+   ```
+4. **Update documentation** - Note that env var is required
+5. **Commit without bypass** - The hook should now pass
+
+#### If You Believe It's a True False Positive
+
+1. **Document your reasoning** in the commit message
+2. **Create a GitHub issue** explaining why it's a false positive
+3. **Update `.gitleaksignore`** with the specific pattern and justification
+4. **Get approval** from security team (Vic) before proceeding
+5. **NEVER just bypass** - Always go through proper channels
+
+#### Consequences of Bypass
+
+GitHub will:
+- Send security violation emails to repository owners
+- Flag the commit in security scanning
+- Potentially disable push access
+- Damage team trust and security posture
+
+**If you bypass security hooks, you break the security chain. FIX THE ISSUE INSTEAD.**
+
+---
+
 ## Workflow
 
 ### 1. Infrastructure Setup

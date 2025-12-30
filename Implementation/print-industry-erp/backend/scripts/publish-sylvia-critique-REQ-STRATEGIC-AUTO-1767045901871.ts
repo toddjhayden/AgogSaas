@@ -31,7 +31,10 @@ async function publishSylviaCritique() {
     // Connect to NATS
     const natsUrl = process.env.NATS_URL || 'nats://localhost:4223';
     const user = process.env.NATS_USER || 'agents';
-    const pass = process.env.NATS_PASSWORD || 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4';
+    const pass = process.env.NATS_PASSWORD;
+    if (!pass) {
+      throw new Error('NATS_PASSWORD environment variable is required');
+    }
 
     console.log(`[Publish] Connecting to NATS at ${natsUrl}...`);
     nc = await connect({

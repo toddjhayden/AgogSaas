@@ -58,10 +58,14 @@ class HostAgentListener {
 
     try {
       // Connect to NATS (exposed from Docker)
+      const natsPassword = process.env.NATS_PASSWORD;
+      if (!natsPassword) {
+        throw new Error('NATS_PASSWORD environment variable is required');
+      }
       this.nc = await connect({
-        servers: 'nats://localhost:4223',
-        user: 'agents',
-        pass: 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4'
+        servers: process.env.NATS_URL || 'nats://localhost:4223',
+        user: process.env.NATS_USER || 'agents',
+        pass: natsPassword
       });
       this.js = this.nc.jetstream();
 

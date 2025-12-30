@@ -1,10 +1,14 @@
 import { connect } from 'nats';
 
 async function publishRequirements() {
+  const natsPassword = process.env.NATS_PASSWORD;
+  if (!natsPassword) {
+    throw new Error('NATS_PASSWORD environment variable is required');
+  }
   const nc = await connect({
     servers: 'nats://localhost:4223',
-    user: 'agents',
-    pass: 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4'
+    user: process.env.NATS_USER || 'agents',
+    pass: natsPassword
   });
 
   const timestamp = new Date().toISOString();

@@ -211,12 +211,16 @@ async function publishDeliverable(): Promise<void> {
     },
   };
 
+  const natsPassword = process.env.NATS_PASSWORD;
+  if (!natsPassword) {
+    throw new Error('NATS_PASSWORD environment variable is required');
+  }
   try {
     // Connect to NATS
     const nc: NatsConnection = await connect({
       servers: process.env.NATS_URL || 'nats://localhost:4222',
       user: process.env.NATS_USER || 'agents',
-      pass: process.env.NATS_PASSWORD || 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4',
+      pass: natsPassword,
     });
 
     console.log('✅ Connected to NATS server');

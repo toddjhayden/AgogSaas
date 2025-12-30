@@ -66,7 +66,7 @@ services:
       # NATS Configuration
       NATS_URL: nats://nats:4222
       NATS_USER: agents
-      NATS_PASSWORD: WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4
+      NATS_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD environment variable is required}
       # Agent Memory Database (PostgreSQL + pgvector)
       DATABASE_URL: postgresql://agent_user:agent_dev_password_2024@agent-postgres:5432/agent_memory
       OLLAMA_URL: http://ollama:11434

@@ -11,7 +11,10 @@ import * as path from 'path';
 
 const NATS_URL = process.env.NATS_URL || 'nats://localhost:4223';
 const NATS_USER = process.env.NATS_USER || 'agents';
-const NATS_PASSWORD = process.env.NATS_PASSWORD || 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4';
+const NATS_PASSWORD = process.env.NATS_PASSWORD;
+if (!NATS_PASSWORD) {
+  throw new Error('NATS_PASSWORD environment variable is required');
+}
 
 interface SylviaCritiqueDeliverable {
   agent: string;
