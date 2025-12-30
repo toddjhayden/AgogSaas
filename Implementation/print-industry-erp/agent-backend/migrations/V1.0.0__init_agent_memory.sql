@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS memories (
   agent_id VARCHAR(100) NOT NULL,
   memory_type VARCHAR(50) NOT NULL,
   content TEXT NOT NULL,
-  embedding vector(1536),
+  embedding vector(768),  -- nomic-embed-text model uses 768 dimensions
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   accessed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
