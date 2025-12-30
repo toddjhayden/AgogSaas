@@ -45,3 +45,6 @@ export * from './wms';
 export * from './finance';
 export * from './quality';
 export * from './marketplace';
+export * from './codeQuality';
+export * from './supplierPortal';
+export * from './quoteCollaboration';

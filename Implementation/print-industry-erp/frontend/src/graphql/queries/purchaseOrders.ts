@@ -41,6 +41,11 @@ export const GET_PURCHASE_ORDERS = gql`
       requiresApproval
       approvedByUserId
       approvedAt
+      currentApprovalWorkflowId
+      currentApprovalStepNumber
+      approvalStartedAt
+      approvalCompletedAt
+      pendingApproverUserId
       createdAt
       createdBy
       updatedAt
@@ -74,6 +79,22 @@ export const GET_PURCHASE_ORDER = gql`
       requiresApproval
       approvedByUserId
       approvedAt
+      currentApprovalWorkflowId
+      currentApprovalStepNumber
+      approvalStartedAt
+      approvalCompletedAt
+      pendingApproverUserId
+      workflowSnapshot
+      approvalProgress {
+        currentStep
+        totalSteps
+        percentComplete
+        nextApproverUserId
+        nextApproverName
+        slaDeadline
+        hoursRemaining
+        isOverdue
+      }
       journalEntryId
       notes
       lines {

@@ -1,0 +1,1211 @@
+================================================================================
+                        AGOG AGENTIC SYSTEM FLOWCHART
+                     Complete Multi-Agent Workflow System
+                  ALL STATES, ERROR PATHS & RECOVERY MECHANISMS
+           (Updated with DEPLOYED Gap Fixes - Last Updated: 2025-12-29)
+================================================================================
+
+SYSTEM ARCHITECTURE OVERVIEW
+================================================================================
+
+agogsaas/
+├── project-spirit/
+│   └── owner_requests/
+│       └── OWNER_REQUESTS.md              ← OWNER INPUT (Human adds requirements)
+│
+├── Implementation/
+│   └── print-industry-erp/
+│       ├── agent-backend/                 ← AGENT ORCHESTRATION (Docker)
+│       │   ├── src/
+│       │   │   ├── orchestration/
+│       │   │   │   ├── strategic-orchestrator.service.ts    ← Main controller
+│       │   │   │   ├── orchestrator.service.ts              ← Workflow manager
+│       │   │   │   └── agent-spawner.service.ts             ← (Not used - broken)
+│       │   │   ├── agents/
+│       │   │   │   ├── berry-auto-deploy.service.ts         ← Auto-deployment
+│       │   │   │   └── deployment-executor.service.ts       ← Executes deploys
+│       │   │   └── monitoring/
+│       │   │       └── health-monitor.service.ts            ← System health
+│       │   └── scripts/
+│       │       ├── start-all-monitoring-services.ts         ← Starts all daemons
+│       │       └── host-agent-listener.ts                   ← Runs on Windows host
+│       │
+│       ├── backend/                       ← APPLICATION (Production ERP)
+│       └── frontend/                      ← APPLICATION (React UI)
+│
+├── .claude/
+│   ├── agents/                            ← AGENT DEFINITIONS
+│   │   ├── cynthia-research.md            ← Stage 1: Research
+│   │   ├── sylvia-critique.md             ← Stage 2: Critique
+│   │   ├── roy-backend.md                 ← Stage 3: Backend
+│   │   ├── jen-frontend.md                ← Stage 4: Frontend
+│   │   ├── billy-qa.md                    ← Stage 5: QA Testing
+│   │   ├── priya-statistics.md            ← Stage 6: Statistics (bypassed)
+│   │   └── berry-devops.md                ← Stage 7: DevOps
+│   │
+│   ├── escalations/                       ← ESCALATED WORKFLOWS (Gap Fix #6)
+│   │   └── {reqId}.json                   ← Escalation details
+│   │
+│   └── spawned/                           ← SPAWNED AGENT TRACKING (Gap Fix #16)
+│       └── {reqId}.json                   ← Active agent processes
+│
+└── docker-compose.agents.yml              ← Agent infrastructure
+    ├── agent-backend                      ← Orchestration services
+    ├── nats                               ← Message queue (WORK QUEUE)
+    ├── agent-postgres                     ← Workflow persistence + fallback
+    └── ollama                             ← Embeddings for memory
+
+
+================================================================================
+REQUIREMENT LIFECYCLE - ALL POSSIBLE STATES
+================================================================================
+
+OWNER_REQUESTS.md Status Flow:
+───────────────────────────────
+
+    NEW
+     │
+     ├──────────────────────────────────────────────────────┐
+     │                                                        │
+     ▼                                                        │
+IN_PROGRESS ◄─── RECOVERY (Gap Fix #2)                      │
+     │           (Heartbeat monitor, restart recovery)       │
+     │                                                        │
+     ├──────────┬──────────┬───────────┬──────────┐        │
+     │          │          │            │          │         │
+     ▼          ▼          ▼            ▼          ▼         │
+COMPLETE   BLOCKED    FAILED       ERROR    ESCALATED      │
+     │          │          │            │          │         │
+     │          │          │            └──────────┘         │
+     │          │          │            (Defined action)     │
+     │          │          │                                 │
+     │          │          └──> RETRY ────────────────────────┘
+     │          │              (Max 3 retries)
+     │          │
+     │          └──> SUB-REQUIREMENTS ──> COMPLETE ──────────┘
+     │               (With monitoring recovery)
+     │
+     └──> (Final state)
+
+
+*** IMPORTANT: OWNER_REQUESTS.md contains ONLY status of owner requirements ***
+*** Sub-requirements exist ONLY in NATS, never written to this file ***
+
+
+NATS Workflow States (in agog.workflows.state.{reqId}):
+────────────────────────────────────────────────────────
+
+PENDING         → Requirement created, not yet started
+ACTIVE          → Workflow currently executing
+STAGE_RUNNING   → Agent currently working on stage
+STAGE_COMPLETE  → Stage finished successfully
+STAGE_FAILED    → Stage failed (non-blocking)
+STAGE_ERROR     → Stage encountered error (blocking)
+STAGE_TIMEOUT   → Stage exceeded timeout
+BLOCKED         → Sylvia blocked workflow (awaiting sub-requirements)
+PAUSED          → Manually paused by orchestrator
+RESUMING        → Resuming from blocked/paused state
+COMPLETED       → All stages successful
+FAILED          → Workflow failed (non-recoverable)
+ESCALATED       → Human intervention required (Gap Fix #6)
+STALE           → No heartbeat, likely stuck (Gap Fix #5)
+
+
+================================================================================
+AGENT TIMEOUT SETTINGS (Gap Fix #1)
+================================================================================
+
+*** ALL TIMEOUTS REDUCED FOR AGENT SPEED (Not human speed) ***
+
+Cynthia (Research):        45 minutes
+Sylvia (Critique):         30 minutes
+Roy (Backend):             60 minutes (1 hour)
+Jen (Frontend):            60 minutes (1 hour)
+Billy (QA Testing):        45 minutes
+Priya (Statistics):        30 minutes (optional, usually bypassed)
+Berry (Deployment):        15 minutes
+
+*** WORKFLOW MAXIMUM DURATION (Gap Fix #3): 8 hours total ***
+*** HEARTBEAT TIMEOUT (Gap Fix #5): 30 minutes ***
+
+
+================================================================================
+STRATEGIC ORCHESTRATOR STARTUP - RECOVERY PROCESS (Gap Fix #4)
+================================================================================
+
+When Strategic Orchestrator starts (initialize()):
+
+1. Connect to NATS and PostgreSQL
+   └── If connection fails → Retry 5 times, exit if all fail
+
+2. Recover In-Progress Workflows (Gap Fix #2)
+   ├── Scan OWNER_REQUESTS.md for status = IN_PROGRESS
+   ├── For each IN_PROGRESS requirement:
+   │   ├── Query NATS: agog.workflows.state.{reqId}
+   │   │   ├── State exists → Resume monitoring
+   │   │   └── State missing → Restart workflow from beginning
+   │   └── Rebuild heartbeat monitoring
+   └── Log: "Recovered N in-progress workflows"
+
+3. Recover Blocked Workflows (Gap Fix #8)
+   ├── Scan OWNER_REQUESTS.md for status = BLOCKED
+   ├── For each BLOCKED requirement:
+   │   ├── Query NATS: agog.workflows.sub-requirements.{reqId}
+   │   ├── Get list of sub-requirements and completion status
+   │   ├── Rebuild subscription: subscribeToSubRequirementCompletions()
+   │   └── If all sub-requirements already complete → Resume parent
+   └── Log: "Recovered N blocked workflows"
+
+4. Reconcile State Inconsistencies (Gap Fix #13)
+   ├── For each requirement in OWNER_REQUESTS.md:
+   │   ├── Query NATS: agog.workflows.state.{reqId}
+   │   ├── If NATS state != file state:
+   │   │   ├── NATS is source of truth
+   │   │   └── Update OWNER_REQUESTS.md to match NATS
+   │   └── Log discrepancies
+   └── Log: "Reconciled N state inconsistencies"
+
+5. Publish Pending Sub-Requirements (Gap Fix #15)
+   ├── Query PostgreSQL: sub_requirements_pending table
+   ├── For each pending sub-requirement:
+   │   ├── Attempt publish to NATS
+   │   ├── If success → Mark published in PostgreSQL
+   │   └── If fail → Log, will retry next cycle
+   └── Log: "Published N pending sub-requirements"
+
+6. Start Background Daemons
+   ├── scanOwnerRequests() - Every 60 seconds
+   ├── progressInProgressWorkflows() - Every 30 seconds
+   ├── checkWorkflowHeartbeats() - Every 2 minutes (Gap Fix #5)
+   └── reconcileWorkflowStates() - Every 5 minutes (Gap Fix #13)
+
+7. Subscribe to NATS Events
+   ├── agog.orchestration.events.stage.blocked
+   ├── agog.orchestration.events.workflow.completed
+   └── agog.requirements.sub.new
+
+8. Ready
+   └── Log: "Strategic Orchestrator ready - monitoring N active workflows"
+
+
+================================================================================
+WORKFLOW EXECUTION - WITH RECOVERY MECHANISMS
+================================================================================
+
+*** CONCURRENCY LIMIT (Gap Fix #12): Maximum 5 concurrent workflows ***
+
+Strategic Orchestrator scans OWNER_REQUESTS.md (every 60s):
+│
+├── Find all NEW requirements
+├── Sort by priority: P0 > P1 > P2 > P3
+│
+├── For each NEW requirement (in priority order):
+│   │
+│   ├── Check concurrency: activeWorkflows.size < 5
+│   │   ├── At limit → Skip, will retry next scan
+│   │   └── Below limit → Proceed
+│   │
+│   ├── Validate requirement format
+│   │   ├── Valid → Continue
+│   │   └── Invalid → Set status: ERROR, log issue
+│   │
+│   ├── Update status: NEW → IN_PROGRESS
+│   │   └── If update fails → Log error, skip
+│   │
+│   ├── Try: orchestrator.startWorkflow(reqId, title, assignedTo)
+│   │   │
+│   │   ├── SUCCESS
+│   │   │   ├── Add to activeWorkflows Set
+│   │   │   ├── Initialize NATS state: PENDING
+│   │   │   ├── Set workflow.startTime (for max duration check)
+│   │   │   └── Start heartbeat publishing
+│   │   │
+│   │   └── FAILURE
+│   │       ├── Log error with full context
+│   │       ├── Update status: IN_PROGRESS → FAILED
+│   │       ├── Reason: "Failed to start workflow: {error}"
+│   │       └── Escalate workflow (Gap Fix #6)
+│   │
+│   └── Continue to next requirement
+│
+└── Log: "Scan complete - {count} workflows started"
+
+
+*** ORCHESTRATOR SERVICE - executeStage() WITH RECOVERY ***
+─────────────────────────────────────────────────────────────
+
+For each workflow stage:
+
+1. Pre-Stage Checks
+   ├── Check workflow duration (Gap Fix #3)
+   │   ├── currentTime - workflow.startTime > 8 hours
+   │   │   ├── TRUE → Force fail workflow
+   │   │   │   ├── Update state: FAILED
+   │   │   │   ├── Reason: "Exceeded maximum workflow duration (8 hours)"
+   │   │   │   └── Escalate
+   │   │   └── FALSE → Continue
+   │   │
+   │   └── Check heartbeat freshness (Gap Fix #5)
+   │       └── Last heartbeat < 10 minutes ago (healthy)
+
+2. Update Stage State
+   ├── NATS state: STAGE_RUNNING
+   ├── Stage metadata: { stage, agentId, startTime, timeout }
+   └── Publish heartbeat immediately
+
+3. Publish Stage Start Event
+   └── agog.orchestration.events.stage.started.{reqId}
+       {
+         "reqId": "REQ-XXX",
+         "stage": N,
+         "agentId": "cynthia|sylvia|roy|jen|billy|priya|berry",
+         "timeout": <timeout in ms>,
+         "timestamp": "..."
+       }
+
+4. Wait for Deliverable + Heartbeat Loop
+   │
+   ├── Set timeout: stage-specific (45min to 1hr)
+   │
+   ├── Every 3 minutes: Publish heartbeat (Gap Fix #5)
+   │   └── agog.workflows.heartbeat.{reqId}
+   │       { stage, agentId, timestamp }
+   │
+   ├── Wait for: agog.deliverables.{agentId}.{stream}.{reqId}
+   │
+   └── Outcomes:
+       │
+       ├── DELIVERABLE RECEIVED
+       │   │
+       │   ├── Validate deliverable schema (Gap Fix #18)
+       │   │   ├── VALID → Proceed
+       │   │   └── INVALID
+       │   │       ├── Log error with deliverable content
+       │   │       ├── Publish: agog.errors.deliverable.{reqId}
+       │   │       ├── Retry stage once
+       │   │       └── If retry also invalid → Escalate
+       │   │
+       │   ├── Check deliverable.status
+       │   │   │
+       │   │   ├── Status: COMPLETE
+       │   │   │   │
+       │   │   │   ├── Stage = Sylvia
+       │   │   │   │   ├── decision = APPROVE → Next stage
+       │   │   │   │   ├── decision = CONDITIONAL_APPROVAL → Next stage with conditions
+       │   │   │   │   └── decision = BLOCK → TRIGGER SUB-REQUIREMENT FLOW
+       │   │   │   │
+       │   │   │   ├── Stage = Billy
+       │   │   │   │   ├── testResult = PASS
+       │   │   │   │   │   └── Berry Auto-Deploy triggered, wait for Berry deliverable
+       │   │   │   │   │
+       │   │   │   │   └── testResult = FAIL (Gap Fix #10)
+       │   │   │   │       ├── Check billyfailureCount in workflow metadata
+       │   │   │   │       ├── billyfailureCount >= 3
+       │   │   │   │       │   ├── TRUE → Escalate
+       │   │   │   │       │   │   └── "Excessive test failures (3+), manual intervention required"
+       │   │   │   │       │   │
+       │   │   │   │       │   └── FALSE → Create bug fix sub-requirements
+       │   │   │   │       │       ├── Increment billyfailureCount
+       │   │   │   │       │       ├── Parse failures into categories
+       │   │   │   │       │       ├── Create sub-requirements
+       │   │   │   │       │       ├── Update parent: BLOCKED
+       │   │   │   │       │       └── Monitor sub-requirement completions
+       │   │   │   │
+       │   │   │   └── Any other stage → Next stage
+       │   │   │
+       │   │   └── Status: FAILED
+       │   │       ├── Update state: STAGE_FAILED
+       │   │       ├── Log failure reason
+       │   │       ├── Retry stage once
+       │   │       └── If retry also fails → Escalate
+       │   │
+       │   └── Update state: STAGE_COMPLETE
+       │       └── Proceed to next stage
+       │
+       ├── TIMEOUT EXCEEDED
+       │   │
+       │   ├── Stage = Priya (Gap Fix #11)
+       │   │   └── Expected, bypass Priya
+       │   │       └── Proceed to waiting for Berry deliverable
+       │   │
+       │   └── Any other stage
+       │       ├── Log timeout error
+       │       ├── Update state: STAGE_TIMEOUT
+       │       ├── Publish: agog.errors.stage.timeout.{reqId}
+       │       ├── Retry stage once
+       │       └── If retry also times out → Escalate
+       │
+       ├── NATS CONNECTION LOST
+       │   ├── Attempt reconnection (5 retries, exponential backoff)
+       │   ├── SUCCESS → Resume waiting for deliverable
+       │   └── FAILURE (Gap Fix #15)
+       │       ├── Update state: ERROR
+       │       ├── Store workflow state in PostgreSQL (fallback persistence)
+       │       └── Escalate: "NATS unavailable, workflow suspended"
+       │
+       └── AGENT ERROR EVENT RECEIVED (Gap Fix #9)
+           ├── Received: agog.errors.agent.{agentId}
+           │   { reqId, error: "TIMEOUT|CRASH|CLI_NOT_FOUND|NATS_UNAVAILABLE", ... }
+           │
+           ├── Error = CLI_NOT_FOUND
+           │   └── Escalate immediately: "Claude CLI not available on host"
+           │
+           ├── Error = NATS_UNAVAILABLE
+           │   └── Wait for NATS recovery, don't retry agent
+           │
+           └── Error = CRASH or TIMEOUT
+               ├── Retry stage once (may have been transient)
+               └── If retry also fails → Escalate
+
+
+*** HEARTBEAT MONITORING DAEMON (Gap Fix #5) ***
+─────────────────────────────────────────────────
+
+Runs every 5 minutes:
+
+1. Query NATS: agog.workflows.heartbeat.> (all heartbeats)
+2. Get list of all ACTIVE workflows from NATS
+3. For each active workflow:
+   ├── Check last heartbeat timestamp
+   ├── If currentTime - lastHeartbeat > 10 minutes:
+   │   ├── Mark workflow: STALE
+   │   ├── Log: "Workflow {reqId} is stale (no heartbeat for 10+ min)"
+   │   ├── Attempt recovery:
+   │   │   ├── Query workflow state in NATS
+   │   │   ├── If in valid stage → Restart stage
+   │   │   └── If state corrupted → Escalate
+   │   └── If recovery fails → Escalate
+   └── Else: Workflow healthy
+
+
+*** ESCALATION MECHANISM (Gap Fix #6) ***
+──────────────────────────────────────────
+
+escalateWorkflow(reqId, reason, context):
+
+1. Update OWNER_REQUESTS.md
+   └── Status: {current} → ESCALATED
+
+2. Update NATS
+   └── agog.workflows.state.{reqId}: ESCALATED
+
+3. Publish Event
+   └── agog.escalations.{reqId}
+       {
+         "reqId": "...",
+         "reason": "...",
+         "previousStatus": "...",
+         "context": { ... },
+         "timestamp": "...",
+         "priority": "CRITICAL|HIGH|MEDIUM"
+       }
+
+4. Write Escalation File
+   └── .claude/escalations/{reqId}.json
+       (Full workflow history, error logs, deliverables)
+
+5. Log
+   └── "🚨 ESCALATED: {reqId} - {reason}"
+
+6. Future Enhancement: Send Notification
+   └── Email, Slack, PagerDuty, etc.
+
+7. Remove from activeWorkflows Set
+   └── Free up concurrency slot
+
+
+================================================================================
+BLOCKED WORKFLOW & SUB-REQUIREMENTS - WITH RECOVERY
+================================================================================
+
+*** SYLVIA BLOCKS - TRIGGER SUB-REQUIREMENT FLOW ***
+
+1. Sylvia Publishes BLOCKED Deliverable
+   └── agog.deliverables.sylvia.critique.{reqId}
+       { status: "BLOCKED", decision: "BLOCK", blockers: [...] }
+
+2. Orchestrator Publishes Block Event
+   └── agog.orchestration.events.stage.blocked.{reqId}
+
+3. Strategic Orchestrator Handles Block
+   │
+   ├── handleBlockedCritique(event)
+   │   │
+   │   ├── Check recursion depth (Gap Fix #21)
+   │   │   ├── Parse reqId for depth: REQ-X-SUB1-SUB2-SUB3
+   │   │   ├── Count "SUB" occurrences = current depth
+   │   │   ├── If depth >= 3 (max recursion depth)
+   │   │   │   └──> ESCALATE: "Maximum sub-requirement depth (3) exceeded"
+   │   │   │        "Requirement too complex, needs human decomposition"
+   │   │   └── If depth < 3 → Proceed
+   │   │
+   │   ├── fetchDeliverableFromNATS()
+   │   │   ├── SUCCESS → Parse critique
+   │   │   └── FAILURE (Gap Fix #15)
+   │   │       ├── Retry 3 times
+   │   │       └── If all fail → Escalate
+   │   │
+   │   ├── parseIssuesFromCritique()
+   │   │   ├── Issues found (1-10) → Proceed
+   │   │   ├── No issues → Resume workflow (Sylvia error)
+   │   │   └── Too many issues (>10) → Group similar, create max 10
+   │   │
+   │   ├── createSubRequirements() (Gap Fix #21)
+   │   │   ├── For each issue: Generate sub-requirement object
+   │   │   └── Sub-req ID includes depth: {parentId}-SUB{n}-{timestamp}
+   │   │       └── Example: REQ-X-SUB1-1234 → REQ-X-SUB1-1234-SUB2-5678
+   │   │
+   │   ├── publishSubRequirementsToNATS() (Gap Fix #15)
+   │   │   │
+   │   │   ├── Try: Publish each to agog.requirements.sub.new
+   │   │   │
+   │   │   ├── SUCCESS
+   │   │   │   └── Store metadata: agog.workflows.sub-requirements.{parentId}
+   │   │   │
+   │   │   └── NATS UNAVAILABLE
+   │   │       ├── Store in PostgreSQL: sub_requirements_pending table
+   │   │       │   { parentReqId, subReqId, title, description, ... }
+   │   │       ├── Background daemon will publish when NATS available
+   │   │       └── Continue (don't block parent on NATS issue)
+   │   │
+   │   ├── Update OWNER_REQUESTS.md: IN_PROGRESS → BLOCKED
+   │   │
+   │   └── subscribeToSubRequirementCompletions() (Gap Fix #8)
+   │       │
+   │       └── Persist subscription metadata in NATS
+   │           └── agog.workflows.sub-requirements.{parentId}
+   │               {
+   │                 parentReqId, subRequirements: [...],
+   │                 totalCount, completedCount: 0,
+   │                 completedSubRequirements: [],
+   │                 createdAt, status: "MONITORING"
+   │               }
+
+4. Sub-Requirements Published to NATS
+   └── Each sub-req: agog.requirements.sub.new
+       { reqId, title, priority, parent, type, status: "NEW" }
+
+5. Strategic Orchestrator Receives Sub-Requirements
+   │
+   └── subscribeToSubRequirements()
+       ├── On: agog.requirements.sub.new
+       └── Start workflow for each sub-requirement
+           └── Same 7-stage pipeline as parent
+
+6. Monitor Sub-Requirement Completions (Gap Fix #8)
+   │
+   └── subscribeToSubRequirementCompletions()
+       │
+       ├── Subscribe: agog.deliverables.berry.devops.>
+       │
+       ├── For each Berry deliverable:
+       │   ├── Check if reqId in our sub-requirements list
+       │   ├── If YES:
+       │   │   ├── Update NATS metadata:
+       │   │   │   ├── completedCount++
+       │   │   │   └── completedSubRequirements.push(reqId)
+       │   │   │
+       │   │   ├── If completedCount === totalCount:
+       │   │   │   │
+       │   │   │   ├── All sub-requirements complete
+       │   │   │   │
+       │   │   │   ├── Try: Resume parent workflow (Gap Fix #7)
+       │   │   │   │   │
+       │   │   │   │   ├── Update OWNER_REQUESTS.md: BLOCKED → IN_PROGRESS
+       │   │   │   │   │
+       │   │   │   │   ├── Resume: orchestrator.resumeWorkflowFromStage(parentId, 2)
+       │   │   │   │   │   └── Stage 2 = Roy (backend implementation)
+       │   │   │   │   │
+       │   │   │   │   └── Error Handling:
+       │   │   │   │       try {
+       │   │   │   │         await resumeWorkflowFromStage(...)
+       │   │   │   │       } catch (error) {
+       │   │   │   │         await updateStatus(parentId, 'FAILED')
+       │   │   │   │         await escalateWorkflow(parentId, 'RESUME_FAILED', {error})
+       │   │   │   │       }
+       │   │   │   │
+       │   │   │   └── Unsubscribe from completions
+       │   │   │       └── Update metadata: status = "COMPLETED"
+       │   │   │
+       │   │   └── Else: Continue monitoring
+       │   │
+       │   └── If NO: Ignore (different workflow's sub-requirement)
+       │
+       └── Timeout Handling:
+           ├── If no completions after 24 hours → Escalate
+           │   └── "Sub-requirements not completing, possible stuck workflows"
+           └── If some complete but not all after 48 hours → Escalate
+               └── "Partial sub-requirement completion, investigation needed"
+
+7. Recovery on Restart (Gap Fix #8)
+   │
+   └── On Strategic Orchestrator restart:
+       ├── Query NATS: agog.workflows.sub-requirements.{parentId} for all BLOCKED parents
+       ├── For each with status = "MONITORING":
+       │   ├── Check completedCount vs totalCount
+       │   ├── If all complete → Resume parent immediately
+       │   └── If incomplete → Rebuild subscription
+       └── Resume monitoring
+
+
+================================================================================
+7-STAGE WORKFLOW PIPELINE - FULL ERROR HANDLING
+================================================================================
+
+*** STAGE 1: RESEARCH (Cynthia) ***
+────────────────────────────────────
+
+Timeout: 45 minutes
+Deliverable: agog.deliverables.cynthia.research.{reqId}
+
+Outcomes:
+├── SUCCESS (status: COMPLETE)
+│   └──> Proceed to STAGE 2 (Sylvia)
+│
+├── FAILED (status: FAILED)
+│   ├── Reason: Could not find relevant code / Requirements unclear
+│   ├── Retry once
+│   └── If retry fails → Escalate
+
+├── TIMEOUT (no deliverable after 45 minutes)
+│   ├── Retry once with extended timeout (+15 min)
+│   └── If retry times out → Escalate
+│
+└── AGENT CRASH/ERROR
+    ├── Receive: agog.errors.agent.cynthia
+    ├── Retry once
+    └── If retry crashes → Escalate
+
+
+*** STAGE 2: CRITIQUE (Sylvia) ***
+───────────────────────────────────
+
+Timeout: 30 minutes
+Deliverable: agog.deliverables.sylvia.critique.{reqId}
+
+Outcomes:
+├── APPROVE (decision: APPROVE)
+│   └──> Proceed to STAGE 3 (Roy)
+│
+├── CONDITIONAL_APPROVAL (decision: CONDITIONAL_APPROVAL)
+│   ├── Store conditions in workflow metadata
+│   └──> Proceed to STAGE 3 (Roy) with conditions in context
+│
+├── BLOCK (decision: BLOCK)
+│   └──> TRIGGER SUB-REQUIREMENT FLOW (see above)
+│       └── Parent waits for all sub-requirements to complete
+│
+├── FAILED (status: FAILED)
+│   ├── Retry once
+│   └── If retry fails → Assume APPROVE (risky fallback, log warning)
+│
+├── TIMEOUT
+│   ├── Retry once
+│   └── If retry times out → Assume APPROVE (risky fallback, log warning)
+│
+└── AGENT CRASH
+    └── Retry once, then assume APPROVE
+
+
+*** STAGE 3: BACKEND IMPLEMENTATION (Roy) ***
+──────────────────────────────────────────────
+
+Timeout: 1 hour (60 minutes)
+Deliverable: agog.deliverables.roy.backend.{reqId}
+
+Git Safety (Gap Fix #19):
+├── Verify git status clean before starting
+├── Create feature branch: feature/{reqId}
+├── Make all changes on branch
+├── Commit changes: git add, git commit
+├── If commit fails → Reset to origin/main, report FAILED
+└── Deliverable includes: branch name, commit SHA
+
+Outcomes:
+├── SUCCESS (status: COMPLETE)
+│   ├── Code committed to feature branch
+│   └──> Proceed to STAGE 4 (Jen)
+│
+├── FAILED (status: FAILED)
+│   ├── Reasons: Build failure, migration failure, circular dependency
+│   ├── Git rollback: git reset --hard origin/main
+│   ├── Retry once
+│   └── If retry fails → Escalate
+│
+├── PARTIAL_SUCCESS (status: COMPLETE with warnings)
+│   ├── Some features implemented, some deferred
+│   └──> Proceed to STAGE 4 (Jen) with notes
+│
+├── TIMEOUT
+│   ├── Check git for partial commits
+│   ├── If work exists → Mark PARTIAL_SUCCESS
+│   └── If no work → Retry once, then escalate
+│
+└── GIT OPERATION FAILED (Gap Fix #19)
+    ├── git commit failed (merge conflict, dirty tree)
+    ├── Rollback changes
+    ├── Report FAILED with git error
+    └── Escalate
+
+
+*** STAGE 4: FRONTEND IMPLEMENTATION (Jen) ***
+───────────────────────────────────────────────
+
+Timeout: 1 hour (60 minutes)
+Deliverable: agog.deliverables.jen.frontend.{reqId}
+
+Git Safety (Gap Fix #19):
+└── Same as Roy (feature branch, commit verification)
+
+Outcomes:
+├── SUCCESS (status: COMPLETE)
+│   └──> Proceed to STAGE 5 (Billy)
+│
+├── FAILED (status: FAILED)
+│   ├── Reasons: TypeScript errors, GraphQL mismatch, render errors
+│   ├── May need Roy to fix backend first
+│   ├── Retry once
+│   └── If retry fails → Escalate
+│
+├── BACKEND_ONLY (no frontend needed)
+│   ├── Minimal/no changes
+│   └──> Proceed to STAGE 5 (Billy)
+│
+├── TIMEOUT
+│   ├── Check git for partial commits
+│   └── Retry once, then escalate
+│
+└── GIT OPERATION FAILED
+    └── Same as Roy
+
+
+*** STAGE 5: QA TESTING (Billy) ***
+────────────────────────────────────
+
+Timeout: 45 minutes
+Deliverable: agog.deliverables.billy.qa.{reqId}
+
+Outcomes:
+├── PASS (status: COMPLETE, testResult: PASS)
+│   │
+│   ├── All tests passed
+│   │
+│   └──> TRIGGER AUTO-DEPLOYMENT (Gap Fix #11)
+│       ├── Berry Auto-Deploy detects Billy PASS
+│       ├── Publishes: agog.deliverables.berry.devops.{reqId}
+│       ├── Orchestrator waits for Berry deliverable (doesn't execute Berry stage)
+│       └── Priya stage: Bypassed (optional background task)
+│
+├── FAIL (status: COMPLETE, testResult: FAIL) (Gap Fix #10)
+│   │
+│   ├── Check billyfailureCount in workflow metadata
+│   │
+│   ├── billyfailureCount >= 3
+│   │   └──> ESCALATE: "Excessive test failures (3+), manual intervention required"
+│   │
+│   └── billyfailureCount < 3
+│       ├── Increment billyfailureCount
+│       ├── Parse failures into categories:
+│       │   ├── Backend bugs → Sub-req for Roy
+│       │   ├── Frontend bugs → Sub-req for Jen
+│       │   ├── Logic errors → Sub-req for Roy
+│       │   └── UI/UX issues → Sub-req for Jen
+│       ├── Create bug fix sub-requirements
+│       ├── Publish to NATS: agog.requirements.sub.new
+│       ├── Update parent: BLOCKED (test failures)
+│       └── Monitor sub-requirement completions
+│           └── When all complete → Resume from Billy (retest)
+│
+├── CANNOT_TEST (status: FAILED)
+│   ├── Reasons: Backend down, database failed, frontend won't load
+│   ├── Create infrastructure sub-requirement
+│   └── Escalate if critical
+│
+├── TIMEOUT
+│   ├── Tests may be running slow
+│   ├── Check test progress logs
+│   └── Retry with extended timeout or escalate
+│
+└── AGENT CRASH
+    └── Retry once, then escalate
+
+
+*** STAGE 6: STATISTICS (Priya) - OPTIONAL/BYPASSED (Gap Fix #11) ***
+──────────────────────────────────────────────────────────────────────
+
+Timeout: 30 minutes
+Status: OPTIONAL - Usually bypassed
+
+Berry Auto-Deploy Bypass Logic:
+├── Billy completes → Berry Auto-Deploy immediately publishes Berry deliverable
+├── Orchestrator waits for Berry deliverable (not for Priya)
+├── Priya runs in background if time permits (not required)
+└── No duplicate Berry execution (Berry deliverable already published)
+
+Outcomes:
+├── SUCCESS → Stats generated (nice to have)
+├── TIMEOUT → Expected, no action needed
+└── Berry deliverable already published, workflow proceeds
+
+
+*** STAGE 7: DEVOPS DEPLOYMENT (Berry) - AUTOMATED ***
+───────────────────────────────────────────────────────
+
+Timeout: 15 minutes
+Deliverable: agog.deliverables.berry.devops.{reqId}
+
+Auto-Deployment Flow (Gap Fix #11):
+│
+├── Berry Auto-Deploy Service
+│   ├── Subscribes: agog.deliverables.billy.>
+│   ├── On Billy PASS:
+│   │   ├── Determine deployment type (backend/frontend/database)
+│   │   ├── Publish deployment instructions
+│   │   └── Publish Berry deliverable (workflow completion)
+│   └── Does NOT execute deployment (just decides)
+│
+└── Deployment Executor Service
+    │
+    ├── Subscribes: agog.deployment.backend.restart
+    │              agog.deployment.database.refresh
+    │
+    ├── Backend Restart:
+    │   ├── Execute: docker restart agogsaas-app-backend
+    │   ├── Wait: 15 seconds for startup
+    │   ├── Verify: curl http://localhost:4001/health
+    │   │   │
+    │   │   ├── Healthy (200 OK)
+    │   │   │   └── Publish: agog.deployment.status.{reqId} { status: "SUCCESS" }
+    │   │   │
+    │   │   └── Unhealthy (non-200) (Gap Fix #14)
+    │   │       ├── AUTOMATIC ROLLBACK:
+    │   │       │   ├── Git: revert last commit
+    │   │       │   ├── Docker: restart backend again
+    │   │       │   ├── Wait: 15 seconds
+    │   │       │   ├── Verify: Health check
+    │   │       │   │   ├── Healthy → Publish rollback success
+    │   │       │   │   └── Still unhealthy → CRITICAL ESCALATION
+    │   │       │   │
+    │   │       │   └── Run smoke tests (Gap Fix #14)
+    │   │       │       ├── Test critical APIs
+    │   │       │       ├── Test database connection
+    │   │       │       ├── Pass → Rollback verified
+    │   │       │       └── Fail → CRITICAL ESCALATION
+    │   │       │
+    │   │       └── Publish: agog.deployment.status.{reqId} { status: "ROLLED_BACK" }
+    │   │
+    │   └── Container not found → Escalate (infrastructure issue)
+    │
+    ├── Database Migration (Gap Fix #20)
+    │   ├── Execute in transaction:
+    │   │   BEGIN;
+    │   │   <migration SQL>
+    │   │   COMMIT;
+    │   │
+    │   ├── On success → Publish: agog.deployment.status.{reqId} { status: "SUCCESS" }
+    │   │
+    │   └── On error
+    │       ├── Automatic ROLLBACK (transaction)
+    │       ├── Log error
+    │       └── Escalate: "Migration failed, rolled back"
+    │
+    └── Deployment Failure Handling
+        ├── Deployment fails → Rollback (Gap Fix #14)
+        ├── Rollback succeeds → Log, notify
+        └── Rollback fails → CRITICAL ESCALATION to human
+
+
+================================================================================
+HOST AGENT LISTENER - CRASH RECOVERY (Gap Fix #16)
+================================================================================
+
+When Host Listener starts:
+
+1. Recover Spawned Agents
+   ├── Read directory: .claude/spawned/
+   ├── For each {reqId}.json:
+   │   ├── Parse: { reqId, agentId, pid, startTime, stage }
+   │   ├── Check if process still running (Windows: tasklist /FI "PID eq {pid}")
+   │   │   │
+   │   │   ├── Running
+   │   │   │   ├── Check runtime: currentTime - startTime
+   │   │   │   │   ├── < 2 hours → Resume monitoring
+   │   │   │   │   └── > 2 hours → Kill process (likely stuck), cleanup file
+   │   │   │
+   │   │   └── Not running
+   │   │       └── Cleanup file (agent completed or crashed)
+   │   │
+   │   └── Log recovery actions
+   │
+   └── Ready to spawn new agents
+
+2. Persist Agent Spawns
+   ├── Before spawning: Write .claude/spawned/{reqId}.json
+   ├── After completion: Delete file
+   └── On crash: Files remain for recovery
+
+
+When spawning agent:
+
+1. Write metadata:
+   └── .claude/spawned/{reqId}.json
+       {
+         "reqId": "...",
+         "agentId": "cynthia|sylvia|...",
+         "pid": 12345,
+         "startTime": "...",
+         "stage": 0,
+         "timeout": 2700000
+       }
+
+2. Spawn: claude --agent .claude/agents/{agentId}.md --print
+   └── Environment: REQ_ID, NATS_URL, TIMEOUT
+
+3. Monitor process outcomes:
+   │
+   ├── SUCCESS (exit code 0)
+   │   ├── Agent published deliverable
+   │   └── Cleanup: Delete .claude/spawned/{reqId}.json
+   │
+   ├── TIMEOUT (exit code 124)
+   │   ├── Process killed after timeout
+   │   ├── Publish: agog.errors.agent.{agentId} { error: "TIMEOUT" }
+   │   └── Cleanup file
+   │
+   ├── CRASH (exit code > 0, != 124, != 127)
+   │   ├── Publish: agog.errors.agent.{agentId} { error: "CRASH", exitCode, stderr }
+   │   └── Cleanup file
+   │
+   ├── CLI_NOT_FOUND (exit code 127)
+   │   ├── Publish: agog.errors.agent.{agentId} { error: "CLI_NOT_FOUND" }
+   │   └── Cleanup file (escalation will occur in orchestrator)
+   │
+   └── NATS_UNAVAILABLE (agent couldn't publish)
+       └── Publish: agog.errors.agent.{agentId} { error: "NATS_UNAVAILABLE" }
+
+
+================================================================================
+STATE RECONCILIATION DAEMON (Gap Fix #13)
+================================================================================
+
+Runs every 10 minutes:
+
+1. Reconcile Workflow States
+   ├── Read all requirements from OWNER_REQUESTS.md
+   ├── For each requirement:
+   │   ├── Query NATS: agog.workflows.state.{reqId}
+   │   │
+   │   ├── NATS state != file state
+   │   │   ├── NATS is source of truth
+   │   │   ├── Update OWNER_REQUESTS.md to match NATS
+   │   │   └── Log: "Reconciled {reqId}: {fileState} → {natsState}"
+   │   │
+   │   └── NATS state == file state
+   │       └── No action (consistent)
+   │
+   └── Log: "Reconciliation complete - updated {count} requirements"
+
+2. Detect Completed Workflows (Gap Fix #17)
+   ├── Find all IN_PROGRESS in OWNER_REQUESTS.md
+   ├── For each IN_PROGRESS:
+   │   ├── Query NATS: agog.workflows.state.{reqId}
+   │   ├── If NATS state = COMPLETED
+   │   │   └── Update OWNER_REQUESTS.md: IN_PROGRESS → COMPLETE
+   │   │       (Catch missed completion events)
+   │   └── Log missed completions
+   │
+   └── This prevents workflows getting stuck IN_PROGRESS when they're actually done
+
+
+================================================================================
+AGENT ERROR MONITORING (Gap Fix #9)
+================================================================================
+
+Strategic Orchestrator subscribes to: agog.errors.agent.>
+
+On error event:
+│
+├── Parse: { reqId, agentId, error: "TIMEOUT|CRASH|CLI_NOT_FOUND|...", ... }
+│
+├── Error = CLI_NOT_FOUND
+│   └── Escalate immediately: "Claude CLI not available on Windows host"
+│       (Cannot recover, requires infrastructure fix)
+│
+├── Error = NATS_UNAVAILABLE
+│   ├── Don't retry agent (will fail again)
+│   └── Wait for NATS recovery, workflow will resume
+│
+├── Error = CRASH
+│   ├── Check if stage already retried
+│   ├── If not retried → Trigger stage retry
+│   └── If already retried → Escalate with crash logs
+│
+└── Error = TIMEOUT
+    ├── Check if stage already retried
+    ├── If not retried → Trigger stage retry (with extended timeout)
+    └── If already retried → Escalate
+
+Coordinate with stage timeout:
+└── Ensure agent error retry doesn't conflict with orchestrator stage timeout retry
+    (Use workflow metadata to track retry count)
+
+
+================================================================================
+CRITICAL ARCHITECTURE PRINCIPLES
+================================================================================
+
+*** 1. OWNER_REQUESTS.md = OWNER INPUT ONLY ***
+────────────────────────────────────────────────
+
+├── Contains: ONLY human-created requirements
+├── NOT a work queue
+├── NOT for sub-requirements
+├── NOT for agent-generated tasks
+│
+└── Status flow: NEW → IN_PROGRESS → BLOCKED/COMPLETE/FAILED/ERROR/ESCALATED
+    └── NATS is source of truth (Gap Fix #13), file updated async
+
+
+*** 2. NATS = SYSTEM WORK QUEUE & SOURCE OF TRUTH (Gap Fix #13) ***
+────────────────────────────────────────────────────────────────────
+
+├── All work lives here (owner requirements + sub-requirements)
+├── Priority managed in NATS (P0/P1/P2/P3)
+├── Status tracked in NATS (canonical state)
+├── Dependencies managed in NATS (parent/child relationships)
+│
+└── Subjects:
+    ├── agog.requirements.sub.new              ← Sub-requirements
+    ├── agog.workflows.state.{reqId}           ← Canonical workflow state
+    ├── agog.workflows.heartbeat.{reqId}       ← Heartbeat (Gap Fix #5)
+    ├── agog.workflows.sub-requirements.{id}   ← Sub-req metadata (Gap Fix #8)
+    ├── agog.orchestration.events.*            ← Workflow events
+    ├── agog.deliverables.*                    ← Agent deliverables
+    ├── agog.deployment.*                      ← Deployment instructions
+    ├── agog.errors.agent.*                    ← Agent errors (Gap Fix #9)
+    ├── agog.errors.deliverable.*              ← Deliverable validation errors (Gap Fix #18)
+    └── agog.escalations.*                     ← Escalated workflows (Gap Fix #6)
+
+
+*** 3. POSTGRESQL = FALLBACK PERSISTENCE (Gap Fix #15) ***
+───────────────────────────────────────────────────────────
+
+When NATS unavailable:
+├── Store sub_requirements_pending
+├── Store workflow state snapshots
+└── Background daemon publishes to NATS when available
+
+
+*** 4. SUB-REQUIREMENTS = NATS ONLY ***
+────────────────────────────────────────
+
+Never written to OWNER_REQUESTS.md
+System-generated work items only
+
+
+*** 5. ERROR ESCALATION ALWAYS DEFINED (Gap Fix #6) ***
+────────────────────────────────────────────────────────
+
+Every error path has explicit escalation:
+├── Update status → ESCALATED
+├── Publish event → agog.escalations.{reqId}
+├── Write file → .claude/escalations/{reqId}.json
+└── Future: Notify human
+
+
+*** 6. RECOVERY MECHANISMS EVERYWHERE ***
+──────────────────────────────────────────
+
+├── Orchestrator restart → Recover all workflows (Gap Fix #2, #4, #8)
+├── Heartbeat monitoring → Detect stuck workflows (Gap Fix #5)
+├── State reconciliation → Fix desync (Gap Fix #13)
+├── Host Listener crash → Recover spawned agents (Gap Fix #16)
+└── NATS unavailable → Fallback persistence (Gap Fix #15)
+
+
+*** 7. MAXIMUM LIMITS (Gap Fix #3, #10, #12, #21) ***
+──────────────────────────────────────────────────────
+
+├── Max workflow duration: 8 hours
+├── Max Billy retries: 3 failures
+├── Max concurrent workflows: 5
+└── Max sub-requirement recursion depth: 3 levels
+
+
+================================================================================
+RUNNING SERVICES (Updated 2025-12-29)
+================================================================================
+
+Docker: agogsaas-agents-backend (10 services)
+│
+├── CORE SERVICES (Monitoring & Execution)
+│   │
+│   ├── Strategic Orchestrator Daemon
+│   │   ├── scanOwnerRequests() - Every 60s
+│   │   ├── progressInProgressWorkflows() - Every 30s
+│   │   ├── checkWorkflowHeartbeats() - Every 2min (Gap Fix #5)
+│   │   ├── reconcileWorkflowStates() - Every 5min (Gap Fix #13)
+│   │   ├── subscribeToBlockedWorkflows() - Event-driven
+│   │   ├── subscribeToWorkflowCompletions() - Event-driven
+│   │   ├── subscribeToSubRequirements() - Event-driven
+│   │   └── subscribeToAgentErrors() - Event-driven (Gap Fix #9)
+│   │
+│   ├── Orchestrator Service
+│   │   ├── Manages 7-stage workflow pipeline
+│   │   ├── Deliverable validation (Gap Fix #18)
+│   │   └── Billy retry limit enforcement (Gap Fix #10)
+│   │
+│   ├── Berry Auto-Deploy Service
+│   │   └── Listens for Billy PASS, publishes Berry deliverable
+│   │
+│   ├── Deployment Executor
+│   │   └── Executes deployments
+│   │
+│   └── Health Monitor Service
+│       └── System health checks
+│
+└── PROACTIVE DAEMONS (Work Generators - Added 2025-12-29)
+    │
+    ├── Metrics Provider
+    │   ├── Publishes business metrics every 5 minutes
+    │   └── Publishes to: agog.metrics.*
+    │
+    ├── Recommendation Publisher
+    │   ├── Subscribes to: agog.recommendations.* (strategic, inventory, sales, procurement)
+    │   ├── Appends recommendations to OWNER_REQUESTS.md
+    │   └── Commits changes to git
+    │
+    ├── Recovery & Health Check Daemon
+    │   ├── Runs immediately on startup, then every 5 hours
+    │   ├── Detects stuck workflows, recovers them
+    │   └── Checks NATS connectivity (Docker-aware)
+    │
+    ├── Value Chain Expert Daemon
+    │   ├── Runs 5 minutes after startup, then every 5 hours
+    │   ├── DOCKER MODE: Publishes to agog.agent.requests.value-chain-expert
+    │   │   └── Host Listener picks up and spawns strategic-recommendation-generator
+    │   └── HOST MODE: Spawns agent directly via Claude CLI
+    │
+    ├── Marcus (Product Owner - Inventory Domain)
+    │   ├── Monitors inventory metrics via NATS
+    │   └── Generates feature recommendations for inventory improvements
+    │
+    └── Sarah (Product Owner - Sales Domain)
+        ├── Monitors sales metrics via NATS
+        └── Generates feature recommendations for sales improvements
+
+Windows Host:
+│
+└── Host Agent Listener
+    ├── Subscribes to: agog.orchestration.events.stage.started (workflow stages)
+    ├── Subscribes to: agog.agent.requests.value-chain-expert (proactive daemon requests)
+    ├── Spawns Claude CLI agents (cynthia, sylvia, roy, jen, billy, priya, berry)
+    ├── Spawns strategic-recommendation-generator for value-chain-expert requests
+    ├── Persists spawned agent metadata (Gap Fix #16)
+    └── Recovers orphaned agents on restart
+
+
+*** DOCKER/HOST COMMUNICATION (Added 2025-12-29) ***
+─────────────────────────────────────────────────────
+
+Problem: Proactive daemons in Docker cannot spawn Claude CLI (not installed in container)
+Solution: Docker publishes requests to NATS, Host Listener spawns agents
+
+Flow:
+┌─────────────────────────────────────────────────────────────────┐
+│                     DOCKER CONTAINER                             │
+│  ValueChainExpert detects Docker environment                    │
+│  └── Publishes to: agog.agent.requests.value-chain-expert       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ NATS
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     WINDOWS HOST                                 │
+│  Host Agent Listener                                            │
+│  └── Receives request                                           │
+│  └── Spawns: claude --agent strategic-recommendation-generator  │
+│  └── Agent generates recommendations → OWNER_REQUESTS.md        │
+└─────────────────────────────────────────────────────────────────┘
+
+Files involved:
+├── agent-backend/src/utils/environment.ts (Docker detection utility)
+├── agent-backend/src/proactive/value-chain-expert.daemon.ts (publishes to NATS in Docker)
+└── agent-backend/scripts/host-agent-listener.ts (subscribes and spawns agent)
+
+Docker: agogsaas-agents-nats
+│
+└── NATS JetStream (Source of truth - Gap Fix #13)
+
+Docker: agogsaas-agents-postgres
+│
+└── PostgreSQL
+    ├── Workflow persistence
+    ├── Fallback persistence (Gap Fix #15)
+    └── sub_requirements_pending table
+
+
+================================================================================
+STARTUP COMMANDS (Updated 2025-12-28)
+================================================================================
+
+Method 1: Master Script (Recommended)
+├── START_SYSTEM.bat
+│   ├── Starts Docker containers (all daemons)
+│   ├── Starts Windows Host Listener
+│   └── Shows startup progress
+│
+└── STOP_SYSTEM.bat
+    └── Stops everything cleanly
+
+Method 2: Manual
+├── Step 1: docker-compose -f docker-compose.agents.yml up -d
+└── Step 2: agent-backend\start-listener.bat
+
+Windows Task Scheduler:
+├── Task 1: Docker Containers (at startup)
+│   └── docker-compose -f docker-compose.agents.yml up -d
+│
+└── Task 2: Host Listener (30s delay after startup)
+    └── agent-backend\start-listener.bat
+
+Location: D:\GitHub\agogsaas\Implementation\print-industry-erp\
+
+
+================================================================================
+                            END OF FLOWCHART
+                   Critical Workflow Gaps DEPLOYED & RUNNING
+================================================================================
+
+DEPLOYED Gap Fixes (ACTUALLY RUNNING - Verified 2025-12-29):
+1.  ✅ Reduced timeouts to 1 hour or less
+2.  ✅ IN_PROGRESS recovery on restart
+3.  ✅ Maximum workflow duration (8 hours)
+4.  ✅ Orchestrator startup recovery
+5.  ✅ Workflow heartbeat monitoring (every 2 min, 30 min timeout)
+6.  ✅ Escalation mechanism (status update, NATS event, file logging)
+7.  ✅ Parent resumption error handling (try/catch in subscribeToSubRequirementCompletions)
+8.  ✅ Sub-requirement monitoring recovery
+9.  ✅ Agent error event monitoring (subscribes to agog.errors.agent.>)
+10. ✅ Billy retry limit (max 3 failures, then escalate)
+11. ✅ Priya bypass race condition (Berry Auto-Deploy handles)
+12. ✅ Concurrency limit (max 5 concurrent workflows)
+13. ✅ State reconciliation daemon (NATS = source of truth, every 5 min)
+17. ✅ Workflow completion polling (handled by reconciliation daemon)
+18. ✅ Deliverable validation (schema validation in waitForDeliverable)
+21. ✅ Infinite recursion prevention (max depth: 3 levels)
+22. ✅ Proactive daemons integrated (ValueChainExpert, Marcus, Sarah, etc.) - 2025-12-29
+23. ✅ Docker/Host communication for agent spawning - 2025-12-29
+    └── Docker daemons publish to NATS, Host Listener spawns Claude agents
+
+REMAINING GAPS (Not Deployed - Lower Priority):
+14. ⏸️ Deployment rollback verification with smoke tests
+15. ⏸️ NATS unavailable fallback (PostgreSQL)
+16. ⏸️ Host Listener crash recovery (.claude/spawned tracking)
+19. ⏸️ Git transaction safety (branch creation, rollback)
+20. ⏸️ Migration transactionality (BEGIN/COMMIT/ROLLBACK)
+
+Status: 18 of 23 gaps DEPLOYED and RUNNING
+        All critical workflow stuck states are now covered
+        Proactive work generation now functional
+        Remaining gaps are deployment/infrastructure hardening

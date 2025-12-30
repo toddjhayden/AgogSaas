@@ -3,10 +3,15 @@
  * Runs strategic evaluation every 5 hours (aligned with Claude API reset)
  * Generates RICE-scored feature recommendations
  * NOTE: Orchestrator handles Claude usage limits - Value Chain Expert just generates work
+ *
+ * DOCKER MODE: When running in Docker, cannot spawn Claude CLI agents.
+ * Uses NATS-based strategic-recommendation-generator agent file instead.
  */
 
 import { connect, NatsConnection } from 'nats';
 import { execSync } from 'child_process';
+import * as fs from 'fs';
+import { isRunningInDocker, canSpawnClaudeAgents } from '../utils/environment';
 
 export interface StrategicRecommendation {
   reqNumber: string;
@@ -105,37 +110,166 @@ export class ValueChainExpertDaemon {
 
   /**
    * Spawn value-chain-expert agent
+   * ACTUALLY SPAWNS THE CLAUDE CODE AGENT (when not in Docker)
+   *
+   * DOCKER MODE: Cannot spawn Claude CLI from inside container.
+   * Instead, publishes a request to NATS for host-based agent to process.
    */
   private async spawnAgent(): Promise<StrategicRecommendation[]> {
-    // TODO: Implement actual Claude CLI spawn
-    // For now, generating mock recommendations
+    const inDocker = isRunningInDocker();
 
-    const mockRecommendations: StrategicRecommendation[] = [
-      {
-        reqNumber: `REQ-STRATEGIC-AUTO-${Date.now()}`,
-        title: 'Optimize Bin Utilization Algorithm',
-        owner: 'marcus',
-        priority: 'P2',
-        businessValue: 'Improve warehouse space utilization by 15% through predictive bin assignment. Reduces need for additional warehouse space expansion ($500K savings).',
-        requirements: [
-          'Analyze historical bin usage patterns',
-          'Implement ML-based bin assignment algorithm',
-          'Add real-time utilization dashboard',
-          'Create bin consolidation recommendations'
-        ],
-        riceScore: {
-          reach: 8,      // Affects all warehouse operations
-          impact: 7,     // Significant cost savings
-          confidence: 9, // High confidence in approach
-          effort: 5,     // Medium effort
-          total: (8 * 7 * 9) / 5 // = 100.8
-        },
-        generatedBy: 'value-chain-expert',
-        generatedAt: new Date().toISOString()
+    if (inDocker) {
+      console.log('[ValueChainExpert] Running in Docker - using NATS-based work generation');
+      return await this.generateRecommendationsInDocker();
+    }
+
+    // HOST MODE: Spawn actual Claude Code agent
+    console.log('[ValueChainExpert] Running on host - spawning REAL Claude Code agent...');
+
+    if (!canSpawnClaudeAgents()) {
+      console.warn('[ValueChainExpert] Claude CLI not available - falling back to NATS mode');
+      return await this.generateRecommendationsInDocker();
+    }
+
+    try {
+      // Path to spawn script (DAEMON VERSION - no interactive prompts)
+      const spawnScriptPath = 'D:/GitHub/agogsaas/scripts/spawn-value-chain-expert-daemon.bat';
+
+      // Execute the spawn script synchronously (waits for agent to complete)
+      console.log('[ValueChainExpert] Executing spawn script:', spawnScriptPath);
+      execSync(spawnScriptPath, {
+        stdio: 'inherit', // Show output directly (prevents hanging with stdin writes)
+        cwd: 'D:/GitHub/agogsaas',
+        env: {
+          ...process.env,
+          SKIP_PERMISSIONS: 'true'
+        }
+      });
+
+      // After agent completes, recommendations are in OWNER_REQUESTS.md
+      // Parse the newly added recommendations (marked with generatedBy: value-chain-expert)
+      console.log('[ValueChainExpert] Agent completed - parsing recommendations from OWNER_REQUESTS.md');
+
+      const recommendations = this.parseGeneratedRecommendations();
+      console.log(`[ValueChainExpert] Parsed ${recommendations.length} recommendations from agent output`);
+
+      return recommendations;
+
+    } catch (error: any) {
+      console.error('[ValueChainExpert] Failed to spawn agent:', error.message);
+      console.error('[ValueChainExpert] Falling back to NATS-based generation');
+      return await this.generateRecommendationsInDocker();
+    }
+  }
+
+  /**
+   * Generate recommendations when running in Docker (no Claude CLI available)
+   * Publishes a trigger to NATS for host-side agent listener to pick up
+   */
+  private async generateRecommendationsInDocker(): Promise<StrategicRecommendation[]> {
+    console.log('[ValueChainExpert] Docker mode - publishing strategic evaluation request to NATS');
+
+    try {
+      // Publish a request to NATS for host agent to process
+      // The host-agent-listener (running on Windows) will pick this up
+      const evalRequest = {
+        type: 'strategic-evaluation',
+        requestedAt: new Date().toISOString(),
+        requestedBy: 'value-chain-expert-daemon'
+      };
+
+      await this.nc.publish('agog.agent.requests.value-chain-expert', JSON.stringify(evalRequest));
+      console.log('[ValueChainExpert] Published evaluation request to agog.agent.requests.value-chain-expert');
+
+      // In Docker mode, we don't wait for immediate results
+      // The host agent will process and publish recommendations to agog.recommendations.strategic
+      // The RecommendationPublisher will pick those up and add to OWNER_REQUESTS.md
+      console.log('[ValueChainExpert] Request queued - host agent will process when available');
+
+      return [];
+
+    } catch (error: any) {
+      console.error('[ValueChainExpert] Failed to publish NATS request:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Parse recommendations that were added to OWNER_REQUESTS.md by the agent
+   */
+  private parseGeneratedRecommendations(): StrategicRecommendation[] {
+    const ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md';
+
+    // Read OWNER_REQUESTS.md
+    const fs = require('fs');
+    const content = fs.readFileSync(ownerRequestsPath, 'utf-8');
+
+    // Find requests generated by value-chain-expert in the last 10 minutes
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    const recommendations: StrategicRecommendation[] = [];
+
+    // Parse markdown sections starting with ### REQ-STRATEGIC-AUTO-
+    const reqPattern = /### (REQ-STRATEGIC-AUTO-\d+):/g;
+    const matches = [...content.matchAll(reqPattern)];
+
+    for (const match of matches) {
+      const reqNumber = match[1];
+      const timestamp = parseInt(reqNumber.split('-').pop() || '0');
+
+      if (timestamp >= tenMinutesAgo) {
+        // Extract the full request section
+        const startIdx = match.index || 0;
+        const endIdx = content.indexOf('\n###', startIdx + 1);
+        const section = content.substring(startIdx, endIdx > 0 ? endIdx : undefined);
+
+        // Parse basic fields
+        const titleMatch = section.match(/### REQ-STRATEGIC-AUTO-\d+:\s*(.+)/);
+        const ownerMatch = section.match(/\*\*Owner\*\*:\s*(\w+)/i);
+        const priorityMatch = section.match(/\*\*Priority\*\*:\s*(P\d)/i);
+        const businessValueMatch = section.match(/\*\*Business Value\*\*:\s*(.+)/i);
+
+        if (titleMatch && ownerMatch && priorityMatch) {
+          recommendations.push({
+            reqNumber,
+            title: titleMatch[1].trim(),
+            owner: ownerMatch[1].toLowerCase() as any,
+            priority: priorityMatch[1] as any,
+            businessValue: businessValueMatch ? businessValueMatch[1].trim() : '',
+            requirements: this.parseRequirements(section),
+            riceScore: this.parseRICEScore(section),
+            generatedBy: 'value-chain-expert',
+            generatedAt: new Date(timestamp).toISOString()
+          });
+        }
       }
-    ];
+    }
 
-    return mockRecommendations;
+    return recommendations;
+  }
+
+  private parseRequirements(section: string): string[] {
+    const reqsMatch = section.match(/\*\*Requirements\*\*:\s*\n((?:[-*]\s*.+\n?)+)/);
+    if (!reqsMatch) return [];
+
+    return reqsMatch[1]
+      .split('\n')
+      .filter(line => line.trim().startsWith('-') || line.trim().startsWith('*'))
+      .map(line => line.replace(/^[-*]\s*/, '').trim())
+      .filter(Boolean);
+  }
+
+  private parseRICEScore(section: string): any {
+    // Try to parse RICE score if present, otherwise return default
+    const riceMatch = section.match(/RICE:\s*(\d+\.?\d*)/i);
+    const score = riceMatch ? parseFloat(riceMatch[1]) : 50;
+
+    return {
+      reach: 5,
+      impact: 5,
+      confidence: 5,
+      effort: 5,
+      total: score
+    };
   }
 
   /**

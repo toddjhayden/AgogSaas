@@ -1,0 +1,68 @@
+# REQ-STRATEGIC-AUTO-1766516942302: Prometheus Configuration
+# Agent: Berry (DevOps Specialist)
+# Purpose: Monitoring configuration for bin optimization system
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    cluster: 'agogsaas-production'
+    service: 'bin-optimization'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# Rule files for alerts
+rule_files:
+  - 'alerts/bin-optimization-alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Bin Optimization Backend Metrics
+  - job_name: 'bin-optimization-backend'
+    static_configs:
+      - targets:
+          - 'localhost:4000'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # PostgreSQL Database Metrics (via postgres_exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets:
+          - 'postgres-exporter:9187'
+    scrape_interval: 60s
+
+  # Node Exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets:
+          - 'node-exporter:9100'
+    scrape_interval: 60s
+
+  # Health Check Endpoint
+  - job_name: 'bin-optimization-health'
+    static_configs:
+      - targets:
+          - 'localhost:4000'
+    metrics_path: '/api/wms/optimization/health'
+    scrape_interval: 30s
+    metric_relabel_configs:
+      # Convert health check status to numeric metric
+      - source_labels: [status]
+        target_label: health_status
+        regex: 'HEALTHY'
+        replacement: '2'
+      - source_labels: [status]
+        target_label: health_status
+        regex: 'DEGRADED'
+        replacement: '1'
+      - source_labels: [status]
+        target_label: health_status
+        regex: 'UNHEALTHY'
+        replacement: '0'

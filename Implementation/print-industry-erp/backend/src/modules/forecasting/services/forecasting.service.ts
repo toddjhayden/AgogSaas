@@ -66,6 +66,7 @@ export class ForecastingService {
 
   /**
    * Generate forecasts for materials
+   * Optimized to use batch demand history fetching to eliminate N+1 query problem
    */
   async generateForecasts(
     input: GenerateForecastInput,
@@ -73,22 +74,27 @@ export class ForecastingService {
   ): Promise<MaterialForecast[]> {
     const allForecasts: MaterialForecast[] = [];
 
-    for (const materialId of input.materialIds) {
-      // Get historical demand (last 90 days)
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 90);
+    // Calculate date range (last 90 days for historical data)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 90);
 
-      const demandHistory = await this.demandHistoryService.getDemandHistory(
-        input.tenantId,
-        input.facilityId,
-        materialId,
-        startDate,
-        endDate
-      );
+    // OPTIMIZATION: Fetch demand history for all materials in a single query
+    // This eliminates the N+1 query problem identified in Sylvia's critique
+    const batchDemandHistory = await this.demandHistoryService.getBatchDemandHistory(
+      input.tenantId,
+      input.facilityId,
+      input.materialIds,
+      startDate,
+      endDate
+    );
+
+    // Process each material using the batched data
+    for (const materialId of input.materialIds) {
+      const demandHistory = batchDemandHistory.get(materialId) || [];
 
       if (demandHistory.length < 7) {
-        console.warn(`Insufficient demand history for material ${materialId}, skipping`);
+        console.warn(`Insufficient demand history for material ${materialId} (${demandHistory.length} days), skipping`);
         continue;
       }
 
@@ -203,6 +209,33 @@ export class ForecastingService {
   }
 
   /**
+   * Detect seasonal period by finding peak in autocorrelation function
+   * Tests common periods: 7 (weekly), 30 (monthly), 90 (quarterly), 365 (yearly)
+   */
+  private detectSeasonalPeriod(demands: number[]): number {
+    const testPeriods = [7, 30, 90, 180, 365];
+    let maxAutocorr = 0;
+    let bestPeriod = 7; // Default to weekly
+
+    for (const period of testPeriods) {
+      if (period < demands.length / 2) {
+        const autocorr = this.calculateAutocorrelation(demands, period);
+        if (autocorr > maxAutocorr) {
+          maxAutocorr = autocorr;
+          bestPeriod = period;
+        }
+      }
+    }
+
+    // If no strong seasonal pattern detected (autocorr < 0.3), use weekly as default
+    if (maxAutocorr < 0.3) {
+      return 7;
+    }
+
+    return bestPeriod;
+  }
+
+  /**
    * Generate forecasts using Moving Average
    */
   private async generateMovingAverageForecast(
@@ -232,9 +265,13 @@ export class ForecastingService {
     const uom = demandHistory[0]?.demandUom || 'UNITS';
     const generationTimestamp = new Date();
 
-    for (let i = 1; i <= horizonDays; i++) {
+    for (let h = 1; h <= horizonDays; h++) {
       const forecastDate = new Date();
-      forecastDate.setDate(forecastDate.getDate() + i);
+      forecastDate.setDate(forecastDate.getDate() + h);
+
+      // Confidence intervals widen with forecast horizon for MA
+      // Error accumulates over time: σ_h = σ × √h
+      const horizonStdDev = stdDev * Math.sqrt(h);
 
       const forecast = await this.insertForecast({
         tenantId,
@@ -247,10 +284,10 @@ export class ForecastingService {
         forecastHorizonType: horizonDays <= 30 ? ForecastHorizonType.SHORT_TERM : ForecastHorizonType.MEDIUM_TERM,
         forecastVersion: version,
         forecastGenerationTimestamp: generationTimestamp,
-        lowerBound80Pct: avgDemand - 1.28 * stdDev, // 80% confidence
-        upperBound80Pct: avgDemand + 1.28 * stdDev,
-        lowerBound95Pct: avgDemand - 1.96 * stdDev, // 95% confidence
-        upperBound95Pct: avgDemand + 1.96 * stdDev,
+        lowerBound80Pct: Math.max(0, avgDemand - 1.28 * horizonStdDev), // 80% confidence, horizon-adjusted
+        upperBound80Pct: avgDemand + 1.28 * horizonStdDev,
+        lowerBound95Pct: Math.max(0, avgDemand - 1.96 * horizonStdDev), // 95% confidence, horizon-adjusted
+        upperBound95Pct: avgDemand + 1.96 * horizonStdDev,
         modelConfidenceScore: 0.7,
         createdBy
       });
@@ -303,9 +340,13 @@ export class ForecastingService {
     const uom = demandHistory[0]?.demandUom || 'UNITS';
     const generationTimestamp = new Date();
 
-    for (let i = 1; i <= horizonDays; i++) {
+    for (let h = 1; h <= horizonDays; h++) {
       const forecastDate = new Date();
-      forecastDate.setDate(forecastDate.getDate() + i);
+      forecastDate.setDate(forecastDate.getDate() + h);
+
+      // Confidence intervals widen with forecast horizon for SES
+      // Error accumulates over time: σ_h = σ × √h
+      const horizonStdDev = stdDev * Math.sqrt(h);
 
       const forecast = await this.insertForecast({
         tenantId,
@@ -318,10 +359,10 @@ export class ForecastingService {
         forecastHorizonType: horizonDays <= 30 ? ForecastHorizonType.SHORT_TERM : ForecastHorizonType.MEDIUM_TERM,
         forecastVersion: version,
         forecastGenerationTimestamp: generationTimestamp,
-        lowerBound80Pct: smoothedValue - 1.28 * stdDev,
-        upperBound80Pct: smoothedValue + 1.28 * stdDev,
-        lowerBound95Pct: smoothedValue - 1.96 * stdDev,
-        upperBound95Pct: smoothedValue + 1.96 * stdDev,
+        lowerBound80Pct: Math.max(0, smoothedValue - 1.28 * horizonStdDev), // 80% confidence, horizon-adjusted
+        upperBound80Pct: smoothedValue + 1.28 * horizonStdDev,
+        lowerBound95Pct: Math.max(0, smoothedValue - 1.96 * horizonStdDev), // 95% confidence, horizon-adjusted
+        upperBound95Pct: smoothedValue + 1.96 * horizonStdDev,
         modelConfidenceScore: 0.75,
         createdBy
       });
@@ -517,7 +558,9 @@ export class ForecastingService {
     const alpha = 0.2; // Level smoothing
     const beta = 0.1;  // Trend smoothing
     const gamma = 0.1; // Seasonal smoothing
-    const seasonalPeriod = 7; // Weekly seasonality
+
+    // Detect seasonal period dynamically
+    const seasonalPeriod = this.detectSeasonalPeriod(demandHistory.map(d => d.actualDemandQuantity));
 
     if (demandHistory.length < seasonalPeriod * 2) {
       // Fall back to exponential smoothing if insufficient data
@@ -533,28 +576,30 @@ export class ForecastingService {
 
     const demands = demandHistory.map(d => d.actualDemandQuantity);
 
-    // Initialize level, trend, and seasonal components
-    let level = demands[0];
-    let trend = 0;
-    const seasonal: number[] = new Array(seasonalPeriod).fill(1);
+    // Calculate overall average for proper initialization
+    const overallAvg = demands.reduce((sum, d) => sum + d, 0) / demands.length;
 
-    // Initialize seasonal indices (simple average ratio method)
+    // Initialize level, trend, and seasonal components
+    let level = overallAvg;
+    let trend = 0;
+    const seasonal: number[] = new Array(seasonalPeriod).fill(0);
+
+    // Initialize seasonal indices using additive decomposition
+    // For each seasonal position, calculate the average deviation from the mean
     for (let s = 0; s < seasonalPeriod; s++) {
       const seasonValues: number[] = [];
       for (let i = s; i < demands.length; i += seasonalPeriod) {
-        seasonValues.push(demands[i]);
+        seasonValues.push(demands[i] - overallAvg); // Additive: deviation from mean
       }
       if (seasonValues.length > 0) {
-        const avgDemand = demands.reduce((sum, d) => sum + d, 0) / demands.length;
-        const avgSeasonDemand = seasonValues.reduce((sum, d) => sum + d, 0) / seasonValues.length;
-        seasonal[s] = avgDemand > 0 ? avgSeasonDemand / avgDemand : 1;
+        seasonal[s] = seasonValues.reduce((sum, d) => sum + d, 0) / seasonValues.length;
       }
     }
 
-    // Fit the model (one pass through historical data)
+    // Fit the model (one pass through historical data) using ADDITIVE model
     for (let t = 0; t < demands.length; t++) {
       const seasonalIndex = t % seasonalPeriod;
-      const deseasonalized = demands[t] / seasonal[seasonalIndex];
+      const deseasonalized = demands[t] - seasonal[seasonalIndex]; // Additive: subtract seasonal component
 
       // Update level
       const prevLevel = level;
@@ -563,28 +608,28 @@ export class ForecastingService {
       // Update trend
       trend = beta * (level - prevLevel) + (1 - beta) * trend;
 
-      // Update seasonal component
-      seasonal[seasonalIndex] = gamma * (demands[t] / level) + (1 - gamma) * seasonal[seasonalIndex];
+      // Update seasonal component (additive model)
+      seasonal[seasonalIndex] = gamma * (demands[t] - level) + (1 - gamma) * seasonal[seasonalIndex];
     }
 
-    // Calculate MSE for confidence intervals
+    // Calculate MSE for confidence intervals (additive model)
     let sumSquaredErrors = 0;
-    let currentLevel = demands[0];
+    let currentLevel = overallAvg;
     let currentTrend = 0;
     const currentSeasonal = [...seasonal];
 
     for (let t = 1; t < demands.length; t++) {
       const seasonalIndex = t % seasonalPeriod;
-      const forecast = (currentLevel + currentTrend) * currentSeasonal[seasonalIndex];
+      const forecast = (currentLevel + currentTrend) + currentSeasonal[seasonalIndex]; // Additive
       const error = demands[t] - forecast;
       sumSquaredErrors += error * error;
 
-      // Update components for next iteration
-      const deseasonalized = demands[t] / currentSeasonal[seasonalIndex];
+      // Update components for next iteration (additive model)
+      const deseasonalized = demands[t] - currentSeasonal[seasonalIndex];
       const prevLevel = currentLevel;
       currentLevel = alpha * deseasonalized + (1 - alpha) * (currentLevel + currentTrend);
       currentTrend = beta * (currentLevel - prevLevel) + (1 - beta) * currentTrend;
-      currentSeasonal[seasonalIndex] = gamma * (demands[t] / currentLevel) + (1 - gamma) * currentSeasonal[seasonalIndex];
+      currentSeasonal[seasonalIndex] = gamma * (demands[t] - currentLevel) + (1 - gamma) * currentSeasonal[seasonalIndex];
     }
 
     const mse = sumSquaredErrors / (demands.length - 1);
@@ -600,13 +645,15 @@ export class ForecastingService {
     const uom = demandHistory[0]?.demandUom || 'UNITS';
     const generationTimestamp = new Date();
 
-    // Generate forecasts
+    // Generate forecasts (additive model)
     for (let h = 1; h <= horizonDays; h++) {
       const forecastDate = new Date();
       forecastDate.setDate(forecastDate.getDate() + h);
 
+      // Calculate forecast using additive Holt-Winters model
+      // forecast[t+h] = (level_t + h × trend_t) + seasonal[(t+h) mod s]
       const seasonalIndex = (demands.length + h - 1) % seasonalPeriod;
-      const forecastValue = (level + h * trend) * seasonal[seasonalIndex];
+      const forecastValue = level + (h * trend) + seasonal[seasonalIndex]; // Additive model
 
       const forecast = await this.insertForecast({
         tenantId,

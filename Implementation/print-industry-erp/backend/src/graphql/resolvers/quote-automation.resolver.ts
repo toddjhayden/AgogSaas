@@ -15,15 +15,11 @@ import { PricingRuleEngineService } from '../../modules/sales/services/pricing-r
 
 @Resolver('QuoteAutomation')
 export class QuoteAutomationResolver {
-  private readonly quoteManagementService: QuoteManagementService;
-  private readonly quotePricingService: QuotePricingService;
-  private readonly pricingRuleEngine: PricingRuleEngineService;
-
-  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {
-    this.quoteManagementService = new QuoteManagementService(db);
-    this.quotePricingService = new QuotePricingService(db);
-    this.pricingRuleEngine = new PricingRuleEngineService(db);
-  }
+  constructor(
+    private readonly quoteManagementService: QuoteManagementService,
+    private readonly quotePricingService: QuotePricingService,
+    private readonly pricingRuleEngine: PricingRuleEngineService
+  ) {}
 
   // =====================================================
   // QUOTE AUTOMATION QUERIES

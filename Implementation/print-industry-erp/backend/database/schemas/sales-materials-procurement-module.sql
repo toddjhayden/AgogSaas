@@ -1,5 +1,13 @@
 -- =====================================================
--- SALES + MATERIALS + PROCUREMENT MODULE
+-- SALES + MATERIALS + PROCUREMENT MODULE - REFERENCE SCHEMA
+-- =====================================================
+-- NOTE: This file is a REFERENCE ONLY. Actual database schema is created by
+-- Flyway migrations in the /migrations directory.
+--
+-- This file reflects the schema state as of migration V0.0.8.
+-- For column renames and schema changes, see migration files.
+--
+-- Last Updated: 2025-12-27 (after V0.0.8 date column standardization)
 -- =====================================================
 -- Purpose: Complete sales order management, product/material master data, vendor management
 -- Tables: 17 (customers, products, materials, bill_of_materials, quotes, quote_lines,
@@ -392,7 +400,7 @@ CREATE TABLE purchase_orders (
 
     -- PO identification
     po_number VARCHAR(50) UNIQUE NOT NULL,
-    po_date DATE NOT NULL,
+    purchase_order_date DATE NOT NULL,  -- Renamed from po_date in V0.0.8 for OLAP consistency
     vendor_id UUID NOT NULL,
 
     -- Ship to facility
@@ -457,7 +465,7 @@ CREATE INDEX idx_purchase_orders_tenant ON purchase_orders(tenant_id);
 CREATE INDEX idx_purchase_orders_vendor ON purchase_orders(vendor_id);
 CREATE INDEX idx_purchase_orders_facility ON purchase_orders(facility_id);
 CREATE INDEX idx_purchase_orders_status ON purchase_orders(status);
-CREATE INDEX idx_purchase_orders_date ON purchase_orders(po_date);
+CREATE INDEX idx_purchase_orders_date ON purchase_orders(purchase_order_date);
 
 COMMENT ON TABLE purchase_orders IS 'Purchase orders to vendors with approval workflow';
 

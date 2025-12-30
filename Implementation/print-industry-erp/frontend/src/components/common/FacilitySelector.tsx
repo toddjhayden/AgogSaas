@@ -1,5 +1,4 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store/appStore';
 import { Building2 } from 'lucide-react';
 
@@ -12,7 +11,6 @@ const facilities = [
 ];
 
 export const FacilitySelector: React.FC = () => {
-  const { t } = useTranslation();
   const { preferences, setFacility } = useAppStore();
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {

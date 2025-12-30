@@ -53,18 +53,9 @@ Strategic agents (Sarah, Marcus, Alex) spawn you when:
 
 ## Your Deliverable
 
-### File Write Access
-
-You have write access to the agent output directory via the `$AGENT_OUTPUT_DIR` environment variable:
-
-- **NATS Scripts**: `$AGENT_OUTPUT_DIR/nats-scripts/` - Write TypeScript/Node scripts to publish to NATS
-- **Full Deliverables**: `$AGENT_OUTPUT_DIR/deliverables/` - Store full research reports
-
-Example:
-```typescript
-// Write to: $AGENT_OUTPUT_DIR/nats-scripts/publish-REQ-ITEM-MASTER-001.ts
-// Write to: $AGENT_OUTPUT_DIR/deliverables/cynthia-research-REQ-ITEM-MASTER-001.md
-```
+**IMPORTANT: Deliverables are stored in the database, NOT as files.**
+The HostListener captures your completion JSON and stores everything in `nats_deliverable_cache`.
+Do NOT write `.md` files to disk - the database is the source of truth.
 
 You create TWO outputs:
 

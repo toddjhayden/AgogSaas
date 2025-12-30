@@ -88,3 +88,284 @@ export const GET_MULTI_ENTITY_CONSOLIDATION = gql`
     }
   }
 `;
+
+// =====================================================
+// INVOICE QUERIES
+// =====================================================
+
+export const GET_INVOICES = gql`
+  query GetInvoices(
+    $tenantId: ID!
+    $invoiceType: InvoiceType
+    $customerId: ID
+    $vendorId: ID
+    $status: InvoiceStatus
+    $startDate: Date
+    $endDate: Date
+    $limit: Int
+    $offset: Int
+  ) {
+    invoices(
+      tenantId: $tenantId
+      invoiceType: $invoiceType
+      customerId: $customerId
+      vendorId: $vendorId
+      status: $status
+      startDate: $startDate
+      endDate: $endDate
+      limit: $limit
+      offset: $offset
+    ) {
+      id
+      invoiceNumber
+      invoiceType
+      customerId
+      vendorId
+      billToName
+      invoiceDate
+      dueDate
+      currencyCode
+      subtotal
+      taxAmount
+      totalAmount
+      paidAmount
+      balanceDue
+      status
+      paymentStatus
+      paymentTerms
+      purchaseOrderNumber
+      notes
+      createdAt
+    }
+  }
+`;
+
+export const GET_INVOICE = gql`
+  query GetInvoice($id: ID!) {
+    invoice(id: $id) {
+      id
+      tenantId
+      facilityId
+      invoiceNumber
+      invoiceType
+      customerId
+      vendorId
+      billToName
+      billToAddressLine1
+      billToCity
+      billToPostalCode
+      billToCountry
+      invoiceDate
+      dueDate
+      currencyCode
+      exchangeRate
+      subtotal
+      taxAmount
+      shippingAmount
+      discountAmount
+      totalAmount
+      paidAmount
+      balanceDue
+      status
+      paymentStatus
+      paymentTerms
+      discountTerms
+      purchaseOrderNumber
+      salesOrderId
+      shipmentId
+      journalEntryId
+      notes
+      createdAt
+      createdBy
+      updatedAt
+      updatedBy
+      lines {
+        id
+        lineNumber
+        materialId
+        productId
+        description
+        quantity
+        unitOfMeasure
+        unitPrice
+        lineAmount
+        taxAmount
+        discountAmount
+        totalAmount
+        revenueAccountId
+        cogsAccountId
+        salesOrderLineId
+        shipmentLineId
+      }
+      payments {
+        id
+        paymentNumber
+        paymentDate
+        paymentAmount
+        paymentMethod
+        status
+      }
+    }
+  }
+`;
+
+// =====================================================
+// PAYMENT QUERIES
+// =====================================================
+
+export const GET_PAYMENTS = gql`
+  query GetPayments(
+    $tenantId: ID!
+    $paymentType: PaymentType
+    $customerId: ID
+    $vendorId: ID
+    $startDate: Date
+    $endDate: Date
+  ) {
+    payments(
+      tenantId: $tenantId
+      paymentType: $paymentType
+      customerId: $customerId
+      vendorId: $vendorId
+      startDate: $startDate
+      endDate: $endDate
+    ) {
+      id
+      paymentNumber
+      paymentType
+      customerId
+      vendorId
+      paidByName
+      paymentDate
+      currencyCode
+      paymentAmount
+      paymentMethod
+      referenceNumber
+      checkNumber
+      status
+      notes
+      createdAt
+    }
+  }
+`;
+
+export const GET_PAYMENT = gql`
+  query GetPayment($id: ID!) {
+    payment(id: $id) {
+      id
+      tenantId
+      facilityId
+      paymentNumber
+      paymentType
+      customerId
+      vendorId
+      paidByName
+      paymentDate
+      periodYear
+      periodMonth
+      currencyCode
+      exchangeRate
+      paymentAmount
+      paymentMethod
+      referenceNumber
+      checkNumber
+      transactionId
+      bankAccountId
+      depositDate
+      status
+      journalEntryId
+      notes
+      createdAt
+      createdBy
+      updatedAt
+      updatedBy
+      appliedInvoices {
+        paymentId
+        invoiceId
+        amountApplied
+        appliedDate
+      }
+    }
+  }
+`;
+
+// =====================================================
+// INVOICE MUTATIONS
+// =====================================================
+
+export const CREATE_INVOICE = gql`
+  mutation CreateInvoice($input: CreateInvoiceInput!) {
+    createInvoice(input: $input) {
+      id
+      invoiceNumber
+      invoiceType
+      billToName
+      invoiceDate
+      dueDate
+      currencyCode
+      subtotal
+      taxAmount
+      totalAmount
+      status
+      paymentStatus
+    }
+  }
+`;
+
+export const UPDATE_INVOICE = gql`
+  mutation UpdateInvoice($id: ID!, $input: UpdateInvoiceInput!) {
+    updateInvoice(id: $id, input: $input) {
+      id
+      invoiceNumber
+      dueDate
+      status
+      notes
+      updatedAt
+    }
+  }
+`;
+
+export const VOID_INVOICE = gql`
+  mutation VoidInvoice($id: ID!) {
+    voidInvoice(id: $id) {
+      id
+      invoiceNumber
+      status
+      updatedAt
+    }
+  }
+`;
+
+// =====================================================
+// PAYMENT MUTATIONS
+// =====================================================
+
+export const CREATE_PAYMENT = gql`
+  mutation CreatePayment($input: CreatePaymentInput!) {
+    createPayment(input: $input) {
+      id
+      paymentNumber
+      paymentType
+      paymentDate
+      paymentAmount
+      paymentMethod
+      status
+    }
+  }
+`;
+
+export const APPLY_PAYMENT = gql`
+  mutation ApplyPayment($paymentId: ID!, $applications: [PaymentApplicationInput!]!) {
+    applyPayment(paymentId: $paymentId, applications: $applications) {
+      id
+      paymentNumber
+      paymentAmount
+      status
+      appliedInvoices {
+        invoiceId
+        amountApplied
+        appliedDate
+      }
+    }
+  }
+`;

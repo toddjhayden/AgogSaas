@@ -55,4 +55,3 @@ echo   docker-compose -f docker-compose.app.yml logs -f
 echo.
 echo ============================================================================
 echo.
-pause

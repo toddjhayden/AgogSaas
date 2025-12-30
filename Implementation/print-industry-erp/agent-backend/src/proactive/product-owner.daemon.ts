@@ -78,7 +78,7 @@ export class ProductOwnerDaemon {
   }
 
   /**
-   * Start daemon (monitors every 6 hours)
+   * Start daemon (monitors every 5 hours - aligned with Recovery & Value Chain cycle)
    */
   async startDaemon(): Promise<void> {
     if (this.isRunning) {
@@ -87,7 +87,7 @@ export class ProductOwnerDaemon {
     }
 
     this.isRunning = true;
-    console.log(`[ProductOwner/${this.owner}] Starting daemon (6-hour interval)...`);
+    console.log(`[ProductOwner/${this.owner}] Starting daemon (5-hour interval - aligned with system cycle)...`);
 
     // Subscribe to metric updates
     await this.subscribeToMetrics();
@@ -95,12 +95,12 @@ export class ProductOwnerDaemon {
     // Subscribe to triggers
     await this.subscribeToTriggers();
 
-    // Periodic check every 6 hours
+    // Periodic check every 5 hours (aligned with Recovery & Value Chain Expert)
     setInterval(async () => {
       if (this.isRunning) {
         await this.checkMetrics();
       }
-    }, 6 * 60 * 60 * 1000); // 6 hours
+    }, 5 * 60 * 60 * 1000); // 5 hours - ALIGNED WITH SYSTEM CYCLE
 
     console.log(`[ProductOwner/${this.owner}] ✅ Monitoring ${this.domain} domain`);
   }

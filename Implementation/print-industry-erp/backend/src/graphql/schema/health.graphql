@@ -1,0 +1,17 @@
+# =====================================================
+# HEALTH CHECK SCHEMA
+# =====================================================
+# Basic health check queries for API monitoring
+# =====================================================
+
+type Query {
+  """
+  Health check query for GraphQL API
+  """
+  healthCheck: String!
+
+  """
+  API version
+  """
+  version: String!
+}

@@ -1,0 +1,833 @@
+# ============================================
+# PREDICTIVE MAINTENANCE AI SCHEMA
+# REQ: REQ-STRATEGIC-AUTO-1767108044310
+# ============================================
+
+# ============================================
+# TYPES
+# ============================================
+
+# ML Model Configuration
+type PredictiveMaintenanceModel {
+  id: ID!
+  tenantId: ID!
+  modelCode: String!
+  modelName: String!
+  modelType: ModelType!
+  algorithm: MLAlgorithm!
+
+  workCenterId: ID
+  workCenter: WorkCenter
+  workCenterType: WorkCenterType
+  equipmentManufacturer: String
+  equipmentModel: String
+
+  failureMode: String
+  predictionHorizonHours: Int!
+
+  modelParameters: JSON!
+  featureSet: [ModelFeature!]!
+
+  trainingDataStart: DateTime
+  trainingDataEnd: DateTime
+  trainingSampleCount: Int
+
+  # Performance metrics
+  accuracyScore: Float
+  precisionScore: Float
+  recallScore: Float
+  f1Score: Float
+  aucRoc: Float
+  meanAbsoluteError: Float
+  falsePositiveRate: Float
+  falseNegativeRate: Float
+
+  modelVersion: String!
+  parentModelId: ID
+
+  deploymentStatus: DeploymentStatus!
+  deployedAt: DateTime
+  deployedBy: User
+
+  productionAccuracy: Float
+  lastPredictionAt: DateTime
+  predictionCountTotal: Int
+
+  retrainingFrequency: RetrainingFrequency
+  lastRetrainedAt: DateTime
+  nextRetrainingAt: DateTime
+
+  dataDriftDetected: Boolean
+  conceptDriftDetected: Boolean
+
+  description: String
+  methodology: String
+  featureImportance: [FeatureImportance!]
+
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type ModelFeature {
+  name: String!
+  source: String!
+  sensorType: String
+  calculationType: String
+  importance: Float
+}
+
+type FeatureImportance {
+  feature: String!
+  importance: Float!
+  rank: Int!
+}
+
+# Equipment Health Score
+type EquipmentHealthScore {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+  workCenterId: ID!
+  workCenter: WorkCenter!
+
+  scoreTimestamp: DateTime!
+
+  overallHealthScore: Float!
+  healthStatus: HealthStatus!
+
+  # Component scores
+  sensorHealthScore: Float
+  oeeHealthScore: Float
+  qualityHealthScore: Float
+  reliabilityHealthScore: Float
+  performanceHealthScore: Float
+
+  # Anomaly detection
+  anomalyDetected: Boolean
+  anomalySeverity: Severity
+  anomalyType: String
+  anomalyDescription: String
+
+  # Trend analysis
+  healthScore7dAvg: Float
+  healthScore30dAvg: Float
+  healthScoreChange7d: Float
+  trendDirection: TrendDirection
+
+  # Risk factors
+  riskFactors: [RiskFactor!]
+
+  # Recommendations
+  recommendedAction: String
+  recommendedActionPriority: Priority
+  recommendedActionDescription: String
+
+  # Metadata
+  calculationMethod: String
+  modelId: ID
+  model: PredictiveMaintenanceModel
+  dataQualityScore: Float
+
+  createdAt: DateTime!
+}
+
+type RiskFactor {
+  factor: String!
+  severity: Severity!
+  measuredValue: Float
+  threshold: Float
+  trend: String
+}
+
+# Predictive Maintenance Alert
+type PredictiveMaintenanceAlert {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+  workCenterId: ID!
+  workCenter: WorkCenter!
+
+  alertTimestamp: DateTime!
+  alertType: AlertType!
+
+  # Failure prediction
+  predictedFailureMode: String
+  failureProbability: Float
+  confidenceIntervalLower: Float
+  confidenceIntervalUpper: Float
+
+  # Timing
+  predictedFailureDate: Date
+  predictedFailureTimestamp: DateTime
+  timeToFailureHours: Float
+  timeToFailureUncertaintyHours: Float
+
+  # RUL
+  rulHours: Float
+  rulConfidence: Float
+
+  # Severity
+  severity: Severity!
+  urgency: Urgency!
+  businessImpact: BusinessImpact
+  estimatedDowntimeHours: Float
+  estimatedRepairCost: Float
+
+  # Model info
+  modelId: ID!
+  model: PredictiveMaintenanceModel!
+  modelVersion: String
+  algorithmUsed: String
+
+  # Contributing factors
+  featureValues: [FeatureValue!]
+  primaryIndicators: [Indicator!]
+
+  # Equipment context
+  equipmentAgeDays: Int
+  hoursSinceLastMaintenance: Float
+  totalRuntimeHours: Float
+  currentHealthScore: Float
+
+  # Recommendations
+  recommendedAction: String!
+  recommendedMaintenanceWindow: DateTimeRange
+  requiredParts: [RequiredPart!]
+  requiredSkills: [RequiredSkill!]
+  estimatedMaintenanceDurationHours: Float
+  recommendedMaintenanceType: String
+  detailedRecommendations: String
+
+  # Alternative scenarios
+  alternativeScenarios: [MaintenanceScenario!]
+
+  # Status
+  status: AlertStatus!
+  acknowledgedBy: User
+  acknowledgedAt: DateTime
+
+  # Resolution
+  maintenanceScheduled: Boolean
+  scheduledMaintenanceId: ID
+  scheduledMaintenance: MaintenanceRecord
+
+  resolutionType: String
+  actualFailureOccurred: Boolean
+  actualFailureDate: DateTime
+  predictionAccuracy: String
+  predictionErrorHours: Float
+
+  resolvedBy: User
+  resolvedAt: DateTime
+  resolutionNotes: String
+
+  # Notifications
+  notificationsSent: [Notification!]
+  escalationLevel: Int
+
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type FeatureValue {
+  feature: String!
+  value: Float!
+  normalRange: [Float!]
+  deviation: Float
+  unit: String
+}
+
+type Indicator {
+  indicator: String!
+  contribution: Float!
+  severity: Severity
+}
+
+type RequiredPart {
+  partNumber: String!
+  description: String!
+  quantity: Int!
+  leadTimeDays: Int
+  inStock: Boolean
+  cost: Float
+}
+
+type RequiredSkill {
+  skill: String!
+  hours: Float!
+  certificationRequired: Boolean
+}
+
+type MaintenanceScenario {
+  scenario: String!
+  cost: Float!
+  downtime: Float!
+  failureRisk: Float
+  benefits: [String!]
+  risks: [String!]
+}
+
+type Notification {
+  userId: ID!
+  method: String!
+  timestamp: DateTime!
+  status: String!
+}
+
+type DateTimeRange {
+  start: DateTime!
+  end: DateTime!
+}
+
+# Maintenance Recommendation
+type MaintenanceRecommendation {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+  recommendationNumber: String!
+  recommendationDate: Date!
+
+  workCenterId: ID!
+  workCenter: WorkCenter!
+
+  recommendationType: RecommendationType!
+
+  # Current vs. recommended
+  currentMaintenanceStrategy: String
+  recommendedMaintenanceStrategy: String
+  currentIntervalDays: Int
+  recommendedIntervalDays: Int
+  currentIntervalHours: Float
+  recommendedIntervalHours: Float
+
+  # Trigger conditions
+  triggerConditions: [TriggerCondition!]
+
+  # Cost-benefit
+  currentAnnualMaintenanceCost: Float
+  recommendedAnnualMaintenanceCost: Float
+  projectedCostSavings: Float
+  projectedDowntimeReductionHours: Float
+  projectedFailureReductionPercent: Float
+  roiPercentage: Float
+  paybackPeriodMonths: Float
+
+  # Risk
+  riskLevel: RiskLevel
+  riskFactors: [RiskFactor!]
+
+  # Analysis
+  analysisPeriodStart: Date!
+  analysisPeriodEnd: Date!
+  dataPointsAnalyzed: Int
+  historicalFailureCount: Int
+  historicalMaintenanceCount: Int
+  averageTimeBetweenFailuresHours: Float
+  averageTimeToRepairHours: Float
+
+  # Model
+  modelId: ID
+  model: PredictiveMaintenanceModel
+  optimizationAlgorithm: String
+
+  # Implementation
+  implementationPriority: Priority
+  implementationEffort: Effort
+  requiredResources: [Resource!]
+  implementationTimelineDays: Int
+  estimatedStartDate: Date
+
+  # Approval
+  approvalRequired: Boolean
+  approvalStatus: ApprovalStatus!
+  approvedBy: User
+  approvedAt: DateTime
+  rejectionReason: String
+
+  # Status
+  implementationStatus: ImplementationStatus!
+  implementationStartedAt: DateTime
+  implementationCompletedAt: DateTime
+  implementedBy: User
+
+  # Results
+  actualCostSavings: Float
+  actualDowntimeReductionHours: Float
+  actualFailureReductionPercent: Float
+  resultsValidated: Boolean
+  validationDate: Date
+  validationNotes: String
+
+  # Details
+  detailedAnalysis: String
+  justification: String
+  benefits: String
+  risks: String
+  alternativeRecommendations: [AlternativeRecommendation!]
+
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type TriggerCondition {
+  parameter: String!
+  threshold: Float!
+  operator: String!
+  unit: String
+}
+
+type Resource {
+  resource: String!
+  hours: Float
+  cost: Float
+  available: Boolean
+}
+
+type AlternativeRecommendation {
+  option: String!
+  costSavings: Float
+  risk: RiskLevel
+  benefits: [String!]
+  drawbacks: [String!]
+}
+
+# Dashboard Summary
+type PredictiveMaintenanceDashboard {
+  tenantId: ID!
+  facilityId: ID
+
+  # Equipment health overview
+  totalEquipment: Int!
+  equipmentByHealthStatus: [HealthStatusCount!]!
+  averageHealthScore: Float!
+
+  # Alerts summary
+  totalActiveAlerts: Int!
+  alertsBySeverity: [SeverityCount!]!
+  alertsByUrgency: [UrgencyCount!]!
+
+  # Predictions
+  predictedFailuresNext7Days: Int!
+  predictedFailuresNext30Days: Int!
+  predictedFailuresNext90Days: Int!
+
+  # Maintenance optimization
+  activeRecommendations: Int!
+  potentialAnnualSavings: Float!
+  averageRoi: Float!
+
+  # Model performance
+  totalModelsDeployed: Int!
+  averageModelAccuracy: Float!
+
+  # Recent activity
+  recentAlerts: [PredictiveMaintenanceAlert!]!
+  recentHealthScores: [EquipmentHealthScore!]!
+  upcomingMaintenance: [MaintenanceRecord!]!
+
+  asOfTimestamp: DateTime!
+}
+
+type HealthStatusCount {
+  status: HealthStatus!
+  count: Int!
+  percentage: Float!
+}
+
+type SeverityCount {
+  severity: Severity!
+  count: Int!
+}
+
+type UrgencyCount {
+  urgency: Urgency!
+  count: Int!
+}
+
+type HealthTrendDataPoint {
+  timestamp: DateTime!
+  overallHealthScore: Float!
+  sensorHealthScore: Float
+  oeeHealthScore: Float
+  qualityHealthScore: Float
+}
+
+type ModelAccuracyMetrics {
+  modelId: ID
+  modelName: String
+  totalPredictions: Int!
+  accuratePredictions: Int!
+  earlyPredictions: Int!
+  latePredictions: Int!
+  incorrectPredictions: Int!
+  accuracyPercentage: Float!
+  averageErrorHours: Float
+}
+
+# ============================================
+# ENUMS
+# ============================================
+
+enum ModelType {
+  ANOMALY_DETECTION
+  FAILURE_PREDICTION
+  RUL_ESTIMATION
+  OPTIMIZATION
+  PATTERN_RECOGNITION
+}
+
+enum MLAlgorithm {
+  ISOLATION_FOREST
+  LSTM
+  RANDOM_FOREST
+  GRADIENT_BOOSTING
+  PROPHET
+  ARIMA
+  SVM
+  NEURAL_NETWORK
+  ENSEMBLE
+}
+
+enum DeploymentStatus {
+  DEVELOPMENT
+  TESTING
+  STAGING
+  PRODUCTION
+  DEPRECATED
+}
+
+enum RetrainingFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ON_DEMAND
+}
+
+enum HealthStatus {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  CRITICAL
+}
+
+enum TrendDirection {
+  IMPROVING
+  STABLE
+  DEGRADING
+  RAPIDLY_DEGRADING
+}
+
+enum AlertType {
+  FAILURE_PREDICTION
+  ANOMALY_DETECTED
+  RUL_THRESHOLD
+  DEGRADATION_TREND
+  CALIBRATION_REQUIRED
+  PERFORMANCE_DECLINE
+}
+
+enum Urgency {
+  ROUTINE
+  SOON
+  URGENT
+  IMMEDIATE
+}
+
+enum BusinessImpact {
+  MINIMAL
+  MODERATE
+  SIGNIFICANT
+  SEVERE
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  SCHEDULED
+  IN_PROGRESS
+  RESOLVED
+  FALSE_ALARM
+  IGNORED
+}
+
+enum RecommendationType {
+  SCHEDULE_OPTIMIZATION
+  INTERVAL_ADJUSTMENT
+  PROACTIVE_REPLACEMENT
+  CONDITION_BASED_TRIGGER
+  RESOURCE_ALLOCATION
+  PARTS_INVENTORY
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Priority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum Effort {
+  MINIMAL
+  MODERATE
+  SIGNIFICANT
+  EXTENSIVE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ON_HOLD
+}
+
+enum ImplementationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Aggregation {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum TimeRange {
+  LAST_24_HOURS
+  LAST_7_DAYS
+  LAST_30_DAYS
+  LAST_90_DAYS
+  LAST_YEAR
+  CUSTOM
+}
+
+# ============================================
+# QUERIES
+# ============================================
+
+extend type Query {
+  # Equipment health
+  equipmentHealthScores(
+    workCenterId: ID
+    facilityId: ID
+    healthStatus: HealthStatus
+    trendDirection: TrendDirection
+    startDate: DateTime
+    endDate: DateTime
+    limit: Int
+  ): [EquipmentHealthScore!]!
+
+  equipmentHealthScore(id: ID!): EquipmentHealthScore
+
+  latestEquipmentHealthScore(workCenterId: ID!): EquipmentHealthScore
+
+  # Alerts
+  predictiveMaintenanceAlerts(
+    workCenterId: ID
+    facilityId: ID
+    status: AlertStatus
+    severity: Severity
+    urgency: Urgency
+    alertType: AlertType
+    startDate: DateTime
+    endDate: DateTime
+    limit: Int
+  ): [PredictiveMaintenanceAlert!]!
+
+  predictiveMaintenanceAlert(id: ID!): PredictiveMaintenanceAlert
+
+  # Models
+  predictiveMaintenanceModels(
+    modelType: ModelType
+    deploymentStatus: DeploymentStatus
+    isActive: Boolean
+  ): [PredictiveMaintenanceModel!]!
+
+  predictiveMaintenanceModel(id: ID!): PredictiveMaintenanceModel
+
+  # Recommendations
+  maintenanceRecommendations(
+    workCenterId: ID
+    facilityId: ID
+    recommendationType: RecommendationType
+    approvalStatus: ApprovalStatus
+    implementationStatus: ImplementationStatus
+    limit: Int
+  ): [MaintenanceRecommendation!]!
+
+  maintenanceRecommendation(id: ID!): MaintenanceRecommendation
+
+  # Dashboard
+  predictiveMaintenanceDashboard(
+    facilityId: ID
+    timeRange: TimeRange
+  ): PredictiveMaintenanceDashboard!
+
+  # Analytics
+  equipmentHealthTrends(
+    workCenterId: ID!
+    startDate: DateTime!
+    endDate: DateTime!
+    aggregation: Aggregation
+  ): [HealthTrendDataPoint!]!
+
+  failurePredictionAccuracy(
+    modelId: ID
+    startDate: DateTime!
+    endDate: DateTime!
+  ): ModelAccuracyMetrics!
+}
+
+# ============================================
+# MUTATIONS
+# ============================================
+
+extend type Mutation {
+  # Equipment health
+  calculateEquipmentHealthScore(
+    workCenterId: ID!
+  ): EquipmentHealthScore!
+
+  # Alerts
+  acknowledgePredictiveMaintenanceAlert(
+    alertId: ID!
+    notes: String
+  ): PredictiveMaintenanceAlert!
+
+  schedulePredictiveMaintenanceAlert(
+    alertId: ID!
+    maintenanceRecordInput: CreateMaintenanceRecordInput!
+  ): PredictiveMaintenanceAlert!
+
+  resolvePredictiveMaintenanceAlert(
+    alertId: ID!
+    resolutionType: String!
+    actualFailureOccurred: Boolean!
+    actualFailureDate: DateTime
+    notes: String
+  ): PredictiveMaintenanceAlert!
+
+  # Models
+  createPredictiveMaintenanceModel(
+    input: CreatePredictiveMaintenanceModelInput!
+  ): PredictiveMaintenanceModel!
+
+  updatePredictiveMaintenanceModel(
+    id: ID!
+    input: UpdatePredictiveMaintenanceModelInput!
+  ): PredictiveMaintenanceModel!
+
+  deployPredictiveMaintenanceModel(
+    id: ID!
+    environment: DeploymentStatus!
+  ): PredictiveMaintenanceModel!
+
+  retrainPredictiveMaintenanceModel(
+    id: ID!
+    trainingDataStart: DateTime!
+    trainingDataEnd: DateTime!
+  ): PredictiveMaintenanceModel!
+
+  # Recommendations
+  createMaintenanceRecommendation(
+    input: CreateMaintenanceRecommendationInput!
+  ): MaintenanceRecommendation!
+
+  approveMaintenanceRecommendation(
+    id: ID!
+    notes: String
+  ): MaintenanceRecommendation!
+
+  rejectMaintenanceRecommendation(
+    id: ID!
+    reason: String!
+  ): MaintenanceRecommendation!
+
+  implementMaintenanceRecommendation(
+    id: ID!
+    startDate: DateTime
+  ): MaintenanceRecommendation!
+
+  validateMaintenanceRecommendation(
+    id: ID!
+    actualCostSavings: Float
+    actualDowntimeReductionHours: Float
+    actualFailureReductionPercent: Float
+    notes: String
+  ): MaintenanceRecommendation!
+}
+
+# ============================================
+# INPUTS
+# ============================================
+
+input CreatePredictiveMaintenanceModelInput {
+  modelCode: String!
+  modelName: String!
+  modelType: ModelType!
+  algorithm: MLAlgorithm!
+  workCenterId: ID
+  workCenterType: WorkCenterType
+  failureMode: String
+  predictionHorizonHours: Int!
+  modelParameters: JSON!
+  featureSet: [ModelFeatureInput!]!
+  description: String
+  methodology: String
+}
+
+input ModelFeatureInput {
+  name: String!
+  source: String!
+  sensorType: String
+  calculationType: String
+}
+
+input UpdatePredictiveMaintenanceModelInput {
+  modelName: String
+  modelParameters: JSON
+  featureSet: [ModelFeatureInput!]
+  description: String
+  methodology: String
+  isActive: Boolean
+}
+
+input CreateMaintenanceRecommendationInput {
+  workCenterId: ID!
+  recommendationType: RecommendationType!
+  recommendedMaintenanceStrategy: String!
+  recommendedIntervalDays: Int
+  recommendedIntervalHours: Float
+  triggerConditions: [TriggerConditionInput!]
+  projectedCostSavings: Float!
+  detailedAnalysis: String!
+  justification: String!
+  benefits: String
+  risks: String
+}
+
+input TriggerConditionInput {
+  parameter: String!
+  threshold: Float!
+  operator: String!
+  unit: String
+}
+
+input CreateMaintenanceRecordInput {
+  scheduledDate: DateTime!
+  maintenanceType: String!
+  workDescription: String!
+  estimatedDurationHours: Float
+  assignedToUserId: ID
+}

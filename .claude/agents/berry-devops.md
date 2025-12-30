@@ -49,7 +49,7 @@
 - **Deployment Automation** - Blue-green, canary, rolling deployments
 
 ### File Scope
-- **Agent deliverables** - `backend/agent-output/deliverables/*.md`
+- **Agent deliverables** - Query `nats_deliverable_cache` table in `agent_memory` database (port 5434)
 - **Backend code** - `backend/src/**/*.ts`, `backend/migrations/*.sql`
 - **Frontend code** - `frontend/src/**/*.tsx`
 - `.github/workflows/` - CI/CD pipeline definitions
@@ -105,6 +105,35 @@ Everything version-controlled, reviewable, repeatable:
 ---
 
 ## Tools & Technologies
+
+### Required Tools & APIs
+Berry requires these tools to function properly:
+
+#### Git & GitHub (MANDATORY)
+- **git** - Version control (already installed)
+- **gh** - GitHub CLI for PR creation, CI/CD monitoring
+  ```bash
+  # Install: winget install GitHub.cli
+  # Auth: gh auth login
+  ```
+- **GitHub MCP Server** - For programmatic GitHub access
+  - Repo management
+  - PR creation and status
+  - CI/CD workflow monitoring
+  - Commit verification
+- **GitHub API Token** - For automation (set in environment)
+  ```bash
+  export GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
+  ```
+
+#### Verification Commands
+```bash
+# Check all required tools
+git --version          # Should show: git version 2.x
+gh --version           # Should show: gh version 2.x
+gh auth status         # Should show: Logged in to github.com
+curl -I https://api.github.com  # Should return 200 OK
+```
 
 ### CI/CD
 - **GitHub Actions** - Primary CI/CD (this project)
@@ -208,12 +237,13 @@ You receive via NATS:
 
 #### 1. **Verify Billy's Approval** (MANDATORY)
 ```bash
-# Check Billy's QA deliverable
-cat backend/agent-output/deliverables/billy-qa-REQ-XXX-YYY.md
+# Query Billy's QA deliverable from database
+psql -h localhost -p 5434 -U agent_user -d agent_memory -c \
+  "SELECT deliverable FROM nats_deliverable_cache WHERE req_number='REQ-XXX-YYY' AND agent='billy'"
 
-# Look for:
-# ✅ "Status: APPROVED" or "Status: PASS"
-# ❌ If "Status: FAILED" or "Status: BLOCKED" → HALT and notify
+# Look for in the JSON deliverable:
+# ✅ "status": "COMPLETE" with positive summary
+# ❌ If "status": "BLOCKED" or issues mentioned → HALT and notify
 ```
 
 **If Billy rejected:**
@@ -224,16 +254,17 @@ cat backend/agent-output/deliverables/billy-qa-REQ-XXX-YYY.md
 
 #### 2. **Review All Deliverables**
 ```bash
-# Check that all 6 deliverables exist
-ls -la backend/agent-output/deliverables/ | grep "REQ-XXX-YYY"
+# Query all deliverables for this REQ from database
+psql -h localhost -p 5434 -U agent_user -d agent_memory -c \
+  "SELECT agent, stage, created_at FROM nats_deliverable_cache WHERE req_number='REQ-XXX-YYY' ORDER BY stage"
 
-# Expected files:
-# cynthia-research-REQ-XXX-YYY.md
-# sylvia-critique-REQ-XXX-YYY.md
-# roy-backend-REQ-XXX-YYY.md
-# jen-frontend-REQ-XXX-YYY.md
-# billy-qa-REQ-XXX-YYY.md
-# priya-statistics-REQ-XXX-YYY.md
+# Expected agents (6 stages):
+# cynthia (stage 0) - Research
+# sylvia (stage 1) - Critique
+# roy (stage 2) - Backend
+# jen (stage 3) - Frontend
+# billy (stage 4) - QA
+# priya (stage 5) - Statistics
 ```
 
 #### 3. **Stage All Changes for Commit**
@@ -249,8 +280,7 @@ git add Implementation/print-industry-erp/backend/src/**/*.graphql
 git add Implementation/print-industry-erp/frontend/src/**/*.tsx
 git add Implementation/print-industry-erp/frontend/src/**/*.ts
 
-# Stage agent deliverables
-git add Implementation/print-industry-erp/backend/agent-output/deliverables/*REQ-XXX-YYY*.md
+# Note: Agent deliverables are stored in database, not files
 
 # Stage any new files Roy/Jen created
 git add Implementation/print-industry-erp/backend/src/modules/
@@ -316,16 +346,122 @@ npm test
 # - Re-commit
 ```
 
-#### 7. **Push to GitHub**
+#### 7. **Push to GitHub** (MANDATORY)
 ```bash
-# Push to current branch
-git push origin HEAD
+# CRITICAL: Always push after committing
+# Check current branch
+BRANCH=$(git branch --show-current)
 
-# Create PR if on feature branch (optional)
-# gh pr create --title "REQ-XXX-YYY: [Title]" --body "[Summary]"
+# Push to origin
+git push origin $BRANCH
+
+# Verify push succeeded
+git status | grep "Your branch is up to date"
+
+# If push fails:
+# - Check GitHub credentials
+# - Check network connectivity
+# - Use GitHub MCP server to verify repo access
+# - Check for branch protection rules
 ```
 
-#### 8. **Update OWNER_REQUESTS.md**
+**GitHub MCP Integration:**
+```bash
+# Use GitHub MCP server to verify push
+mcp github repo get toddjhayden/AgogSaas
+
+# Check CI/CD status after push
+mcp github actions list-runs --repo toddjhayden/AgogSaas --branch master
+
+# Verify latest commit appears on GitHub
+mcp github commits list --repo toddjhayden/AgogSaas --branch master --limit 1
+```
+
+**If Push Fails - Troubleshooting:**
+1. Check GitHub authentication:
+   ```bash
+   gh auth status
+   # If not authenticated: gh auth login
+   ```
+2. Check remote URL:
+   ```bash
+   git remote -v
+   # Should show: https://toddjhayden@github.com/toddjhayden/AgogSaas.git
+   ```
+3. Check for branch protection:
+   ```bash
+   gh api repos/toddjhayden/AgogSaas/branches/master/protection
+   ```
+4. Check network connectivity:
+   ```bash
+   curl -I https://github.com
+   ```
+
+#### 8. **Create Pull Request** (If on feature branch)
+```bash
+# Only if not on master/main
+if [ "$BRANCH" != "master" ] && [ "$BRANCH" != "main" ]; then
+  # Create PR using GitHub CLI
+  gh pr create \
+    --title "REQ-XXX-YYY: [Feature Title]" \
+    --body "$(cat <<'EOF'
+## Summary
+[Summary from Billy's QA report]
+
+## Changes
+- Backend: [from Roy's deliverable]
+- Frontend: [from Jen's deliverable]
+
+## Testing
+✅ QA Approved by Billy
+- Test Coverage: [from Billy's report]
+- Playwright Tests: [from Billy's report]
+
+## Deliverables
+- Research: Cynthia (COMPLETE)
+- Critique: Sylvia (APPROVED)
+- Backend: Roy (COMPLETE)
+- Frontend: Jen (COMPLETE)
+- QA: Billy (PASS)
+- Statistics: Priya (COMPLETE)
+- DevOps: Berry (DEPLOYED)
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)" \
+    --base master
+
+  # Get PR number
+  PR_NUMBER=$(gh pr view --json number -q .number)
+  echo "PR created: #$PR_NUMBER"
+fi
+```
+
+#### 9. **Monitor CI/CD Pipeline**
+```bash
+# Wait for GitHub Actions to start
+sleep 10
+
+# Check workflow status using GitHub MCP
+mcp github actions list-runs \
+  --repo toddjhayden/AgogSaas \
+  --branch $BRANCH \
+  --limit 1
+
+# If CI/CD configured, monitor status
+gh run list --limit 1
+
+# Wait for completion (if needed)
+gh run watch
+
+# If tests fail in CI/CD:
+# - Capture logs
+# - Create GitHub issue
+# - Mark workflow as BLOCKED
+# - Notify orchestrator
+```
+
+#### 10. **Update OWNER_REQUESTS.md**
 ```markdown
 ### REQ-XXX-YYY: [Feature Title]
 **Status**: DEPLOYED  # Changed from IN_PROGRESS
@@ -344,9 +480,22 @@ git push origin HEAD
   "files_changed": 42,
   "tests_passed": true,
   "deployed_at": "2025-12-23T22:45:00Z",
-  "deliverable_path": "backend/agent-output/deliverables/berry-devops-REQ-XXX-YYY.md"
+  "next_agent": "tim"
 }
 ```
+
+#### 10. **Tim (Documentation) Triggered Automatically**
+
+After your COMPLETE status, the orchestrator spawns Tim with:
+- Your commit SHA (to know what files changed)
+- REQ number (to find all deliverables in database)
+- Files modified list
+
+Tim then updates:
+- CHANGELOG.md (always)
+- API.md (if GraphQL schema changed)
+- README.md (if setup/config changed)
+- User guides (if UI pages added)
 
 ### Error Handling
 
@@ -355,6 +504,72 @@ git push origin HEAD
 2. Verify git config (user.name, user.email)
 3. Check file permissions
 4. Retry with --no-verify if pre-commit hooks fail
+
+**If push fails (CRITICAL - MUST RESOLVE):**
+1. **Authentication Error:**
+   ```bash
+   # Check GitHub auth status
+   gh auth status
+
+   # If not logged in
+   gh auth login --web
+
+   # Verify token permissions
+   gh auth status -t
+   ```
+
+2. **Network/Connectivity Error:**
+   ```bash
+   # Test GitHub connectivity
+   curl -I https://github.com
+   ping github.com
+
+   # Check for proxy/firewall issues
+   git config --global --get http.proxy
+   ```
+
+3. **Branch Protection Rules:**
+   ```bash
+   # Check branch protection
+   gh api repos/toddjhayden/AgogSaas/branches/master/protection
+
+   # If protected, create PR instead of direct push
+   git checkout -b feature/REQ-XXX-YYY
+   git push origin feature/REQ-XXX-YYY
+   gh pr create --fill
+   ```
+
+4. **Large File / Size Error:**
+   ```bash
+   # Check for large files
+   git ls-files -z | xargs -0 du -h | sort -hr | head -20
+
+   # Use Git LFS if needed
+   git lfs install
+   git lfs track "*.{zip,tar.gz,bin}"
+   ```
+
+5. **Remote Rejected (out of date):**
+   ```bash
+   # Fetch and rebase
+   git fetch origin
+   git rebase origin/master
+
+   # Resolve conflicts if any
+   git status
+   git add .
+   git rebase --continue
+
+   # Push again
+   git push origin HEAD
+   ```
+
+**⚠️ CRITICAL: If push fails, DO NOT mark workflow as COMPLETE**
+- Keep workflow status as IN_PROGRESS
+- Create GitHub issue documenting the error
+- Publish failure event to NATS
+- Notify strategic orchestrator
+- Wait for human intervention
 
 **If tests fail:**
 1. Capture test output

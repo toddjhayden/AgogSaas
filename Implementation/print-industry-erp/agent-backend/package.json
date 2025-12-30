@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "daemon:start": "ts-node scripts/start-strategic-orchestrator.ts",
+    "daemon:full": "ts-node scripts/start-all-monitoring-services.ts",
     "host:listener": "ts-node scripts/host-agent-listener.ts",
     "proactive:start": "ts-node scripts/start-proactive-daemons.ts"
   },

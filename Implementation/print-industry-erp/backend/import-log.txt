@@ -1,0 +1,249 @@
+
+🚀 Orphaned Deliverables Import Tool
+
+This tool will:
+  1. Find all orphaned REQ deliverable files
+  2. Import them into the memories table
+  3. Move processed files to archive directory
+  4. Generate a summary report
+
+🔍 Scanning for orphaned deliverable files...
+
+📊 Found 191 deliverable files
+
+📋 Breakdown by agent:
+   CYNTHIA: 53 files
+   ROY: 16 files
+   SYLVIA: 42 files
+   BILLY: 18 files
+   PRIYA: 16 files
+   BERRY: 28 files
+   DEPLOYMENT: 2 files
+   MARCUS: 2 files
+   JEN: 13 files
+   UNKNOWN: 1 files
+
+✓ Database connection successful
+
+📥 Importing deliverables...
+
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766436689295_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766436689295_ROY_BACKEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803478_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527796497_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527796497_SYLVIA_CRITIQUE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766436689295_BILLY_QA_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803477_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803477_SYLVIA_CRITIQUE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803477_ROY_BACKEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803478_ROY_BACKEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803478_ROY_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803477_PRIYA_STATISTICS_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803478_BILLY_QA_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803478_PRIYA_STATISTICS_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766509070156_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516472299_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516472299_SYLVIA_CRITIQUE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516759426_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516859233_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516942302_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516859233_ROY_BACKEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516759426_ROY_BACKEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516942302_SYLVIA_CRITIQUE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527796497_CYNTHIA_RESEARCH.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516859233_BILLY_QA_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516759426_BILLY_QA_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICS_REQ-STRATEGIC-AUTO-1766516859233.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516759426_PRIYA_STATISTICS_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527153113_ROY_BACKEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516942302_ROY_BACKEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766545799451_SYLVIA_CRITIQUE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527153113_ROY_IMPLEMENTATION_SUMMARY.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527796497_SYLVIA_CRITIQUE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527153113_BILLY_QA_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766527153113_BILLY_QA_REPORT.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516942302_BILLY_QA_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICS_REQ-STRATEGIC-AUTO-1766527153113.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_REQ-STRATEGIC-AUTO-1766516942302.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_STRATEGIC_ANALYSIS_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655_OLD.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766545799451_BILLY_QA_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_ANALYSIS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766545799451.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766545799451.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073_FINAL.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: DEPLOYMENT_RUNBOOK_REQ-STRATEGIC-AUTO-1766516942302.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527153113.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766516942302.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073_UPDATED.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655_FINAL.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079_FINAL.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766600259419_FINAL.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_FINAL_DEVOPS_VERIFICATION_REQ-STRATEGIC-AUTO-1766516942302.md - relation "public.memories" does not exist
+  ❌ Failed: DEPLOYMENT_RUNBOOK_REQ-STRATEGIC-AUTO-1766545799451.md - relation "public.memories" does not exist
+  ❌ Failed: ROY_BACKEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_REQ-STRATEGIC-AUTO-1766545799451.md - relation "public.memories" does not exist
+  ❌ Failed: MARCUS_IMPLEMENTATION_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: MARCUS_IMPLEMENTATION_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_FINAL_REQ-STRATEGIC-AUTO-1766600259419.md - relation "public.memories" does not exist
+  ❌ Failed: ROY_BACKEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_ANALYSIS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_ANALYSIS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766550547073.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_COMPLETION_REQ-STRATEGIC-AUTO-1766545799451.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766600259419.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088_UPDATED.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766675619639.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766676891764.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088_FINAL.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735125600000.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766718736461.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627342634_OLD.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766676891764.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766689933757.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766718736461.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766713101438.md - relation "public.memories" does not exist
+  ❌ Failed: ROY_BACKEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766689933757.md - relation "public.memories" does not exist
+  ❌ Failed: COMPLETION_NOTICE_REQ-STRATEGIC-AUTO-1766689933757_ROY.json - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_ANALYSIS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766689933757.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_ANALYSIS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766689933757.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627342634.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766600259419_UPDATED.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766675619639.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_COMPREHENSIVE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766689933757_UPDATED.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735134000000_PREVIOUS.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735134000000.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766711533941.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735249200000.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766713101438.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627342634.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735249636000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627757384.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735253018773.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1735125600000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766711533941.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766600259419.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766639415938.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766639534835.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627757384_FINAL.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766697133555.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1735253018773.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766639415938.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735255545000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1735134000000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766639534835.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_FINAL_CRITIQUE_REQ-STRATEGIC-AUTO-1766689933757.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766697133555.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766675619639.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766689933757.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766704336590.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735252025000.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735251169000.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766790735924.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1735257600000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766704336590.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1735249200000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1735255545000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1735251169000.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1766790735924.md - relation "public.memories" does not exist
+  ❌ Failed: SYLVIA_CRITIQUE_DELIVERABLE_REQ-STRATEGIC-AUTO-1735257600000.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_DELIVERABLE_REQ-STRATEGIC-AUTO-1735253018773.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627342634.md - relation "public.memories" does not exist
+  ❌ Failed: CYNTHIA_RESEARCH_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627757384.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766436689295_JEN_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766436689295_JEN_FRONTEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803477_JEN_FRONTEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766476803478_JEN_FRONTEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516859233_JEN_FRONTEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516759426_JEN_FRONTEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: REQ-STRATEGIC-AUTO-1766516942302_JEN_FRONTEND_DELIVERABLE.md - relation "public.memories" does not exist
+  ❌ Failed: JEN_FRONTEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: JEN_FRONTEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: JEN_FRONTEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: JEN_FRONTEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627342634.md - relation "public.memories" does not exist
+  ❌ Failed: JEN_FRONTEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766675619639.md - relation "public.memories" does not exist
+  ❌ Failed: JEN_FRONTEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1735125600000.md - relation "public.memories" does not exist
+  ❌ Failed: COMPLETION_NOTICE_REQ-STRATEGIC-AUTO-1766584106655.json - relation "public.memories" does not exist
+  ❌ Failed: COMPLETION_NOTICE_REQ-STRATEGIC-AUTO-1766527796497_BERRY.json - relation "public.memories" does not exist
+  ❌ Failed: COMPLETION_NOTICE_REQ-STRATEGIC-AUTO-1766550547073_BERRY.json - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_REPORT_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: COMPLETION_NOTICE_REQ-STRATEGIC-AUTO-1766718736461_CYNTHIA.json - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766657618088.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766689933757.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_ASSESSMENT_REQ-STRATEGIC-AUTO-1766545799451.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DEPLOYMENT_VERIFICATION_REQ-STRATEGIC-AUTO-1766584106655.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766516942302.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_ASSESSMENT_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: ROY_BACKEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1766627342634.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_DELIVERABLE_REQ-STRATEGIC-AUTO-1766516942302.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_VERIFICATION_REQ-STRATEGIC-AUTO-1766527796497.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_COMPLETION_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+  ❌ Failed: ROY_BACKEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1735125600000.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_DELIVERABLE_REQ-STRATEGIC-AUTO-1766675619639.md - relation "public.memories" does not exist
+  ❌ Failed: ROY_BACKEND_DELIVERABLE_REQ-STRATEGIC-AUTO-1735253018773.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1766675619639.md - relation "public.memories" does not exist
+  ❌ Failed: BILLY_QA_DELIVERABLE_REQ-STRATEGIC-AUTO-1735125600000.md - relation "public.memories" does not exist
+  ❌ Failed: PRIYA_STATISTICAL_DELIVERABLE_REQ-STRATEGIC-AUTO-1735125600000.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_DELIVERABLE_REQ-STRATEGIC-AUTO-1735125600000.md - relation "public.memories" does not exist
+  ❌ Failed: BERRY_DEVOPS_FINAL_DEPLOYMENT_VERIFICATION_REQ-STRATEGIC-AUTO-1766568547079.md - relation "public.memories" does not exist
+
+📦 Archiving processed files...
+
+
+🔍 Verifying database imports...
+
+❌ Import failed: error: relation "public.memories" does not exist
+    at D:\GitHub\agogsaas\Implementation\print-industry-erp\backend\node_modules\pg-pool\index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async verifyImports (D:\GitHub\agogsaas\Implementation\print-industry-erp\backend\scripts\import-orphaned-deliverables.ts:357:15)
+    at async main (D:\GitHub\agogsaas\Implementation\print-industry-erp\backend\scripts\import-orphaned-deliverables.ts:388:5) {
+  length: 115,
+  severity: 'ERROR',
+  code: '42P01',
+  detail: undefined,
+  hint: undefined,
+  position: '142',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '1431',
+  routine: 'parserOpenTable'
+}

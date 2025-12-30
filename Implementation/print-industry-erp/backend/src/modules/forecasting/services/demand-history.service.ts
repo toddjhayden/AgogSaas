@@ -189,6 +189,70 @@ export class DemandHistoryService {
   }
 
   /**
+   * Get demand history for multiple materials in a single query (batch operation)
+   * Eliminates N+1 query problem when forecasting multiple materials
+   *
+   * Returns a Map keyed by materialId for easy lookup
+   */
+  async getBatchDemandHistory(
+    tenantId: string,
+    facilityId: string,
+    materialIds: string[],
+    startDate: Date,
+    endDate: Date
+  ): Promise<Map<string, DemandHistoryRecord[]>> {
+    if (materialIds.length === 0) {
+      return new Map();
+    }
+
+    const query = `
+      SELECT
+        demand_history_id, tenant_id, facility_id, material_id, demand_date,
+        year, month, week_of_year, day_of_week, quarter,
+        is_holiday, is_promotional_period,
+        actual_demand_quantity, forecasted_demand_quantity, demand_uom,
+        sales_order_demand, production_order_demand, transfer_order_demand, scrap_adjustment,
+        avg_unit_price, promotional_discount_pct, marketing_campaign_active,
+        forecast_error, absolute_percentage_error,
+        created_at, created_by
+      FROM demand_history
+      WHERE tenant_id = $1
+        AND facility_id = $2
+        AND material_id = ANY($3::UUID[])
+        AND demand_date >= $4
+        AND demand_date <= $5
+        AND deleted_at IS NULL
+      ORDER BY material_id, demand_date ASC
+    `;
+
+    const values = [tenantId, facilityId, materialIds, startDate, endDate];
+    const result = await this.pool.query(query, values);
+
+    // Group records by materialId
+    const demandByMaterial = new Map<string, DemandHistoryRecord[]>();
+
+    for (const row of result.rows) {
+      const materialId = row.material_id;
+      const record = this.mapRowToDemandHistoryRecord(row);
+
+      if (!demandByMaterial.has(materialId)) {
+        demandByMaterial.set(materialId, []);
+      }
+
+      demandByMaterial.get(materialId)!.push(record);
+    }
+
+    // Ensure all requested materials have an entry (even if empty)
+    for (const materialId of materialIds) {
+      if (!demandByMaterial.has(materialId)) {
+        demandByMaterial.set(materialId, []);
+      }
+    }
+
+    return demandByMaterial;
+  }
+
+  /**
    * Backfill historical demand from inventory_transactions table
    * Used for initial data population
    */

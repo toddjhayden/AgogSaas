@@ -6,7 +6,6 @@ import {
   Typography,
   List,
   ListItem,
-  ListItemText,
   Chip,
   CircularProgress,
   Alert,
@@ -145,19 +144,6 @@ export const ErrorFixMappingCard: FC<ErrorFixMappingCardProps> = ({ lastRefresh 
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'HAS_FIX':
-        return 'Fixed';
-      case 'BEING_FIXED':
-        return 'In Progress';
-      case 'NO_FIX':
-        return 'No Fix';
-      default:
-        return 'Unknown';
-    }
-  };
-
   if (loading) {
     return (
       <Card sx={{ height: '100%' }}>
@@ -214,9 +200,9 @@ export const ErrorFixMappingCard: FC<ErrorFixMappingCardProps> = ({ lastRefresh 
                         {mapping.errorId}
                       </Typography>
                       <Chip
-                        icon={getStatusIcon(mapping.status)}
+                        icon={getStatusIcon(mapping.status) || undefined}
                         label={mapping.reqId}
-                        color={getStatusColor(mapping.status)}
+                        color={getStatusColor(mapping.status) as any}
                         size="small"
                       />
                     </Box>
@@ -248,7 +234,7 @@ export const ErrorFixMappingCard: FC<ErrorFixMappingCardProps> = ({ lastRefresh 
                         {mapping.errorId}
                       </Typography>
                       <Chip
-                        icon={getStatusIcon(mapping.status)}
+                        icon={getStatusIcon(mapping.status) || undefined}
                         label="No Fix"
                         color="warning"
                         size="small"

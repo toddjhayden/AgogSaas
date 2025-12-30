@@ -30,16 +30,15 @@ import { QuotePricingService } from './quote-pricing.service';
 
 @Injectable()
 export class QuoteManagementService {
-  private pricingService: QuotePricingService;
-
   // Business rule thresholds (should be configurable)
   private readonly MINIMUM_MARGIN_PERCENTAGE = 15; // Minimum acceptable margin
   private readonly MANAGER_APPROVAL_THRESHOLD = 20; // Margin < 20% requires manager approval
   private readonly VP_APPROVAL_THRESHOLD = 10; // Margin < 10% requires VP approval
 
-  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {
-    this.pricingService = new QuotePricingService(db);
-  }
+  constructor(
+    @Inject('DATABASE_POOL') private readonly db: Pool,
+    private readonly pricingService: QuotePricingService
+  ) {}
 
   /**
    * Create a new quote with empty lines

@@ -1,5 +1,10 @@
-import { Pool } from 'pg';
-import { connect, NatsConnection, JetStreamClient } from 'nats';
+/**
+ * Agent Activity Service
+ * Tracks agent activities by subscribing to NATS messages
+ */
+
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { connect, NatsConnection, JSONCodec } from 'nats';
 
 export interface AgentActivity {
   agentId: string;
@@ -9,251 +14,223 @@ export interface AgentActivity {
   featureTitle?: string;
   currentTask?: string;
   progress: number;
-  startedAt?: Date;
-  estimatedCompletion?: Date;
+  startedAt?: string;
+  estimatedCompletion?: string;
   deliverablePath?: string;
   error?: string;
   metadata?: any;
 }
 
-export class AgentActivityService {
-  private pool: Pool;
+@Injectable()
+export class AgentActivityService implements OnModuleInit, OnModuleDestroy {
   private nc?: NatsConnection;
-  private js?: JetStreamClient;
   private activities: Map<string, AgentActivity> = new Map();
+  private jc = JSONCodec();
 
-  constructor(pool: Pool) {
-    this.pool = pool;
-    this.initializeNATS();
-    this.initializeAgents();
-  }
-
-  private async initializeNATS() {
+  async onModuleInit() {
     try {
-      this.nc = await connect({
-        servers: process.env.NATS_URL || 'nats://localhost:4222',
-      });
-      this.js = this.nc.jetstream();
-      console.log('[AgentActivity] Connected to NATS');
+      const natsUrl = process.env.NATS_URL || 'nats://nats:4222';
+      const user = process.env.NATS_USER;
+      const pass = process.env.NATS_PASSWORD;
 
-      // Subscribe to agent activity updates
-      this.subscribeToAgentUpdates();
-    } catch (error) {
-      console.error('[AgentActivity] Failed to connect to NATS:', error);
+      this.nc = await connect({
+        servers: natsUrl,
+        user,
+        pass,
+        name: 'monitoring-agent-activity-service'
+      });
+
+      console.log('[AgentActivityService] Connected to NATS');
+
+      // Subscribe to agent deliverables
+      this.subscribeToDeliverables();
+
+      // Subscribe to workflow updates
+      this.subscribeToWorkflows();
+
+    } catch (error: any) {
+      console.error('[AgentActivityService] Failed to connect to NATS:', error.message);
+      // Continue without NATS - will return empty data
     }
   }
 
-  private initializeAgents() {
-    // Initialize all known agents with IDLE status
-    const agents = [
-      { id: 'cynthia', name: 'Cynthia (Research)' },
-      { id: 'sylvia', name: 'Sylvia (Critique)' },
-      { id: 'roy', name: 'Roy (Backend)' },
-      { id: 'jen', name: 'Jen (Frontend)' },
-      { id: 'billy', name: 'Billy (QA)' },
-      { id: 'priya', name: 'Priya (Statistics)' },
-    ];
-
-    agents.forEach((agent) => {
-      this.activities.set(agent.id, {
-        agentId: agent.id,
-        agentName: agent.name,
-        status: 'IDLE',
-        progress: 0,
-      });
-    });
-  }
-
-  private async subscribeToAgentUpdates() {
+  /**
+   * Subscribe to agent deliverables (agog.deliverables.*)
+   */
+  private async subscribeToDeliverables() {
     if (!this.nc) return;
 
-    // Subscribe to all agent activity subjects
-    const sub = this.nc.subscribe('wms.agents.activity.*');
+    const sub = this.nc.subscribe('agog.deliverables.>');
 
     (async () => {
       for await (const msg of sub) {
         try {
-          const data = JSON.parse(msg.string());
-          this.updateActivity(data);
+          const data = this.jc.decode(msg.data) as any;
+          const agentName = this.extractAgentName(msg.subject);
+
+          if (agentName) {
+            this.updateActivity(agentName, {
+              agentId: `${agentName}-${Date.now()}`,
+              agentName,
+              status: 'COMPLETED',
+              reqNumber: data.reqNumber || data.reqId,
+              featureTitle: data.title || data.feature,
+              progress: 100,
+              deliverablePath: data.deliverablePath,
+              metadata: data
+            });
+          }
         } catch (error) {
-          console.error('[AgentActivity] Failed to parse message:', error);
+          console.error('[AgentActivityService] Error processing deliverable:', error);
         }
       }
     })();
   }
 
   /**
-   * Update agent activity
+   * Subscribe to workflow updates (agog.workflows.*)
    */
-  private updateActivity(data: Partial<AgentActivity>) {
-    if (!data.agentId) return;
+  private async subscribeToWorkflows() {
+    if (!this.nc) return;
 
-    const current = this.activities.get(data.agentId) || {
-      agentId: data.agentId,
-      agentName: data.agentName || data.agentId,
-      status: 'IDLE' as const,
-      progress: 0,
+    const sub = this.nc.subscribe('agog.workflows.>');
+
+    (async () => {
+      for await (const msg of sub) {
+        try {
+          const data = this.jc.decode(msg.data) as any;
+
+          if (data.currentAgent) {
+            this.updateActivity(data.currentAgent, {
+              agentId: `${data.currentAgent}-${data.reqNumber}`,
+              agentName: data.currentAgent,
+              status: this.mapWorkflowStatus(data.status),
+              reqNumber: data.reqNumber,
+              featureTitle: data.title,
+              currentTask: data.currentStage,
+              progress: this.calculateProgress(data),
+              startedAt: data.startedAt,
+              metadata: data
+            });
+          }
+        } catch (error) {
+          console.error('[AgentActivityService] Error processing workflow:', error);
+        }
+      }
+    })();
+  }
+
+  /**
+   * Extract agent name from NATS subject
+   */
+  private extractAgentName(subject: string): string | null {
+    const match = subject.match(/agog\.deliverables\.([^.]+)/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * Map workflow status to agent status
+   */
+  private mapWorkflowStatus(status: string): AgentActivity['status'] {
+    const statusMap: Record<string, AgentActivity['status']> = {
+      'PENDING': 'IDLE',
+      'RUNNING': 'RUNNING',
+      'BLOCKED': 'BLOCKED',
+      'COMPLETE': 'COMPLETED',
+      'FAILED': 'FAILED'
     };
+    return statusMap[status?.toUpperCase()] || 'IDLE';
+  }
 
-    const updated: AgentActivity = {
-      ...current,
-      ...data,
-    };
+  /**
+   * Calculate progress percentage from workflow data
+   */
+  private calculateProgress(workflow: any): number {
+    if (!workflow.stages || workflow.stages.length === 0) return 0;
 
-    this.activities.set(data.agentId, updated);
-    console.log(`[AgentActivity] Updated ${data.agentId}: ${updated.status}`);
+    const completedStages = workflow.stages.filter((s: any) =>
+      s.status === 'COMPLETED' || s.status === 'COMPLETE'
+    ).length;
 
-    // Publish to subscribers
-    if (this.nc) {
-      this.nc.publish(
-        'wms.monitoring.agent.updated',
-        JSON.stringify(updated)
-      );
-      this.nc.publish(
-        `wms.monitoring.agent.updated.${data.agentId}`,
-        JSON.stringify(updated)
-      );
+    return Math.round((completedStages / workflow.stages.length) * 100);
+  }
+
+  /**
+   * Update or create agent activity
+   */
+  private updateActivity(agentName: string, activity: Partial<AgentActivity>) {
+    const existing = this.activities.get(agentName);
+
+    this.activities.set(agentName, {
+      agentId: activity.agentId || `${agentName}-${Date.now()}`,
+      agentName,
+      status: activity.status || 'IDLE',
+      reqNumber: activity.reqNumber,
+      featureTitle: activity.featureTitle,
+      currentTask: activity.currentTask,
+      progress: activity.progress || 0,
+      startedAt: activity.startedAt || existing?.startedAt || new Date().toISOString(),
+      estimatedCompletion: activity.estimatedCompletion,
+      deliverablePath: activity.deliverablePath,
+      error: activity.error,
+      metadata: activity.metadata
+    });
+
+    // Clean up old completed activities (keep last 10 minutes)
+    this.cleanupOldActivities();
+  }
+
+  /**
+   * Remove old completed activities
+   */
+  private cleanupOldActivities() {
+    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+
+    for (const [agentName, activity] of this.activities.entries()) {
+      if (activity.status === 'COMPLETED' && activity.startedAt) {
+        const startTime = new Date(activity.startedAt).getTime();
+        if (startTime < tenMinutesAgo) {
+          this.activities.delete(agentName);
+        }
+      }
     }
   }
 
   /**
-   * Get all agent activities
+   * Get all current agent activities
    */
-  async getAllActivities(): Promise<AgentActivity[]> {
+  getAllActivities(): AgentActivity[] {
     return Array.from(this.activities.values());
   }
 
   /**
-   * Get activity by agent ID
+   * Get activity for specific agent
    */
-  async getActivityByAgentId(agentId: string): Promise<AgentActivity | null> {
-    return this.activities.get(agentId) || null;
-  }
-
-  /**
-   * Manually set agent activity (for testing or manual control)
-   */
-  async setActivity(activity: Partial<AgentActivity>): Promise<void> {
-    if (!activity.agentId) {
-      throw new Error('agentId is required');
+  getActivityByAgentId(agentId: string): AgentActivity | null {
+    for (const activity of this.activities.values()) {
+      if (activity.agentId === agentId) {
+        return activity;
+      }
     }
-
-    this.updateActivity(activity);
-
-    // Publish to NATS
-    if (this.nc) {
-      await this.nc.publish(
-        `wms.agents.activity.${activity.agentId}`,
-        JSON.stringify(activity)
-      );
-    }
+    return null;
   }
 
   /**
-   * Mark agent as started on a task
+   * Get statistics
    */
-  async startTask(
-    agentId: string,
-    reqNumber: string,
-    featureTitle: string,
-    task: string
-  ): Promise<void> {
-    await this.setActivity({
-      agentId,
-      status: 'RUNNING',
-      reqNumber,
-      featureTitle,
-      currentTask: task,
-      progress: 0,
-      startedAt: new Date(),
-    });
-  }
-
-  /**
-   * Update agent progress
-   */
-  async updateProgress(
-    agentId: string,
-    progress: number,
-    currentTask?: string
-  ): Promise<void> {
-    await this.setActivity({
-      agentId,
-      progress,
-      currentTask,
-    });
-  }
-
-  /**
-   * Mark agent as completed
-   */
-  async completeTask(
-    agentId: string,
-    deliverablePath?: string
-  ): Promise<void> {
-    await this.setActivity({
-      agentId,
-      status: 'COMPLETED',
-      progress: 100,
-      deliverablePath,
-    });
-  }
-
-  /**
-   * Mark agent as failed
-   */
-  async failTask(agentId: string, error: string): Promise<void> {
-    await this.setActivity({
-      agentId,
-      status: 'FAILED',
-      error,
-    });
-  }
-
-  /**
-   * Mark agent as blocked
-   */
-  async blockTask(agentId: string, reason: string): Promise<void> {
-    await this.setActivity({
-      agentId,
-      status: 'BLOCKED',
-      error: reason,
-    });
-  }
-
-  /**
-   * Reset agent to idle
-   */
-  async resetAgent(agentId: string): Promise<void> {
-    await this.setActivity({
-      agentId,
-      status: 'IDLE',
-      progress: 0,
-      reqNumber: undefined,
-      featureTitle: undefined,
-      currentTask: undefined,
-      deliverablePath: undefined,
-      error: undefined,
-    });
-  }
-
-  /**
-   * Get agent activity statistics
-   */
-  async getStats() {
-    const activities = Array.from(this.activities.values());
-
+  getStats() {
+    const activities = this.getAllActivities();
     return {
-      activeAgents: activities.filter((a) => a.status === 'RUNNING').length,
-      idleAgents: activities.filter((a) => a.status === 'IDLE').length,
-      blockedAgents: activities.filter((a) => a.status === 'BLOCKED').length,
-      completedToday: 0, // TODO: Track completions
+      activeAgents: activities.filter(a => a.status === 'RUNNING').length,
+      totalAgents: activities.length,
+      blockedAgents: activities.filter(a => a.status === 'BLOCKED').length,
     };
   }
 
-  async close() {
+  async onModuleDestroy() {
     if (this.nc) {
       await this.nc.close();
+      console.log('[AgentActivityService] Disconnected from NATS');
     }
   }
 }

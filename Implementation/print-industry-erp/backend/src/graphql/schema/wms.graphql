@@ -553,7 +553,7 @@ type KitComponent {
 InventoryReservation - Reserved inventory for orders
 """
 type InventoryReservation {
-  id: UUID!
+  id: ID!
   tenantId: ID!
   facilityId: ID!
 
@@ -730,10 +730,11 @@ enum ReservationType {
 
 extend type Query {
   """Get inventory location by ID"""
-  inventoryLocation(id: ID!): InventoryLocation
+  inventoryLocation(id: ID!, tenantId: ID!): InventoryLocation
 
   """List inventory locations"""
   inventoryLocations(
+    tenantId: ID!
     facilityId: ID!
     zone: String
     locationType: LocationType
@@ -742,10 +743,11 @@ extend type Query {
   ): [InventoryLocation!]!
 
   """Get lot by ID"""
-  lot(id: ID!): Lot
+  lot(id: ID!, tenantId: ID!): Lot
 
   """List lots"""
   lots(
+    tenantId: ID!
     facilityId: ID!
     materialId: ID
     locationId: ID
@@ -755,6 +757,7 @@ extend type Query {
 
   """Get inventory transactions"""
   inventoryTransactions(
+    tenantId: ID!
     facilityId: ID!
     materialId: ID
     locationId: ID
@@ -767,16 +770,18 @@ extend type Query {
 
   """Get current inventory summary"""
   inventorySummary(
+    tenantId: ID!
     facilityId: ID!
     materialId: ID
     locationId: ID
   ): [InventorySummary!]!
 
   """Get wave by ID"""
-  wave(id: ID!): Wave
+  wave(id: ID!, tenantId: ID!): Wave
 
   """List waves"""
   waves(
+    tenantId: ID!
     facilityId: ID!
     status: WaveStatus
     startDate: DateTime
@@ -784,10 +789,11 @@ extend type Query {
   ): [Wave!]!
 
   """Get pick list by ID"""
-  pickList(id: ID!): PickList
+  pickList(id: ID!, tenantId: ID!): PickList
 
   """List pick lists"""
   pickLists(
+    tenantId: ID!
     facilityId: ID!
     assignedUserId: ID
     waveId: ID
@@ -795,10 +801,11 @@ extend type Query {
   ): [PickList!]!
 
   """Get shipment by ID"""
-  shipment(id: ID!): Shipment
+  shipment(id: ID!, tenantId: ID!): Shipment
 
   """List shipments"""
   shipments(
+    tenantId: ID!
     facilityId: ID!
     status: ShipmentStatus
     startDate: Date
@@ -810,13 +817,14 @@ extend type Query {
   carrierIntegrations(tenantId: ID!): [CarrierIntegration!]!
 
   """Get kit definition by ID"""
-  kitDefinition(id: ID!): KitDefinition
+  kitDefinition(id: ID!, tenantId: ID!): KitDefinition
 
   """List kit definitions"""
   kitDefinitions(tenantId: ID!): [KitDefinition!]!
 
   """Get inventory reservations"""
   inventoryReservations(
+    tenantId: ID!
     facilityId: ID!
     materialId: ID
     salesOrderId: ID
@@ -828,6 +836,7 @@ extend type Query {
 
   """Get putaway recommendation for received lot"""
   suggestPutawayLocation(
+    tenantId: ID!
     materialId: ID!
     lotNumber: String!
     quantity: Float!
@@ -836,21 +845,48 @@ extend type Query {
 
   """Analyze bin utilization metrics"""
   analyzeBinUtilization(
+    tenantId: ID!
     facilityId: ID!
     locationId: ID
   ): [BinUtilizationMetrics!]!
 
   """Get optimization recommendations"""
   getOptimizationRecommendations(
+    tenantId: ID!
     facilityId: ID!
     threshold: Float
   ): [OptimizationRecommendation!]!
 
   """Analyze warehouse-wide utilization"""
   analyzeWarehouseUtilization(
+    tenantId: ID!
     facilityId: ID!
     zoneCode: String
   ): WarehouseUtilizationAnalysis!
+
+  # =====================================================
+  # BIN UTILIZATION PREDICTION QUERIES (REQ-STRATEGIC-AUTO-1766600259419 - OPP-1)
+  # =====================================================
+
+  """Get utilization predictions for facility (7, 14, 30 day horizons)"""
+  getBinUtilizationPredictions(
+    tenantId: ID!
+    facilityId: ID!
+  ): [BinUtilizationPrediction!]!
+
+  """Generate new predictions for facility"""
+  generateBinUtilizationPredictions(
+    tenantId: ID!
+    facilityId: ID!
+    horizonDays: [Int!]
+  ): [BinUtilizationPrediction!]!
+
+  """Get prediction model accuracy metrics"""
+  getPredictionAccuracy(
+    tenantId: ID!
+    facilityId: ID!
+    daysBack: Int
+  ): PredictionAccuracyMetrics!
 }
 
 # =====================================================
@@ -1166,4 +1202,41 @@ enum OptimizationPriority {
   HIGH
   MEDIUM
   LOW
+}
+
+# =====================================================
+# BIN UTILIZATION PREDICTION TYPES (REQ-STRATEGIC-AUTO-1766600259419)
+# =====================================================
+
+"""Bin utilization prediction for proactive capacity planning"""
+type BinUtilizationPrediction {
+  predictionId: ID!
+  tenantId: ID!
+  facilityId: ID!
+  predictionDate: DateTime!
+  predictionHorizonDays: Int!
+  predictedAvgUtilization: Float!
+  predictedLocationsOptimal: Int!
+  confidenceLevel: Float!
+  modelVersion: String!
+  trend: PredictionTrend!
+  seasonalityDetected: Boolean!
+  recommendedActions: [String!]!
+}
+
+"""Prediction trend direction"""
+enum PredictionTrend {
+  INCREASING
+  DECREASING
+  STABLE
+}
+
+"""Prediction model accuracy metrics"""
+type PredictionAccuracyMetrics {
+  facilityId: ID!
+  predictionCount: Int!
+  mae: Float!
+  rmse: Float!
+  mape: Float!
+  accuracy: Float!
 }

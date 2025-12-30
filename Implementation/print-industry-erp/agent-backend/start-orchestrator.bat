@@ -1,13 +1,18 @@
 @echo off
-REM Start Strategic Orchestrator as a background service
-REM Add to Task Scheduler: Run at startup, restart on failure
+REM Start Strategic Orchestrator - NOW RUNS IN DOCKER
+REM This bat file just ensures Docker container is running
 
-cd /d D:\GitHub\agogsaas\Implementation\print-industry-erp\agent-backend
+cd /d D:\GitHub\agogsaas\Implementation\print-industry-erp
 
-set NATS_URL=nats://localhost:4223
-set NATS_USER=agents
-set NATS_PASSWORD=WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4
-set OWNER_REQUESTS_PATH=D:/GitHub/agogsaas/project-spirit/owner_requests/OWNER_REQUESTS.md
+echo [%date% %time%] Starting agent-backend Docker container (contains Strategic Orchestrator)...
+docker-compose -f docker-compose.agents.yml up -d agent-backend
 
-echo [%date% %time%] Starting Strategic Orchestrator... >> logs\orchestrator.log 2>&1
-tsx scripts/start-strategic-orchestrator.ts >> logs\orchestrator.log 2>&1
+echo Strategic Orchestrator is running in Docker container: agogsaas-agents-backend
+echo Check logs: docker logs -f agogsaas-agents-backend
+echo.
+echo To view running daemons:
+echo   - Strategic Orchestrator (scans OWNER_REQUESTS.md)
+echo   - Heartbeat Monitor (Gap Fix #5)
+echo   - State Reconciliation (Gap Fix #13)
+echo   - Agent Error Monitor (Gap Fix #9)
+pause

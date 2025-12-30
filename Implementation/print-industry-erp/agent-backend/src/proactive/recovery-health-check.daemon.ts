@@ -10,6 +10,7 @@ import { connect, NatsConnection, JetStreamClient } from 'nats';
 import * as fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
+import { isRunningInDocker } from '../utils/environment';
 
 export interface HealthCheckResult {
   timestamp: string;
@@ -27,7 +28,7 @@ export class RecoveryHealthCheckDaemon {
   private js!: JetStreamClient;
   private isRunning = false;
   private checkCount = 0;
-  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || 'D:/GitHub/agogsaas/project-spirit/owner_requests/OWNER_REQUESTS.md';
+  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md';
 
   // Track spawned processes (so we can monitor and restart them)
   private orchestratorProcess: ChildProcess | null = null;
@@ -122,25 +123,42 @@ export class RecoveryHealthCheckDaemon {
       // 3. Check for orphaned deliverables (messages with no active workflow)
       result.orphanedDeliverables = await this.countOrphanedDeliverables();
 
-      // 4. Restart stopped services (INFRASTRUCTURE ONLY - No Claude usage)
+      // 4. Service health check
+      // When running inside Docker (via daemon:full), all services run in the same process
+      // so we don't need to spawn separate processes - just verify NATS connectivity
       console.log('\n[RecoveryHealthCheck] Checking service health...');
 
-      if (!this.isProcessRunning(this.orchestratorProcess)) {
-        console.log('[RecoveryHealthCheck] Strategic Orchestrator not running - restarting...');
-        await this.startStrategicOrchestrator();
-        result.servicesRestarted.push('Strategic Orchestrator');
-        result.details.push('✅ Restarted Strategic Orchestrator');
+      if (isRunningInDocker()) {
+        // Inside Docker - services run in same process, just check NATS
+        console.log('[RecoveryHealthCheck] Running in Docker - services are co-located');
+        try {
+          await this.nc.flush();
+          console.log('[RecoveryHealthCheck] ✅ NATS connection healthy');
+          result.details.push('✅ NATS connection healthy');
+        } catch (err) {
+          console.log('[RecoveryHealthCheck] ⚠️ NATS connection issue');
+          result.details.push('⚠️ NATS connection issue - may need container restart');
+          result.healthStatus = 'degraded';
+        }
       } else {
-        console.log('[RecoveryHealthCheck] Strategic Orchestrator is running');
-      }
+        // Running standalone on host - may need to restart separate processes
+        if (!this.isProcessRunning(this.orchestratorProcess)) {
+          console.log('[RecoveryHealthCheck] Strategic Orchestrator not running - restarting...');
+          await this.startStrategicOrchestrator();
+          result.servicesRestarted.push('Strategic Orchestrator');
+          result.details.push('✅ Restarted Strategic Orchestrator');
+        } else {
+          console.log('[RecoveryHealthCheck] Strategic Orchestrator is running');
+        }
 
-      if (!this.isProcessRunning(this.hostListenerProcess)) {
-        console.log('[RecoveryHealthCheck] Host Agent Listener not running - restarting...');
-        await this.startHostListener();
-        result.servicesRestarted.push('Host Agent Listener');
-        result.details.push('✅ Restarted Host Agent Listener');
-      } else {
-        console.log('[RecoveryHealthCheck] Host Agent Listener is running');
+        if (!this.isProcessRunning(this.hostListenerProcess)) {
+          console.log('[RecoveryHealthCheck] Host Agent Listener not running - restarting...');
+          await this.startHostListener();
+          result.servicesRestarted.push('Host Agent Listener');
+          result.details.push('✅ Restarted Host Agent Listener');
+        } else {
+          console.log('[RecoveryHealthCheck] Host Agent Listener is running');
+        }
       }
 
       // 5. Determine overall health status
@@ -380,7 +398,7 @@ export class RecoveryHealthCheckDaemon {
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4223',
       NATS_USER: process.env.NATS_USER || 'agents',
       NATS_PASSWORD: process.env.NATS_PASSWORD || 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4',
-      OWNER_REQUESTS_PATH: process.env.OWNER_REQUESTS_PATH || 'D:/GitHub/agogsaas/project-spirit/owner_requests/OWNER_REQUESTS.md'
+      OWNER_REQUESTS_PATH: process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md'
     };
 
     // Use PowerShell Start-Process with -WindowStyle Hidden (only way that works on Windows)

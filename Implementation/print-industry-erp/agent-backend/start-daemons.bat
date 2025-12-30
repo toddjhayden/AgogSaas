@@ -1,16 +1,27 @@
 @echo off
-REM Start all proactive daemons in background
-REM Add this to Windows Task Scheduler to run at system startup
+REM All daemons NOW RUN IN DOCKER (agogsaas-agents-backend)
+REM This bat file just ensures Docker is running
 
-cd /d D:\GitHub\agogsaas\Implementation\print-industry-erp\agent-backend
+cd /d D:\GitHub\agogsaas\Implementation\print-industry-erp
 
-REM Set environment variables
-set NATS_URL=nats://localhost:4223
-set NATS_USER=agents
-set NATS_PASSWORD=WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4
-set OWNER_REQUESTS_PATH=D:/GitHub/agogsaas/project-spirit/owner_requests/OWNER_REQUESTS.md
+echo [%date% %time%] Starting all daemons via Docker...
+docker-compose -f docker-compose.agents.yml up -d
 
-REM Start proactive daemons (includes Recovery)
-start /B tsx scripts/start-all-services.ts >> logs/daemons.log 2>&1
-
-echo Daemons started. Logs: logs/daemons.log
+echo.
+echo ===================================================================
+echo All daemons are running in Docker container: agogsaas-agents-backend
+echo ===================================================================
+echo.
+echo Running daemons:
+echo   - Strategic Orchestrator (scans OWNER_REQUESTS.md every 60s)
+echo   - Progress Monitor (checks IN_PROGRESS every 30s)
+echo   - Heartbeat Monitor (checks workflows every 2 min)
+echo   - State Reconciliation (syncs NATS/file every 5 min)
+echo   - Agent Error Monitor (handles agent failures)
+echo   - Berry Auto-Deploy (auto-deploys on Billy PASS)
+echo   - Deployment Executor (runs deployments)
+echo   - Health Monitor (system health checks)
+echo.
+echo Check logs: docker logs -f agogsaas-agents-backend
+echo.
+pause

@@ -2350,7 +2350,7 @@ Core manufacturing intelligence. Transforms scheduling from manual art to automa
 
 ### REQ-STRATEGIC-AUTO-1767108044307: Automated Code Review & Quality Gates Integration
 
-**Status**: IN_PROGRESS
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P1
 **Business Value**: DEVELOPMENT VELOCITY GAP - No automated code review or quality gates in CI/CD pipeline. Pull requests merged without static analysis, security scanning, or test coverage verification. Technical debt accumulates unchecked, security vulnerabilities slip through, code quality inconsistent across team. Automated quality gates with SonarQube, ESLint, and security scanning reduces bugs by 55%, prevents security vulnerabilities, enforces coding standards, and accelerates PR review time by 40%.
@@ -2390,7 +2390,7 @@ Prevents technical debt accumulation. Catches bugs early when they're cheapest t
 
 ### REQ-STRATEGIC-AUTO-1767108044308: Real-Time Collaboration & Live Editing for Quotes
 
-**Status**: IN_PROGRESS
+**Status**: PENDING
 **Owner**: sarah
 **Priority**: P2
 **Business Value**: SALES EFFICIENCY GAP - Quote creation is single-user workflow blocking collaboration. Sales team cannot collaborate on complex quotes in real-time, version conflicts common, no visibility into who's editing what. Web-based collaborative quote editing with presence awareness (like Google Docs) enables team selling, reduces quote turnaround time by 50%, improves quote accuracy through real-time peer review.
@@ -2430,7 +2430,7 @@ Enables team selling on complex opportunities. Accelerates quote-to-close cycle.
 
 ### REQ-STRATEGIC-AUTO-1767108044309: Intelligent Workflow Automation Engine
 
-**Status**: IN_PROGRESS
+**Status**: COMPLETE
 **Owner**: alex
 **Priority**: P1
 **Business Value**: AUTOMATION GAP - Business processes require manual intervention at every step. No-code workflow builder could automate 70% of repetitive tasks currently done manually. Order-to-cash, procure-to-pay, and production workflows all require manual status updates, approvals, and notifications. Visual workflow designer with trigger/action/condition logic reduces manual work by 75%, improves process consistency, enables business users to automate without IT.
@@ -2470,7 +2470,7 @@ Democratizes automation. Reduces IT backlog by enabling business self-service. S
 
 ### REQ-STRATEGIC-AUTO-1767108044310: Predictive Maintenance AI for Press Equipment
 
-**Status**: IN_PROGRESS
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: DOWNTIME PREVENTION GAP - Equipment maintenance is reactive (fix when broken) or calendar-based (wasteful). No predictive analytics on equipment health. Print presses have sensors generating data but no ML models analyzing degradation patterns. Predictive maintenance AI using IoT sensor data and historical failure patterns reduces unplanned downtime by 45%, extends equipment life by 20%, optimizes maintenance spend.
@@ -2510,7 +2510,7 @@ Transforms maintenance from cost center to competitive advantage. Protects produ
 
 ### REQ-STRATEGIC-AUTO-1767108044311: Customer Sentiment Analysis & NPS Automation
 
-**Status**: IN_PROGRESS
+**Status**: PENDING
 **Owner**: sarah
 **Priority**: P2
 **Business Value**: CUSTOMER INSIGHTS GAP - No systematic customer satisfaction tracking or sentiment analysis. Customer complaints surface through random channels (email, phone, portal) with no aggregation or trend analysis. NPS (Net Promoter Score) surveys sent manually and irregularly. Automated sentiment analysis of customer communications + NPS automation provides early warning of churn risk, identifies service gaps, improves customer retention by 35%.
@@ -2550,7 +2550,7 @@ Transforms reactive customer service to proactive relationship management. Preve
 
 ### REQ-STRATEGIC-AUTO-1767116143661: Mobile Field Service Application
 
-**Status**: IN_PROGRESS
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: FIELD OPERATIONS GAP - Technicians and delivery drivers lack real-time mobile access to work orders, inventory, customer data, and route optimization. Paper-based processes create data entry delays, errors, and missed SLA opportunities. Mobile field service app with offline capabilities enables real-time job updates, digital signatures, photo capture, GPS tracking, and instant communication - reducing service completion time by 30%, improving first-time fix rate by 25%, eliminating paperwork transcription errors.
@@ -2587,7 +2587,7 @@ Transforms field operations from paper-based inefficiency to digital excellence.
 
 ### REQ-STRATEGIC-AUTO-1767116143662: Advanced Email & Notification System
 
-**Status**: IN_PROGRESS
+**Status**: PENDING
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: COMMUNICATION GAP - Multiple TODOs identified for email/notification functionality across modules (alerts, workflows, approvals). Current system lacks unified notification infrastructure. Users miss critical alerts, approvals get delayed, system events go unmonitored. Centralized notification system with email, SMS, push, and in-app channels ensures 99.9% message delivery, reduces approval cycle time by 50%, enables real-time alerting for system issues, provides audit trail for compliance.
@@ -2624,7 +2624,7 @@ Eliminates communication gaps that cause operational delays and missed opportuni
 
 ### REQ-STRATEGIC-AUTO-1767116143663: Document Management & Digital Asset Library
 
-**Status**: IN_PROGRESS
+**Status**: PENDING
 **Owner**: sarah
 **Priority**: P2
 **Business Value**: CONTENT MANAGEMENT GAP - Print industry requires extensive document management (customer artwork, proofs, contracts, job tickets, compliance docs). Current system lacks centralized document repository, version control, or digital asset management. Files stored in network drives create access issues, version confusion, lost files, security risks. Enterprise document management system with version control, metadata tagging, full-text search, and access controls reduces document retrieval time by 80%, eliminates version conflicts, ensures compliance with retention policies, enables customer self-service file access.
@@ -2703,7 +2703,7 @@ Democratizes data access and transforms decision-making from gut-feel to data-dr
 
 ### REQ-STRATEGIC-AUTO-1767116143665: Integrated CRM & Sales Pipeline Management
 
-**Status**: PENDING
+**Status**: IN_PROGRESS
 **Owner**: jen
 **Priority**: P2
 **Business Value**: SALES PROCESS GAP - Current system handles quotes and orders but lacks full CRM capabilities. No systematic lead tracking, opportunity pipeline management, sales activity logging, or forecast modeling. Sales team uses spreadsheets or external tools creating data silos, duplicate entry, and lost opportunities. Integrated CRM with sales pipeline management, activity tracking, and AI-powered lead scoring increases sales conversion by 22%, reduces sales cycle time by 15%, improves forecast accuracy by 35%, eliminates duplicate data entry.
@@ -2818,5 +2818,311 @@ Transforms supplier relationships from transactional to collaborative. Improves 
 
 **Strategic Impact**:
 Transforms HR from administrative burden to strategic partner. Improves employee experience. Ensures regulatory compliance. Reduces operational risk. Foundation for workforce planning and talent analytics.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767126043619: Workflow Recovery & Monitoring System
+
+**Status**: PENDING
+**Owner**: berry
+**Priority**: P0
+**Business Value**: SYSTEM RELIABILITY GAP - Currently 21 identified workflow gaps causing stuck requirements (GAPs 1-21 in WORKFLOW_GAPS_ANALYSIS.md). No IN_PROGRESS recovery mechanism, workflows lost on orchestrator restart, no heartbeat monitoring for hung processes, escalation not implemented. System reliability at ~60% - 40% of workflows require manual intervention. Implementing comprehensive workflow recovery system increases reliability to 98%, reduces manual intervention from 4 hours/day to 15 minutes/day, prevents resource exhaustion from stuck processes, enables 24/7 autonomous operation.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T20:20:43.619Z
+**RICE Score**: Reach: 10 | Impact: 10 | Confidence: 9 | Effort: 8 | **Total: 11.25**
+
+**Requirements**:
+
+- Implement IN_PROGRESS recovery mechanism (GAP 2) - detect and restart orphaned workflows on startup
+- Add workflow heartbeat monitoring (GAP 5) - detect hung workflows within 10 minutes
+- Implement maximum workflow duration timeout (GAP 3) - 8 hour total workflow limit
+- Build orchestrator restart recovery (GAP 4) - restore all active workflows from NATS on restart
+- Add sub-requirement monitoring recovery (GAP 8) - persist tracking in NATS, survive restarts
+- Implement proper escalation mechanism (GAP 6) - ESCALATED status, file logging, event publishing
+- Add concurrency limit (GAP 12) - max 5 concurrent workflows with priority queue
+- Implement state reconciliation daemon (GAP 13) - sync OWNER_REQUESTS.md from NATS every 10 minutes
+- Add agent error monitoring (GAP 9) - subscribe to agent errors and trigger recovery
+- Implement Billy failure limit (GAP 10) - max 3 test-fix cycles before escalation
+- Add sub-requirement recursion depth limit (GAP 21) - max 3 levels deep before escalation
+- Create workflow health dashboard showing active, stuck, escalated, and completed workflows
+- Reduce all agent timeouts (GAP 1) - Cynthia: 45m, Roy: 60m, Jen: 60m, Billy: 45m, Berry: 15m
+- Implement deliverable schema validation (GAP 18) - catch malformed agent outputs
+- Add NATS fallback persistence (GAP 15) - PostgreSQL backup when NATS unavailable
+- Create Host Listener crash recovery (GAP 16) - track spawned agents in filesystem
+
+**Success Criteria**:
+
+- Workflow completion rate improved from 60% to 98%
+- Stuck workflow detection time reduced from hours to <10 minutes
+- Orchestrator restart with zero workflow loss (100% recovery)
+- Manual intervention reduced from 4 hours/day to 15 minutes/day
+- Zero infinite loops (recursion depth limit enforced)
+- All escalations properly tracked and logged
+- System uptime improved to 99.5%+
+- Resource exhaustion incidents eliminated (concurrency limits enforced)
+
+**Strategic Impact**:
+CRITICAL FOUNDATIONAL FIX. Transforms workflow system from manually-supervised (60% reliability) to autonomous (98% reliability). Unblocks all other strategic initiatives by ensuring reliable delivery pipeline. Enables true 24/7 autonomous operation. Eliminates single biggest productivity drain on development team.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767126043620: Shop Floor Data Collection & MES Integration
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: PRODUCTION VISIBILITY GAP - Currently no real-time shop floor data collection. Production supervisors manually track job progress on whiteboards/clipboards, no live WIP visibility, actual vs. estimated times not captured, scrap/waste recorded in batch at end of shift. Management has no real-time production status, can't respond quickly to issues, customer service can't give accurate job status updates. Shop floor data collection with barcode/tablet entry enables real-time WIP tracking, accurate job costing (actual vs. estimated), instant scrap reporting, predictive completion times, reduces WIP search time by 80%, improves job status accuracy to 99%, enables data-driven process improvements.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T20:20:43.620Z
+**RICE Score**: Reach: 8 | Impact: 8 | Confidence: 8.5 | Effort: 10 | **Total: 5.4**
+
+**Requirements**:
+
+- Design shop floor tablet UI for barcode scanning and touch entry
+- Implement job start/stop time tracking with work center assignment
+- Create scrap and waste reporting with reason codes (wrong color, paper jam, customer change, etc.)
+- Add employee labor tracking with badge scanning or PIN entry
+- Implement real-time WIP location tracking (barcode scan as jobs move between departments)
+- Create material consumption recording (track paper, ink, plates consumed per job)
+- Add quality checkpoint recording (first-off approval, mid-run inspection)
+- Implement equipment status tracking (running, setup, breakdown, maintenance)
+- Create production exception reporting (delays, material shortages, quality holds)
+- Add mobile app for supervisors to view production status and resolve issues
+- Implement production dashboards showing real-time WIP, equipment status, on-time performance
+- Create automatic job costing updates from actual labor/material consumption
+- Add predictive job completion estimates based on current progress
+- Implement integration with existing job-costing, production-planning, and operations modules
+
+**Success Criteria**:
+
+- Real-time WIP visibility 100% accurate (vs. 60% estimated currently)
+- Job status inquiry time reduced from 15 minutes to 10 seconds
+- Scrap reporting lag time reduced from 8 hours to real-time
+- Job costing accuracy improved to 95%+ (actual vs. estimated variance <5%)
+- Production exception response time reduced from 2 hours to 15 minutes
+- Equipment utilization tracking accurate to within 5%
+- Customer service job status accuracy improved from 70% to 99%
+- Data-driven process improvements generate 12% productivity gain in year 1
+
+**Strategic Impact**:
+Closes critical production visibility gap. Enables real-time operational decision making. Foundation for predictive scheduling and equipment maintenance. Improves customer service through accurate job status. Drives continuous improvement through data capture.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767126043621: Automated Ink & Color Matching System
+
+**Status**: PENDING
+**Owner**: roy
+**Priority**: P2
+**Business Value**: COLOR MANAGEMENT GAP - Print industry requires precise color matching but current system lacks ink formulation management. Pressroom manually mixes inks based on experience/notes, no standardized formulas, color matching inconsistent between shifts/operators, rework due to color mismatch costs $80K/year. Automated ink matching system with spectrophotometer integration stores proven formulas, ensures repeatable color matching, reduces color-related rework by 85%, speeds up press makeready by 30%, enables accurate ink cost estimation in quotes.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T20:20:43.621Z
+**RICE Score**: Reach: 7 | Impact: 7 | Confidence: 8 | Effort: 7 | **Total: 5.6**
+
+**Requirements**:
+
+- Design ink formula database (base colors, proportions, additives, substrate compatibility)
+- Implement spectrophotometer integration for color measurement (X-Rite, Barbieri, Techkon)
+- Create ink mixing worksheet generation from color specifications
+- Add color library management (Pantone, custom colors, customer-specific formulas)
+- Implement formula versioning and approval workflow
+- Create visual formula search (upload image, find matching formula)
+- Add substrate-specific formula adjustments (coated vs. uncoated paper)
+- Implement ink inventory tracking integrated with material consumption
+- Create automatic ink cost calculation for quotes based on coverage and formula
+- Add press-specific formula adjustments (different presses may need slight variations)
+- Implement quality control color measurement recording with Delta-E tracking
+- Create color matching reports showing historical accuracy by operator/shift
+- Add customer approval tracking for custom colors
+- Implement integration with existing estimating and job-costing modules
+
+**Success Criteria**:
+
+- Color-related rework reduced by 85% ($68K annual savings)
+- First-time color match success rate improved from 70% to 95%
+- Press makeready time reduced by 30% (faster color setup)
+- Ink formula standardization 100% (no tribal knowledge)
+- Quote accuracy improved (actual ink costs vs. estimated within 3%)
+- Color matching consistency 95%+ across all shifts and operators
+- Spectrophotometer integration 100% automated (no manual data entry)
+- Customer color disputes reduced by 90%
+
+**Strategic Impact**:
+Professional color management capability differentiates from commodity printers. Reduces waste and rework costs. Speeds up production. Improves quote accuracy. Enables consistent quality across shifts. Foundation for G7 Master Printer certification.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767126043622: Automated Proof Approval & Versioning Portal
+
+**Status**: PENDING
+**Owner**: jen
+**Priority**: P2
+**Business Value**: PROOF APPROVAL BOTTLENECK - Current proof approval process is email-based chaos. Send PDF to customer via email, customer prints/marks up/scans back or annotates in Acrobat, version confusion (which PDF is latest?), no audit trail of approvals, approval delays average 3 days causing production scheduling chaos. Web-based proof portal with version control enables drag-and-drop markup, automatic versioning, mobile approval, reduces approval cycle from 3 days to 8 hours, eliminates "I never approved that" disputes with audit trail, integrates with production scheduling for automatic release to production on approval.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T20:20:43.622Z
+**RICE Score**: Reach: 9 | Impact: 7 | Confidence: 8.5 | Effort: 6 | **Total: 8.5**
+
+**Requirements**:
+
+- Design customer-facing proof portal with intuitive markup tools
+- Implement PDF viewing with zoom, pan, measure tools
+- Create annotation system (text comments, arrows, shapes, freehand drawing)
+- Add version comparison view (side-by-side or overlay with differences highlighted)
+- Implement multi-stakeholder approval routing (designer → manager → final approver)
+- Create mobile-responsive design for tablet/phone approval
+- Add email notifications with direct link to proof (no login required for first view)
+- Implement automatic version numbering and archiving
+- Create audit trail showing all approvals, rejections, and comments with timestamps
+- Add integration with customer-portal authentication (existing customers auto-login)
+- Implement automatic production release on final approval (notify production planning)
+- Create proof approval analytics (average approval time by customer, bottleneck identification)
+- Add PDF comparison engine to highlight changes between versions
+- Implement proof archiving with 7-year retention for compliance
+- Create CSR notification when proof approved (ready to schedule production)
+
+**Success Criteria**:
+
+- Proof approval cycle time reduced from 3 days to 8 hours average
+- Version confusion incidents reduced by 100% (automatic versioning)
+- Mobile approval adoption 60%+ (approve from anywhere)
+- "I never approved that" disputes eliminated (audit trail)
+- Production scheduling efficiency improved 25% (predictable approval timeline)
+- Customer satisfaction with proof process improved from 6/10 to 9/10
+- CSR time spent chasing approvals reduced by 70%
+- Paper proof printing reduced by 90% (cost and environmental savings)
+
+**Strategic Impact**:
+Dramatically accelerates job flow through approval bottleneck. Improves customer experience. Eliminates disputes and liability. Enables faster production scheduling. Competitive differentiator vs. slow email-based proof approval. Foundation for fully automated job release to production.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767126043623: Gang Run Optimization & Nesting Engine
+
+**Status**: PENDING
+**Owner**: priya
+**Priority**: P2
+**Business Value**: PRESS EFFICIENCY GAP - Small jobs run individually waste press capacity and setup time. Manual gang run planning (combining multiple jobs on single press sheet) is time-consuming and suboptimal. Estimators eyeball which jobs can gang together, often miss opportunities, imposition planning done manually in separate software. Automated gang run optimization with intelligent nesting finds optimal job combinations, reduces press makeready count by 40%, increases press utilization from 65% to 82%, cuts paper waste by 18%, speeds up estimating process by 60% (automated imposition).
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T20:20:43.623Z
+**RICE Score**: Reach: 7 | Impact: 8 | Confidence: 7 | Effort: 12 | **Total: 3.7**
+
+**Requirements**:
+
+- Design 2D bin-packing algorithm for sheet nesting (constraint: sheet size, bleed, trim, gutter)
+- Implement job compatibility rules (same paper stock, same color count, similar due dates)
+- Create automatic gang run detection from production schedule (find jobs ready to run)
+- Add manual gang run override (estimator can force specific jobs together)
+- Implement imposition template library (common folding/cutting patterns)
+- Create visual gang run preview showing nested layout
+- Add cutting diagram generation (send to guillotine operator)
+- Implement makeready cost allocation (split setup cost across ganged jobs)
+- Create paper waste calculation comparing individual vs. gang run
+- Add production schedule integration (gang runs scheduled as single press run)
+- Implement finishing separation logic (ganged jobs that need different finishing)
+- Create gang run analytics (savings per gang run, utilization improvement)
+- Add pressure-sensitive label gang run support (special nesting rules)
+- Implement integration with existing imposition module and production planning
+
+**Success Criteria**:
+
+- Press makeready count reduced by 40% (fewer press setups)
+- Press utilization increased from 65% to 82%
+- Paper waste reduced by 18% (better nesting)
+- Estimating time for small jobs reduced by 60% (automated imposition)
+- Gang run opportunities identified automatically 95%+ (vs. 40% manual)
+- Average job profitability improved 22% for ganged jobs
+- Carbon footprint reduced 15% (fewer makereadies, less waste)
+- Cutting accuracy improved 100% (digital cutting diagrams vs. manual markup)
+
+**Strategic Impact**:
+Unlocks significant profitability improvement from small-job production. Makes small jobs economically viable. Reduces environmental impact. Competitive advantage through lower pricing on short-run work. Differentiates from competitors who run jobs individually.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767126043624: Comprehensive Shipping & Logistics Module
+
+**Status**: PENDING
+**Owner**: roy
+**Priority**: P2
+**Business Value**: SHIPPING MANAGEMENT GAP - Current system lacks comprehensive shipping capabilities. Shipping clerks manually create labels using carrier websites, no rate shopping, no shipment tracking integration, customers call asking "where's my order?". Manual shipping process takes 8 minutes per order, carrier errors common (wrong service level, incorrect dimensions), no proof of delivery archiving. Integrated shipping module with multi-carrier rate shopping, automatic label printing, tracking integration, customer shipment notifications reduces shipping time from 8 minutes to 90 seconds, eliminates carrier errors, cuts shipping costs 18% through rate shopping, reduces "where is my order" calls by 85%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T20:20:43.624Z
+**RICE Score**: Reach: 9 | Impact: 6 | Confidence: 9 | Effort: 7 | **Total: 6.9**
+
+**Requirements**:
+
+- Integrate multi-carrier APIs (UPS, FedEx, USPS, regional carriers) for rate shopping
+- Implement automatic rate comparison and best-value service level selection
+- Create thermal label printing with automatic format detection (4x6, 4x8 labels)
+- Add package dimension and weight capture (integrate with scale/dimensioner)
+- Implement tracking number automatic capture and storage
+- Create customer shipment notification emails with tracking link
+- Add proof of delivery (POD) automatic retrieval and archiving
+- Implement freight shipping support (LTL quotes, BOL generation, appointment scheduling)
+- Create shipping analytics (cost per shipment, carrier performance, delivery time analysis)
+- Add address validation with USPS/UPS/FedEx APIs (catch errors before shipping)
+- Implement dangerous goods / hazmat shipping compliance
+- Create packing list generation integrated with shipment
+- Add international shipping support (customs forms, harmonized codes, commercial invoice)
+- Implement integration with existing sales, operations, and customer-portal modules
+- Create mobile shipping app for warehouse (scan jobs, print labels, close shipments)
+
+**Success Criteria**:
+
+- Shipping time per order reduced from 8 minutes to 90 seconds
+- Shipping costs reduced by 18% through rate shopping
+- Address errors reduced by 95% (validation before shipping)
+- "Where is my order" calls reduced by 85% (proactive tracking notifications)
+- Carrier billing errors reduced to <1% (automated capture)
+- International shipping documentation 100% compliant (automated forms)
+- Freight LTL damage rate reduced 30% (proper packaging/handling documentation)
+- Customer satisfaction with delivery communication improved from 6/10 to 9/10
+
+**Strategic Impact**:
+Professional shipping operation comparable to e-commerce leaders. Reduces operational cost. Improves customer experience. Enables profitable expansion into e-commerce fulfillment services. Foundation for same-day/next-day delivery promises. Competitive differentiator through superior delivery experience.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767126043625: Digital Asset Management (DAM) & File Repository
+
+**Status**: PENDING
+**Owner**: jen
+**Priority**: P2
+**Business Value**: FILE MANAGEMENT CHAOS - Customer artwork files scattered across network drives, email attachments, FTP sites. No version control, finding correct file takes 15+ minutes, duplicate files everywhere, file naming inconsistent, no metadata or search, prepress wastes 25% of time searching for files. Centralized DAM system with metadata tagging, version control, powerful search, automatic thumbnail generation reduces file search time from 15 minutes to 10 seconds, eliminates duplicate file errors, enables customer self-service file upload, improves prepress productivity by 30%, provides foundation for Web-to-Print automation.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T20:20:43.625Z
+**RICE Score**: Reach: 9 | Impact: 7 | Confidence: 8.5 | Effort: 10 | **Total: 5.4**
+
+**Requirements**:
+
+- Design scalable file storage architecture (S3/Azure Blob with CDN for thumbnails)
+- Implement automatic thumbnail generation for common formats (PDF, AI, INDD, PSD, TIFF, JPG)
+- Create metadata extraction and tagging (customer, job number, product type, colors, size)
+- Add full-text search with filters (customer, date range, file type, dimensions, color mode)
+- Implement version control with visual diff for PDFs
+- Create customer-facing upload portal with drag-and-drop multi-file upload
+- Add file conversion pipeline (automatic PDF/X-4 conversion from uploaded files)
+- Implement access control (customers see only their files, internal users see all)
+- Create folder organization with automatic job-based filing
+- Add duplicate file detection (hash-based to prevent redundant storage)
+- Implement file archiving (auto-archive files after 2 years to cheaper storage)
+- Create prepress integration (one-click file retrieval into prepress workflow)
+- Add file approval workflow (customer uploads → CSR reviews → prepress receives approved file)
+- Implement integration with existing customer-portal, estimating, and operations modules
+- Create mobile app for customer file upload from phone/tablet
+
+**Success Criteria**:
+
+- File search time reduced from 15 minutes to 10 seconds average
+- Duplicate file errors eliminated (100% reduction in "used old version" mistakes)
+- Prepress productivity improved by 30% (less time searching, more time producing)
+- Customer file upload adoption 75%+ (reduce email attachment chaos)
+- Storage costs reduced 40% (deduplication and archiving)
+- File-related production errors reduced by 90%
+- Customer satisfaction with file handling improved from 7/10 to 9.5/10
+- Foundation established for Web-to-Print self-service ordering
+
+**Strategic Impact**:
+Transforms file chaos into organized asset library. Dramatically improves prepress efficiency. Enables customer self-service. Foundation for automation and Web-to-Print. Eliminates major source of production errors. Competitive differentiator through professional file management.
 
 ---

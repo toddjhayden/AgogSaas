@@ -34,7 +34,7 @@ BEGIN
     13, get_byte(gen_random_bytes(1), 0)),
     14, get_byte(gen_random_bytes(1), 0)),
     15, get_byte(gen_random_bytes(1), 0));
-  RETURN CAST(uuid_bytes AS UUID);
+  RETURN encode(uuid_bytes, 'hex')::UUID;
 END
 $$ LANGUAGE PLPGSQL VOLATILE;
 

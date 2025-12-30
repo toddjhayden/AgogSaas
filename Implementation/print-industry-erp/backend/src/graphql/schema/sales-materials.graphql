@@ -317,11 +317,7 @@ enum VendorType {
 }
 
 # Vendor tier segmentation enum (Phase 1)
-enum VendorTier {
-  STRATEGIC      # High-spend, critical to operations, monthly review
-  PREFERRED      # Medium-spend, proven performance, quarterly review
-  TRANSACTIONAL  # Low-spend, commodity purchases, annual review
-}
+# REMOVED DUPLICATE - Refer to vendor-performance.graphql for VendorTier enum
 
 type MaterialSupplier {
   id: ID!
@@ -564,87 +560,21 @@ type VendorPerformance {
 }
 
 # Enhanced vendor performance tracking types
-# Note: VendorScorecard and TrendDirection types are defined in vendor-performance.graphql
-
-type VendorComparisonReport {
-  evaluationPeriodYear: Int!
-  evaluationPeriodMonth: Int!
-  vendorType: VendorType
-
-  topPerformers: [VendorPerformanceSummary!]!
-  bottomPerformers: [VendorPerformanceSummary!]!
-
-  averageMetrics: VendorAverageMetrics!
-}
-
-type VendorPerformanceSummary {
-  vendorId: ID!
-  vendorCode: String!
-  vendorName: String!
-  overallRating: Float!
-  onTimePercentage: Float!
-  qualityPercentage: Float!
-}
-
-type VendorAverageMetrics {
-  avgOnTimePercentage: Float!
-  avgQualityPercentage: Float!
-  avgOverallRating: Float!
-  totalVendorsEvaluated: Int!
-}
+# Note: VendorScorecard, VendorComparisonReport, and TrendDirection types are defined in vendor-performance.graphql
+# REMOVED DUPLICATE TYPES - Refer to vendor-performance.graphql for:
+#   - VendorComparisonReport
+#   - VendorPerformer (was VendorPerformanceSummary)
+#   - AverageMetrics (was VendorAverageMetrics)
 
 # =====================================================
 # VENDOR ALERTS (Phase 1)
 # =====================================================
-
-type VendorPerformanceAlert {
-  id: ID!
-  tenantId: ID!
-  vendorId: ID!
-
-  # Alert classification
-  alertType: AlertType!
-  alertCategory: AlertCategory!
-
-  # Alert details
-  alertMessage: String!
-  metricValue: Float
-  thresholdValue: Float
-
-  # Alert status workflow
-  alertStatus: AlertStatus!
-
-  # Status transitions
-  acknowledgedAt: DateTime
-  acknowledgedByUserId: ID
-  resolvedAt: DateTime
-  resolvedByUserId: ID
-  dismissalReason: String
-
-  # Audit trail
-  createdAt: DateTime!
-  updatedAt: DateTime
-}
-
-enum AlertType {
-  CRITICAL  # Immediate action required (OTD <80%, Quality <85%, Rating <2.0)
-  WARNING   # Review needed (OTD 80-90%, Quality 85-95%, Rating 2.0-3.0)
-  TREND     # Declining performance (3+ consecutive months)
-}
-
-enum AlertCategory {
-  OTD        # On-time delivery issues
-  QUALITY    # Quality acceptance issues
-  RATING     # Overall rating issues
-  COMPLIANCE # Certification/compliance issues
-}
-
-enum AlertStatus {
-  ACTIVE        # Alert is active, no action taken
-  ACKNOWLEDGED  # Alert acknowledged by user
-  RESOLVED      # Issue resolved
-  DISMISSED     # Alert dismissed with reason
-}
+# REMOVED DUPLICATE TYPES - Refer to vendor-performance.graphql for:
+#   - VendorPerformanceAlert
+#   - AlertType (enhanced version with THRESHOLD_BREACH, TIER_CHANGE, ESG_RISK, REVIEW_DUE)
+#   - AlertCategory (enhanced version with additional categories)
+#   - AlertStatus (same as this file)
+#   - AlertSeverity (new enum in vendor-performance.graphql)
 
 # Alert threshold configuration
 type VendorAlertThreshold {
@@ -834,11 +764,17 @@ type Quote {
 
   # Customer
   customerId: ID!
+  customerName: String
   contactName: String
   contactEmail: String
+  contactPhone: String
 
   # Sales rep
   salesRepUserId: ID
+  salesRepName: String
+
+  # Facility
+  facilityName: String
 
   # Currency
   quoteCurrencyCode: String!
@@ -1216,39 +1152,8 @@ type Query {
     month: Int
   ): [VendorPerformance!]!
 
-  # Enhanced vendor performance queries
-  vendorScorecard(
-    tenantId: ID!
-    vendorId: ID!
-  ): VendorScorecard
-
-  vendorComparisonReport(
-    tenantId: ID!
-    year: Int!
-    month: Int!
-    vendorType: VendorType
-    topN: Int = 5
-  ): VendorComparisonReport
-
-  # Vendor alerts (Phase 1)
-  vendorPerformanceAlerts(
-    tenantId: ID!
-    vendorId: ID
-    alertType: AlertType
-    alertCategory: AlertCategory
-    alertStatus: AlertStatus
-    limit: Int = 100
-    offset: Int = 0
-  ): [VendorPerformanceAlert!]!
-
-  vendorPerformanceAlert(id: ID!): VendorPerformanceAlert
-
-  # Alert thresholds
-  vendorAlertThresholds(
-    tenantId: ID!
-    thresholdType: AlertThresholdType
-    isActive: Boolean
-  ): [VendorAlertThreshold!]!
+  # Enhanced vendor performance queries - MOVED to vendor-performance.graphql
+  # vendorScorecard, vendorComparisonReport, vendorPerformanceAlerts, vendorAlertThresholds
 
   # Customers
   customers(
@@ -1421,66 +1326,12 @@ type Mutation {
   receivePurchaseOrder(id: ID!, receiptDetails: JSON!): PurchaseOrder!
   closePurchaseOrder(id: ID!): PurchaseOrder!
 
-  # Vendor Performance Management
-  calculateVendorPerformance(
-    tenantId: ID!
-    vendorId: ID!
-    year: Int!
-    month: Int!
-  ): VendorPerformance!
+  # Vendor Performance Management - MOVED to vendor-performance.graphql
+  # calculateVendorPerformance, calculateAllVendorsPerformance, updateVendorPerformanceScores
 
-  calculateAllVendorsPerformance(
-    tenantId: ID!
-    year: Int!
-    month: Int!
-  ): [VendorPerformance!]!
-
-  updateVendorPerformanceScores(
-    id: ID!
-    priceCompetitivenessScore: Float
-    responsivenessScore: Float
-    notes: String
-  ): VendorPerformance!
-
-  # Vendor tier management (Phase 1)
-  assignVendorTier(
-    vendorId: ID!
-    tier: VendorTier!
-    tierCalculationBasis: JSON
-  ): Vendor!
-
-  # Vendor alert management (Phase 1)
-  createVendorPerformanceAlert(
-    tenantId: ID!
-    vendorId: ID!
-    alertType: AlertType!
-    alertCategory: AlertCategory!
-    alertMessage: String!
-    metricValue: Float
-    thresholdValue: Float
-  ): VendorPerformanceAlert!
-
-  acknowledgeVendorAlert(
-    id: ID!
-    acknowledgedByUserId: ID!
-  ): VendorPerformanceAlert!
-
-  resolveVendorAlert(
-    id: ID!
-    resolvedByUserId: ID!
-  ): VendorPerformanceAlert!
-
-  dismissVendorAlert(
-    id: ID!
-    dismissalReason: String!
-  ): VendorPerformanceAlert!
-
-  # Alert threshold management (Phase 1)
-  updateVendorAlertThreshold(
-    id: ID!
-    thresholdValue: Float
-    isActive: Boolean
-  ): VendorAlertThreshold!
+  # Vendor tier and alert management (Phase 1) - MOVED to vendor-performance.graphql
+  # assignVendorTier, createVendorPerformanceAlert, acknowledgeVendorAlert,
+  # resolveVendorAlert, dismissVendorAlert, updateVendorAlertThreshold
 
   # Customers
   createCustomer(

@@ -701,6 +701,144 @@ extend type Mutation {
     calculationDate: Date!
     shiftNumber: Int
   ): OEECalculation!
+
+  # =====================================================
+  # PRODUCTION ANALYTICS QUERIES
+  # =====================================================
+  # REQ: REQ-STRATEGIC-AUTO-1767048328660 - Real-Time Production Analytics Dashboard
+
+  """Get production summary for a facility"""
+  productionSummary(facilityId: ID!): ProductionSummary!
+
+  """Get production summaries by work center"""
+  workCenterSummaries(facilityId: ID!): [ProductionSummary!]!
+
+  """Get production run summaries with details"""
+  productionRunSummaries(
+    facilityId: ID!
+    workCenterId: ID
+    status: ProductionRunStatus
+    limit: Int
+  ): [ProductionRunSummary!]!
+
+  """Get OEE trends over time"""
+  oEETrends(
+    facilityId: ID!
+    workCenterId: ID
+    startDate: Date
+    endDate: Date
+  ): [OEETrend!]!
+
+  """Get work center utilization with current status"""
+  workCenterUtilization(facilityId: ID!): [WorkCenterUtilization!]!
+
+  """Get production alerts"""
+  productionAlerts(facilityId: ID!): [ProductionAlert!]!
+}
+
+# =====================================================
+# PRODUCTION ANALYTICS TYPES
+# =====================================================
+# REQ: REQ-STRATEGIC-AUTO-1767048328660 - Real-Time Production Analytics Dashboard
+
+"""Production summary metrics aggregated by facility or work center"""
+type ProductionSummary {
+  facilityId: ID!
+  workCenterId: ID
+  workCenterName: String
+  workCenterType: String
+  activeRuns: Int!
+  scheduledRuns: Int!
+  completedRunsToday: Int!
+  totalGoodQuantity: Float!
+  totalScrapQuantity: Float!
+  totalReworkQuantity: Float!
+  averageYield: Float!
+  currentOEE: Float
+  asOfTimestamp: DateTime!
+}
+
+"""Production run summary with progress and metrics"""
+type ProductionRunSummary {
+  id: ID!
+  productionRunNumber: String!
+  productionOrderNumber: String!
+  workCenterName: String!
+  operatorName: String!
+  status: ProductionRunStatus!
+  scheduledStart: DateTime!
+  scheduledEnd: DateTime!
+  actualStart: DateTime
+  actualEnd: DateTime
+  quantityPlanned: Float!
+  quantityGood: Float!
+  quantityScrap: Float!
+  quantityRework: Float!
+  progressPercentage: Float!
+  setupTimeMinutes: Float
+  runTimeMinutes: Float
+  downtimeMinutes: Float
+  currentOEE: Float
+}
+
+"""OEE trend data point"""
+type OEETrend {
+  workCenterId: ID!
+  workCenterName: String!
+  calculationDate: Date!
+  shift: String
+  availabilityPercentage: Float!
+  performancePercentage: Float!
+  qualityPercentage: Float!
+  oeePercentage: Float!
+  targetOEEPercentage: Float!
+}
+
+"""Work center utilization and current status"""
+type WorkCenterUtilization {
+  workCenterId: ID!
+  workCenterName: String!
+  workCenterType: String!
+  status: WorkCenterStatus!
+  currentProductionRunId: ID
+  currentProductionRunNumber: String
+  currentOEE: Float
+  todayRuntime: Float!
+  todayDowntime: Float!
+  todaySetupTime: Float!
+  utilizationPercentage: Float!
+  activeRunProgress: Float
+}
+
+"""Production alert for dashboard notifications"""
+type ProductionAlert {
+  id: ID!
+  severity: AlertSeverity!
+  type: AlertType!
+  workCenterId: ID
+  workCenterName: String
+  productionRunId: ID
+  productionRunNumber: String
+  message: String!
+  timestamp: DateTime!
+  acknowledged: Boolean!
+}
+
+"""Alert severity levels"""
+enum AlertSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+"""Alert type categories"""
+enum AlertType {
+  EQUIPMENT_DOWN
+  QUALITY_ISSUE
+  SCHEDULE_CONFLICT
+  LOW_OEE
+  MAINTENANCE_DUE
+  HIGH_SCRAP_RATE
 }
 
 # =====================================================
@@ -812,4 +950,446 @@ type ProductionOrderConnection {
 type ProductionOrderEdge {
   node: ProductionOrder!
   cursor: String!
+}
+
+# =====================================================
+# PDF PREFLIGHT & COLOR MANAGEMENT TYPES
+# =====================================================
+# REQ: REQ-STRATEGIC-AUTO-1767066329942 - PDF Preflight & Color Management
+
+"""
+PreflightProfile - PDF validation rules (PDF/X-1a, PDF/X-3, custom)
+"""
+type PreflightProfile {
+  id: ID!
+  tenantId: ID!
+
+  # Profile identification
+  profileName: String!
+  profileType: PreflightProfileType!
+
+  # Version management
+  version: Int!
+  versionNotes: String
+  supersededBy: ID
+  effectiveFrom: DateTime!
+  effectiveUntil: DateTime
+
+  # Validation rules
+  rules: JSON!
+
+  # Profile settings
+  isDefault: Boolean!
+  isActive: Boolean!
+  description: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+PreflightReport - PDF validation results
+"""
+type PreflightReport {
+  id: ID!
+  tenantId: ID!
+
+  # References
+  jobId: ID
+  estimateId: ID
+  artworkFileId: ID!
+
+  # File information
+  fileName: String!
+  fileSizeBytes: Float
+  fileHash: String
+
+  # Profile used
+  preflightProfile: PreflightProfile!
+  profileVersion: Int!
+
+  # Overall status
+  status: PreflightStatus!
+
+  # Validation results summary
+  totalErrors: Int!
+  totalWarnings: Int!
+  totalInfo: Int!
+
+  # Detailed issues
+  issues: [PreflightIssue!]!
+
+  # PDF metadata
+  pdfMetadata: PdfMetadata
+  colorAnalysis: ColorAnalysis
+  imageAnalysis: ImageAnalysis
+  fontAnalysis: FontAnalysis
+  dimensions: PdfDimensions
+
+  # Processing metrics
+  processingTimeMs: Int
+  processedAt: DateTime
+
+  # Approval workflow
+  approvedBy: ID
+  approvedAt: DateTime
+  rejectedBy: ID
+  rejectedAt: DateTime
+  rejectionReason: String
+  approvalNotes: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+PreflightIssue - Individual validation error/warning
+"""
+type PreflightIssue {
+  id: ID!
+  preflightReportId: ID!
+
+  # Classification
+  issueType: IssueType!
+  errorCode: String!
+  severity: IssueSeverity!
+
+  # Location
+  pageNumber: Int
+  elementType: String
+
+  # Details
+  message: String!
+  suggestedFix: String
+
+  # Element identification
+  elementName: String
+  elementMetadata: JSON
+
+  createdAt: DateTime!
+}
+
+"""
+PreflightArtifact - Generated artifacts (proofs, separations, etc.)
+"""
+type PreflightArtifact {
+  id: ID!
+  preflightReportId: ID!
+
+  # Artifact type
+  artifactType: ArtifactType!
+
+  # Storage location
+  storageProvider: String
+  storageBucket: String
+  storageKey: String
+  storageUrl: String
+
+  # File metadata
+  fileSizeBytes: Float
+  fileFormat: String
+  contentHash: String
+
+  # Lifecycle
+  storageTier: StorageTier!
+  expiresAt: DateTime
+
+  createdAt: DateTime!
+}
+
+"""
+ColorProof - Color accuracy validation and proof approval
+"""
+type ColorProof {
+  id: ID!
+  tenantId: ID!
+  jobId: ID!
+  preflightReportId: ID
+
+  # Proof generation
+  proofType: ProofType!
+  proofFileUrl: String
+  proofGeneratedAt: DateTime
+
+  # Color management settings
+  targetIccProfile: String
+  renderingIntent: RenderingIntent
+
+  # Color accuracy measurements
+  deltaEMeasurements: JSON
+  avgDeltaE: Float
+  maxDeltaE: Float
+
+  # Approval workflow
+  status: ProofStatus!
+  approvedBy: ID
+  approvedAt: DateTime
+  rejectedBy: ID
+  rejectedAt: DateTime
+  rejectionNotes: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+PDF Metadata - Basic PDF file information
+"""
+type PdfMetadata {
+  pdfVersion: String
+  pageCount: Int
+  trimWidthInches: Float
+  trimHeightInches: Float
+  bleedInches: Float
+}
+
+"""
+Color Analysis - Color space and ICC profile information
+"""
+type ColorAnalysis {
+  colorSpace: String
+  iccProfileEmbedded: String
+  spotColors: JSON
+  maxInkCoverage: Float
+}
+
+"""
+Image Analysis - Image resolution statistics
+"""
+type ImageAnalysis {
+  totalImages: Int!
+  minResolutionDpi: Int
+  avgResolutionDpi: Int
+  lowResolutionImages: JSON
+}
+
+"""
+Font Analysis - Font embedding information
+"""
+type FontAnalysis {
+  fontsEmbedded: Boolean
+  totalFonts: Int
+  fontList: JSON
+}
+
+"""
+PDF Dimensions - Trim box, bleed box dimensions
+"""
+type PdfDimensions {
+  trimWidthInches: Float
+  trimHeightInches: Float
+  bleedInches: Float
+}
+
+"""
+Preflight Statistics - Aggregate metrics
+"""
+type PreflightStatistics {
+  tenantId: ID!
+  totalReports: Int!
+  passed: Int!
+  passedWithWarnings: Int!
+  failed: Int!
+  passRatePercent: Float!
+  avgProcessingTimeMs: Float
+}
+
+"""
+Error Frequency - Common preflight errors
+"""
+type ErrorFrequency {
+  errorCode: String!
+  severity: IssueSeverity!
+  errorCount: Int!
+  lastOccurrence: DateTime!
+  exampleMessages: [String!]!
+}
+
+# =====================================================
+# PREFLIGHT ENUMS
+# =====================================================
+
+enum PreflightProfileType {
+  PDF_X_1A
+  PDF_X_3
+  PDF_X_4
+  CUSTOM
+}
+
+enum PreflightStatus {
+  QUEUED
+  PROCESSING
+  PASS
+  PASS_WITH_WARNINGS
+  FAIL
+  ERROR
+}
+
+enum IssueType {
+  ERROR
+  WARNING
+  INFO
+}
+
+enum IssueSeverity {
+  CRITICAL
+  MAJOR
+  MINOR
+}
+
+enum ArtifactType {
+  ANNOTATED_PDF
+  SOFT_PROOF
+  DIGITAL_PROOF
+  COLOR_SEPARATION
+  THUMBNAIL
+}
+
+enum StorageTier {
+  STANDARD
+  INFREQUENT_ACCESS
+  GLACIER
+  DEEP_ARCHIVE
+}
+
+enum ProofType {
+  SOFT_PROOF
+  DIGITAL_PROOF
+  CONTRACT_PROOF
+}
+
+enum RenderingIntent {
+  PERCEPTUAL
+  RELATIVE_COLORIMETRIC
+  SATURATION
+  ABSOLUTE_COLORIMETRIC
+}
+
+enum ProofStatus {
+  pending
+  approved
+  rejected
+  revision_requested
+}
+
+# =====================================================
+# PREFLIGHT QUERIES
+# =====================================================
+
+extend type Query {
+  """Get preflight profile by ID"""
+  preflightProfile(id: ID!): PreflightProfile
+
+  """List preflight profiles for tenant"""
+  preflightProfiles(
+    tenantId: ID!
+    profileType: PreflightProfileType
+    isActive: Boolean
+  ): [PreflightProfile!]!
+
+  """Get preflight report by ID"""
+  preflightReport(id: ID!): PreflightReport
+
+  """List preflight reports"""
+  preflightReports(
+    tenantId: ID!
+    jobId: ID
+    status: PreflightStatus
+    limit: Int
+    offset: Int
+  ): [PreflightReport!]!
+
+  """Get preflight issues for a report"""
+  preflightIssues(reportId: ID!): [PreflightIssue!]!
+
+  """Get color proof by ID"""
+  colorProof(id: ID!): ColorProof
+
+  """List color proofs for a job"""
+  colorProofs(jobId: ID!): [ColorProof!]!
+
+  """Get preflight statistics for tenant"""
+  preflightStatistics(tenantId: ID!): PreflightStatistics!
+
+  """Get most common preflight errors"""
+  preflightErrorFrequency(
+    tenantId: ID!
+    limit: Int
+  ): [ErrorFrequency!]!
+}
+
+# =====================================================
+# PREFLIGHT MUTATIONS
+# =====================================================
+
+extend type Mutation {
+  """Create preflight profile"""
+  createPreflightProfile(input: CreatePreflightProfileInput!): PreflightProfile!
+
+  """Update preflight profile"""
+  updatePreflightProfile(id: ID!, input: UpdatePreflightProfileInput!): PreflightProfile!
+
+  """Validate PDF file against preflight profile"""
+  validatePdf(input: ValidatePdfInput!): PreflightReport!
+
+  """Approve preflight report"""
+  approvePreflightReport(id: ID!, notes: String): PreflightReport!
+
+  """Reject preflight report"""
+  rejectPreflightReport(id: ID!, reason: String!): PreflightReport!
+
+  """Generate color proof"""
+  generateColorProof(input: GenerateColorProofInput!): ColorProof!
+
+  """Approve color proof"""
+  approveColorProof(id: ID!): ColorProof!
+
+  """Reject color proof"""
+  rejectColorProof(id: ID!, notes: String!): ColorProof!
+}
+
+# =====================================================
+# PREFLIGHT INPUT TYPES
+# =====================================================
+
+input CreatePreflightProfileInput {
+  profileName: String!
+  profileType: PreflightProfileType!
+  rules: JSON!
+  isDefault: Boolean
+  description: String
+}
+
+input UpdatePreflightProfileInput {
+  profileName: String
+  rules: JSON
+  isDefault: Boolean
+  isActive: Boolean
+  description: String
+  versionNotes: String
+}
+
+input ValidatePdfInput {
+  artworkFileId: ID!
+  jobId: ID
+  estimateId: ID
+  profileId: ID!
+  fileName: String!
+}
+
+input GenerateColorProofInput {
+  jobId: ID!
+  preflightReportId: ID
+  proofType: ProofType!
+  targetIccProfile: String
+  renderingIntent: RenderingIntent
 }

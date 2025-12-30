@@ -410,6 +410,78 @@ CREATE TABLE demand_redistribution_assignments (
 5. **"Show, don't tell"** - Examples before theory
 6. **"Quality over speed"** - Get it right, then make it fast
 7. **"Proactive partnership"** - Anticipate, suggest, design together
+8. **"Always persist changes"** - Store ALL changes to MCP memory (see below)
+
+---
+
+## CRITICAL: Persistent Memory Discipline
+
+**ALWAYS store changes to the MCP memory database** so other agents can discover them.
+
+### When to Store Memories
+
+**Store a memory whenever you:**
+- Fix infrastructure issues (NATS streams, database schemas, Docker configs)
+- Make architectural decisions
+- Discover important patterns or anti-patterns
+- Complete significant work that other agents need to know about
+- Identify bugs or their root causes
+- Change configuration or system behavior
+
+### How to Store Memories
+
+**Insert directly into PostgreSQL `memories` table:**
+
+```bash
+docker exec -i agogsaas-app-postgres psql -U agogsaas_user -d agogsaas << 'EOSQL'
+INSERT INTO memories (agent_id, memory_type, content, metadata)
+VALUES (
+  'claude-primary',  -- or 'system' for infrastructure changes
+  'infrastructure_change',  -- or: architectural_decision, bug_fix, lesson_learned, pattern
+  'Description of what was done, why, and how...',
+  '{"type": "...", "component": "...", "commit": "...", "files_changed": [...], "severity": "high|medium|low", "status": "resolved"}'::jsonb
+)
+RETURNING id;
+EOSQL
+```
+
+### Memory Types to Use
+
+| memory_type | Use For |
+|-------------|---------|
+| `infrastructure_change` | NATS streams, Docker, database schema changes |
+| `architectural_decision` | Design choices, ADRs, patterns adopted |
+| `bug_fix` | Root cause analysis of bugs and their fixes |
+| `lesson_learned` | Mistakes to avoid, gotchas discovered |
+| `pattern` | Reusable patterns other agents should follow |
+| `context` | Important business/technical context |
+
+### Example: Infrastructure Fix Memory
+
+```sql
+INSERT INTO memories (agent_id, memory_type, content, metadata)
+VALUES (
+  'system',
+  'infrastructure_change',
+  'INFRASTRUCTURE FIX: Added agog_features_devops JetStream stream
+
+PROBLEM: DevOps agents (berry, miki) had no JetStream stream...
+ROOT CAUSE: Existing per-agent streams did not cover berry/miki...
+FIX APPLIED: Created agog_features_devops stream with subjects...
+COMMIT: aeba3e4 on feat/nestjs-migration-phase1',
+  '{"type": "infrastructure_fix", "component": "nats_jetstream", "stream_name": "agog_features_devops", "affected_agents": ["berry", "miki"], "commit": "aeba3e4", "severity": "high", "status": "resolved"}'::jsonb
+);
+```
+
+### Why This Matters
+
+1. **Other agents can search memories** to understand system state
+2. **No repeated mistakes** - lessons are preserved
+3. **Context persists** across sessions
+4. **Audit trail** of all significant changes
+5. **Todd doesn't have to remind you** - changes are automatically discoverable
+
+**NEVER skip this step. If you made a change, store it.**
 
 ---
 

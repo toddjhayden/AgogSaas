@@ -1,15 +1,10 @@
 import React from 'react';
-import { useQuery } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, Users, ShoppingBag, Factory } from 'lucide-react';
 import { KPICard, KPIData } from '../components/common/KPICard';
 import { Chart } from '../components/common/Chart';
 import { AlertPanel, Alert } from '../components/common/AlertPanel';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
-import { GET_TOP_KPIS } from '../graphql/queries/kpis';
-import { GET_MARKETPLACE_ANALYTICS } from '../graphql/queries/marketplace';
-import { useAppStore } from '../store/appStore';
 
 // Mock data for development
 const mockRevenueData = [
@@ -91,7 +86,6 @@ const mockTopKPIs: KPIData[] = [
 
 export const ExecutiveDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const { preferences } = useAppStore();
 
   // In production, use real queries
   // const { loading, error, data } = useQuery(GET_TOP_KPIS, {

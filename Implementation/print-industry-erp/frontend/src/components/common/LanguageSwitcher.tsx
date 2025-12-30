@@ -1,16 +1,34 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useMutation } from '@apollo/client';
 import { useAppStore } from '../../store/appStore';
 import { Globe } from 'lucide-react';
+import { UPDATE_USER_PREFERENCES } from '../../graphql/mutations/userPreferences';
 
 export const LanguageSwitcher: React.FC = () => {
   const { i18n } = useTranslation();
   const { preferences, setLanguage } = useAppStore();
+  const [updatePreferences] = useMutation(UPDATE_USER_PREFERENCES);
 
-  const toggleLanguage = () => {
+  const toggleLanguage = async () => {
     const newLang = preferences.language === 'en' ? 'zh' : 'en';
+    const langCode = newLang === 'en' ? 'en-US' : 'zh-CN';
+
+    // Update local state immediately for better UX
     setLanguage(newLang);
     i18n.changeLanguage(newLang);
+
+    // Sync to backend (fire and forget, handle errors silently)
+    try {
+      await updatePreferences({
+        variables: {
+          input: { preferredLanguage: langCode }
+        }
+      });
+    } catch (error) {
+      console.error('Failed to sync language preference to backend:', error);
+      // Language still works locally, so we don't show error to user
+    }
   };
 
   return (

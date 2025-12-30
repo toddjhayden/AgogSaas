@@ -263,16 +263,16 @@ export class SafetyStockService {
         lead_time_days,
         standard_cost,
         COALESCE(
-          EXTRACT(EPOCH FROM (safety_stock_quantity / NULLIF(
+          (safety_stock_quantity / NULLIF(
             (SELECT AVG(actual_demand_quantity)
              FROM demand_history
              WHERE material_id = materials.id
                AND demand_date >= CURRENT_DATE - INTERVAL '90 days'
                AND deleted_at IS NULL
             ), 0
-          )) / 86400,
+          ))::INTEGER,
           7
-        )::INTEGER AS safety_stock_days
+        ) AS safety_stock_days
       FROM materials
       WHERE id = $1
         AND deleted_at IS NULL
@@ -298,35 +298,44 @@ export class SafetyStockService {
     avgLeadTime: number;
     stdDevLeadTime: number;
   }> {
-    // Query actual lead times from purchase orders
-    const query = `
-      SELECT
-        AVG(EXTRACT(EPOCH FROM (receipt_date - order_date)) / 86400) AS avg_lead_time,
-        STDDEV_POP(EXTRACT(EPOCH FROM (receipt_date - order_date)) / 86400) AS std_dev_lead_time
-      FROM (
+    try {
+      // Query actual lead times from purchase orders
+      const query = `
         SELECT
-          po.order_date,
-          MIN(r.receipt_date) AS receipt_date
-        FROM purchase_orders po
-        JOIN purchase_order_lines pol ON po.id = pol.purchase_order_id
-        LEFT JOIN receipts r ON pol.id = r.purchase_order_line_id
-        WHERE po.tenant_id = $1
-          AND pol.material_id = $2
-          AND r.receipt_date IS NOT NULL
-          AND po.order_date >= CURRENT_DATE - INTERVAL '6 months'
-          AND po.deleted_at IS NULL
-          AND pol.deleted_at IS NULL
-        GROUP BY po.id, po.order_date
-      ) lead_times
-    `;
+          AVG(EXTRACT(EPOCH FROM (receipt_date - order_date)) / 86400) AS avg_lead_time,
+          STDDEV_POP(EXTRACT(EPOCH FROM (receipt_date - order_date)) / 86400) AS std_dev_lead_time
+        FROM (
+          SELECT
+            po.order_date,
+            MIN(r.receipt_date) AS receipt_date
+          FROM purchase_orders po
+          JOIN purchase_order_lines pol ON po.id = pol.purchase_order_id
+          LEFT JOIN receipts r ON pol.id = r.purchase_order_line_id
+          WHERE po.tenant_id = $1
+            AND pol.material_id = $2
+            AND r.receipt_date IS NOT NULL
+            AND po.order_date >= CURRENT_DATE - INTERVAL '6 months'
+            AND po.deleted_at IS NULL
+            AND pol.deleted_at IS NULL
+          GROUP BY po.id, po.order_date
+        ) lead_times
+      `;
 
-    const result = await this.pool.query(query, [tenantId, materialId]);
-    const row = result.rows[0] || {};
+      const result = await this.pool.query(query, [tenantId, materialId]);
+      const row = result.rows[0] || {};
 
-    return {
-      avgLeadTime: row.avg_lead_time ? parseFloat(row.avg_lead_time) : 14,
-      stdDevLeadTime: row.std_dev_lead_time ? parseFloat(row.std_dev_lead_time) : 3
-    };
+      return {
+        avgLeadTime: row.avg_lead_time ? parseFloat(row.avg_lead_time) : 14,
+        stdDevLeadTime: row.std_dev_lead_time ? parseFloat(row.std_dev_lead_time) : 3
+      };
+    } catch (error) {
+      // If receipts table doesn't exist or query fails, return default values
+      console.warn('Failed to fetch lead time statistics, using defaults:', error.message);
+      return {
+        avgLeadTime: 14,
+        stdDevLeadTime: 3
+      };
+    }
   }
 
   /**

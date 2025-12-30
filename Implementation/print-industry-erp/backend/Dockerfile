@@ -1,7 +1,7 @@
 # ============================================================================
 # Stage 1: Builder - Build TypeScript application
 # ============================================================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* ./
 
 # Install all dependencies (including dev dependencies for build)
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -26,7 +26,7 @@ RUN npm prune --production
 # ============================================================================
 # Stage 2: Production - Minimal runtime image
 # ============================================================================
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 # Install runtime dependencies
 RUN apk add --no-cache curl postgresql-client
@@ -68,7 +68,7 @@ CMD ["node", "dist/index.js"]
 # ============================================================================
 # Stage 3: Development - Hot reload support
 # ============================================================================
-FROM node:18-alpine AS development
+FROM node:20-alpine AS development
 
 WORKDIR /app
 
@@ -79,7 +79,7 @@ RUN apk add --no-cache python3 make g++ curl
 COPY package.json package-lock.json* ./
 
 # Install all dependencies
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy source code (can be overridden by volume mount)
 COPY . .

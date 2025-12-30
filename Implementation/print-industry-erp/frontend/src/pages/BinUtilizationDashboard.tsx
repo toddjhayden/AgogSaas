@@ -6,7 +6,6 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  CheckCircle,
   Warehouse,
   BarChart3,
   AlertCircle,
@@ -75,7 +74,7 @@ interface WarehouseUtilizationData {
 
 export const BinUtilizationDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const [selectedZone, setSelectedZone] = useState<string | undefined>(undefined);
+  const [selectedZone] = useState<string | undefined>(undefined);
 
   // Default facility ID - in production, this would come from user context
   const facilityId = 'facility-main-warehouse';
@@ -102,7 +101,6 @@ export const BinUtilizationDashboard: React.FC = () => {
   // High-priority recommendations for dashboard cards
   const highPriorityRecommendations = recommendations.filter(r => r.priority === 'HIGH');
   const consolidationOpportunities = recommendations.filter(r => r.type === 'CONSOLIDATE').length;
-  const rebalanceNeeded = recommendations.filter(r => r.type === 'REBALANCE').length;
 
   // Phase 1 optimization metrics - ABC Reclassification (RESLOT)
   const reslotRecommendations = recommendations.filter(r => r.type === 'RESLOT');
@@ -180,7 +178,7 @@ export const BinUtilizationDashboard: React.FC = () => {
           <div className="flex items-center space-x-2">
             <span className={`font-medium ${isReslot ? 'text-primary-600' : ''}`}>{type}</span>
             {isReslot && (
-              <Zap className="h-4 w-4 text-primary-600" title="ABC Reclassification (Phase 1 Optimization)" />
+              <Zap className="h-4 w-4 text-primary-600" />
             )}
           </div>
         );

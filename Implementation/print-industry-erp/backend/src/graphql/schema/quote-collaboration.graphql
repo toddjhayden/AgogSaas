@@ -1,0 +1,273 @@
+# =====================================================
+# QUOTE COLLABORATION MODULE
+# REQ-STRATEGIC-AUTO-1767108044308
+# =====================================================
+# Purpose: Real-time collaboration and live editing for quotes
+# Features: Optimistic locking, presence tracking, change audit trail
+# =====================================================
+
+scalar DateTime
+scalar JSON
+
+# =====================================================
+# TYPES
+# =====================================================
+
+type QuoteCollaborationResult {
+  quote: JSON
+  previousVersion: Int!
+  newVersion: Int!
+}
+
+type QuoteLineCollaborationResult {
+  line: JSON
+  previousVersion: Int!
+  newVersion: Int!
+}
+
+type FieldChange {
+  field: String!
+  oldValue: JSON
+  newValue: JSON
+}
+
+type ConflictingChange {
+  field: String!
+  yourValue: JSON
+  currentValue: JSON
+  lastChangedBy: ID!
+  lastChangedAt: DateTime!
+}
+
+type VersionConflictError {
+  message: String!
+  code: String!
+  expectedVersion: Int!
+  actualVersion: Int!
+  conflictingChanges: [ConflictingChange!]!
+}
+
+# =====================================================
+# ACTIVE SESSION / PRESENCE
+# =====================================================
+
+type ActiveSession {
+  sessionId: ID!
+  quoteId: ID!
+  userId: ID!
+  userName: String!
+  userEmail: String!
+  joinedAt: DateTime!
+  lastHeartbeat: DateTime!
+  currentLineId: ID
+  currentField: String
+  cursorPosition: Int
+  isEditing: Boolean!
+  status: UserPresenceStatus!
+}
+
+enum UserPresenceStatus {
+  VIEWING
+  EDITING
+  IDLE
+}
+
+# =====================================================
+# CHANGE HISTORY
+# =====================================================
+
+type QuoteChangeRecord {
+  id: ID!
+  quoteId: ID!
+  quoteLineId: ID
+  changedBy: ID!
+  changedByUsername: String!
+  changedAt: DateTime!
+  entityType: ChangeEntityType!
+  fieldName: String!
+  oldValue: JSON
+  newValue: JSON
+  changeType: ChangeType!
+  wasConflict: Boolean!
+  conflictResolution: ConflictResolution
+  entityVersionBefore: Int!
+  entityVersionAfter: Int!
+}
+
+enum ChangeEntityType {
+  QUOTE
+  QUOTE_LINE
+}
+
+enum ChangeType {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum ConflictResolution {
+  ACCEPTED
+  REJECTED
+  MERGED
+}
+
+# =====================================================
+# SUBSCRIPTION EVENT TYPES
+# =====================================================
+
+type QuoteChangedEvent {
+  eventId: ID!
+  timestamp: DateTime!
+  quoteId: ID!
+  userId: ID!
+  userName: String!
+  eventType: QuoteChangeEventType!
+  changes: [FieldChange!]!
+  version: Int!
+}
+
+enum QuoteChangeEventType {
+  QUOTE_UPDATED
+  QUOTE_STATUS_CHANGED
+  QUOTE_TOTALS_RECALCULATED
+}
+
+type QuoteLineChangedEvent {
+  eventId: ID!
+  timestamp: DateTime!
+  quoteId: ID!
+  lineId: ID!
+  lineNumber: Int!
+  userId: ID!
+  userName: String!
+  eventType: QuoteLineChangeEventType!
+  changes: [FieldChange!]
+  lineData: JSON
+  version: Int
+}
+
+enum QuoteLineChangeEventType {
+  LINE_ADDED
+  LINE_UPDATED
+  LINE_DELETED
+}
+
+type PresenceEvent {
+  eventId: ID!
+  timestamp: DateTime!
+  quoteId: ID!
+  sessionId: ID!
+  userId: ID!
+  userName: String!
+  userEmail: String!
+  eventType: PresenceEventType!
+  lineId: ID
+  field: String
+  cursorPosition: Int
+  isEditing: Boolean
+}
+
+enum PresenceEventType {
+  USER_JOINED
+  USER_LEFT
+  CURSOR_MOVED
+  EDITING_STATUS_CHANGED
+}
+
+# =====================================================
+# INPUT TYPES
+# =====================================================
+
+input VersionedQuoteUpdateInput {
+  quoteId: ID!
+  expectedVersion: Int!
+  changes: QuoteChangesInput!
+  sessionId: ID
+}
+
+input QuoteChangesInput {
+  notes: String
+  termsAndConditions: String
+  expirationDate: Date
+  status: String
+}
+
+input VersionedQuoteLineUpdateInput {
+  lineId: ID!
+  expectedVersion: Int!
+  changes: QuoteLineChangesInput!
+  sessionId: ID
+}
+
+input QuoteLineChangesInput {
+  quantity: Float
+  unitPrice: Float
+  discountPercentage: Float
+  description: String
+  leadTimeDays: Int
+  promisedDeliveryDate: Date
+}
+
+input JoinQuoteSessionInput {
+  sessionId: ID!
+  quoteId: ID!
+}
+
+input UpdateSessionHeartbeatInput {
+  sessionId: ID!
+  currentLineId: ID
+  currentField: String
+  cursorPosition: Int
+  isEditing: Boolean
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+type Query {
+  # Get active sessions for a quote
+  getActiveQuoteSessions(quoteId: ID!): [ActiveSession!]!
+
+  # Get change history for a quote
+  getQuoteChangeHistory(quoteId: ID!, limit: Int): [QuoteChangeRecord!]!
+
+  # Check if quote has been updated since version
+  hasQuoteBeenUpdated(quoteId: ID!, sinceVersion: Int!): Boolean!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+type Mutation {
+  # Update quote with version check
+  updateQuoteWithVersionCheck(input: VersionedQuoteUpdateInput!): QuoteCollaborationResult!
+
+  # Update quote line with version check
+  updateQuoteLineWithVersionCheck(input: VersionedQuoteLineUpdateInput!): QuoteLineCollaborationResult!
+
+  # Join a quote editing session
+  joinQuoteSession(input: JoinQuoteSessionInput!): ActiveSession!
+
+  # Leave a quote editing session
+  leaveQuoteSession(sessionId: ID!): Boolean!
+
+  # Update session heartbeat (presence)
+  updateSessionHeartbeat(input: UpdateSessionHeartbeatInput!): Boolean!
+}
+
+# =====================================================
+# SUBSCRIPTIONS
+# =====================================================
+
+type Subscription {
+  # Subscribe to quote header changes
+  quoteChanged(quoteId: ID!): QuoteChangedEvent!
+
+  # Subscribe to quote line changes
+  quoteLineChanged(quoteId: ID!): QuoteLineChangedEvent!
+
+  # Subscribe to presence updates (who's viewing/editing)
+  presenceUpdated(quoteId: ID!): PresenceEvent!
+}

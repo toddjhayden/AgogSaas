@@ -1,6 +1,13 @@
 import { Resolver, Query, Mutation, Args, Context, ID } from '@nestjs/graphql';
-import { UseGuards, Inject } from '@nestjs/common';
+import { UseGuards, UseInterceptors, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../../common/constants/roles';
+import { TenantContextInterceptor } from '../../common/interceptors/tenant-context.interceptor';
+import { ProductionAnalyticsService } from '../../modules/operations/services/production-analytics.service';
+import { PreflightService } from '../../modules/operations/services/preflight.service';
 
 /**
  * Operations GraphQL Resolver
@@ -13,11 +20,23 @@ import { Pool } from 'pg';
  * - OEE Calculations
  * - Maintenance Records
  * - Production Scheduling
+ * - Production Analytics (REQ-STRATEGIC-AUTO-1767048328660)
+ *
+ * Security (REQ-STRATEGIC-AUTO-1767066329944):
+ * - Authentication: JwtAuthGuard (all endpoints require valid JWT)
+ * - Authorization: RolesGuard (role-based access control)
+ * - Tenant Isolation: TenantContextInterceptor + RLS policies
  */
 
 @Resolver('Operations')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@UseInterceptors(TenantContextInterceptor)
 export class OperationsResolver {
-  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
+  constructor(
+    @Inject('DATABASE_POOL') private readonly db: Pool,
+    private readonly analyticsService: ProductionAnalyticsService,
+    private readonly preflightService: PreflightService,
+  ) {}
 
   // =====================================================
   // WORK CENTER QUERIES
@@ -1201,6 +1220,402 @@ export class OperationsResolver {
       createdBy: row.created_by,
       updatedAt: row.updated_at,
       updatedBy: row.updated_by
+    };
+  }
+
+  // =====================================================
+  // PRODUCTION ANALYTICS QUERIES
+  // =====================================================
+  // REQ: REQ-STRATEGIC-AUTO-1767048328660 - Real-Time Production Analytics Dashboard
+
+  @Query('productionSummary')
+  async getProductionSummary(
+    @Args('facilityId') facilityId: string,
+    @Context() context: any
+  ) {
+    const tenantId = context.tenantId || context.req?.user?.tenantId;
+    if (!tenantId) {
+      throw new Error('Tenant ID is required');
+    }
+
+    return this.analyticsService.getFacilitySummary(tenantId, facilityId);
+  }
+
+  @Query('workCenterSummaries')
+  async getWorkCenterSummaries(
+    @Args('facilityId') facilityId: string,
+    @Context() context: any
+  ) {
+    const tenantId = context.tenantId || context.req?.user?.tenantId;
+    if (!tenantId) {
+      throw new Error('Tenant ID is required');
+    }
+
+    return this.analyticsService.getWorkCenterSummaries(tenantId, facilityId);
+  }
+
+  @Query('productionRunSummaries')
+  async getProductionRunSummaries(
+    @Args('facilityId') facilityId: string,
+    @Args('workCenterId') workCenterId: string | undefined,
+    @Args('status') status: string | undefined,
+    @Args('limit') limit: number = 50,
+    @Context() context: any
+  ) {
+    const tenantId = context.tenantId || context.req?.user?.tenantId;
+    if (!tenantId) {
+      throw new Error('Tenant ID is required');
+    }
+
+    return this.analyticsService.getProductionRunSummaries(
+      tenantId,
+      facilityId,
+      workCenterId,
+      status,
+      limit
+    );
+  }
+
+  @Query('oEETrends')
+  async getOEETrends(
+    @Args('facilityId') facilityId: string,
+    @Args('workCenterId') workCenterId: string | undefined,
+    @Args('startDate') startDate: Date | undefined,
+    @Args('endDate') endDate: Date | undefined,
+    @Context() context: any
+  ) {
+    const tenantId = context.tenantId || context.req?.user?.tenantId;
+    if (!tenantId) {
+      throw new Error('Tenant ID is required');
+    }
+
+    return this.analyticsService.getOEETrends(
+      tenantId,
+      facilityId,
+      workCenterId,
+      startDate,
+      endDate
+    );
+  }
+
+  @Query('workCenterUtilization')
+  async getWorkCenterUtilization(
+    @Args('facilityId') facilityId: string,
+    @Context() context: any
+  ) {
+    const tenantId = context.tenantId || context.req?.user?.tenantId;
+    if (!tenantId) {
+      throw new Error('Tenant ID is required');
+    }
+
+    return this.analyticsService.getWorkCenterUtilization(tenantId, facilityId);
+  }
+
+  @Query('productionAlerts')
+  async getProductionAlerts(
+    @Args('facilityId') facilityId: string,
+    @Context() context: any
+  ) {
+    const tenantId = context.tenantId || context.req?.user?.tenantId;
+    if (!tenantId) {
+      throw new Error('Tenant ID is required');
+    }
+
+    return this.analyticsService.getProductionAlerts(tenantId, facilityId);
+  }
+
+  // =====================================================
+  // PREFLIGHT QUERIES
+  // =====================================================
+  // REQ: REQ-STRATEGIC-AUTO-1767066329942 - PDF Preflight & Color Management
+
+  @Query('preflightProfile')
+  async getPreflightProfile(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
+    const profile = await this.preflightService.getProfile(id);
+    if (!profile) {
+      throw new Error(`Preflight profile ${id} not found`);
+    }
+    return this.mapPreflightProfile(profile);
+  }
+
+  @Query('preflightProfiles')
+  async getPreflightProfiles(
+    @Args('tenantId') tenantId: string,
+    @Args('profileType') profileType: string | null,
+    @Args('isActive') isActive: boolean | null,
+    @Context() context: any
+  ) {
+    const profiles = await this.preflightService.listProfiles(tenantId, {
+      profileType: profileType || undefined,
+      isActive: isActive !== null ? isActive : undefined
+    });
+    return profiles.map(this.mapPreflightProfile);
+  }
+
+  @Query('preflightReport')
+  async getPreflightReport(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
+    const report = await this.preflightService.getReport(id);
+    if (!report) {
+      throw new Error(`Preflight report ${id} not found`);
+    }
+
+    // Get associated issues
+    const issues = await this.preflightService.getReportIssues(id);
+
+    // Get profile
+    const profile = await this.preflightService.getProfile(report.preflightProfileId);
+
+    return {
+      ...this.mapPreflightReport(report),
+      issues: issues.map(this.mapPreflightIssue),
+      preflightProfile: profile ? this.mapPreflightProfile(profile) : null
+    };
+  }
+
+  @Query('preflightReports')
+  async getPreflightReports(
+    @Args('tenantId') tenantId: string,
+    @Args('jobId') jobId: string | null,
+    @Args('status') status: string | null,
+    @Args('limit') limit: number = 50,
+    @Args('offset') offset: number = 0,
+    @Context() context: any
+  ) {
+    const reports = await this.preflightService.listReports(tenantId, {
+      jobId: jobId || undefined,
+      status: status || undefined,
+      limit,
+      offset
+    });
+
+    // Enhance with profile and issues
+    const enhancedReports = await Promise.all(
+      reports.map(async (report) => {
+        const profile = await this.preflightService.getProfile(report.preflightProfileId);
+        const issues = await this.preflightService.getReportIssues(report.id);
+
+        return {
+          ...this.mapPreflightReport(report),
+          preflightProfile: profile ? this.mapPreflightProfile(profile) : null,
+          issues: issues.map(this.mapPreflightIssue)
+        };
+      })
+    );
+
+    return enhancedReports;
+  }
+
+  @Query('preflightIssues')
+  async getPreflightIssues(
+    @Args('reportId') reportId: string,
+    @Context() context: any
+  ) {
+    const issues = await this.preflightService.getReportIssues(reportId);
+    return issues.map(this.mapPreflightIssue);
+  }
+
+  @Query('preflightStatistics')
+  async getPreflightStatistics(
+    @Args('tenantId') tenantId: string,
+    @Context() context: any
+  ) {
+    return this.preflightService.getStatistics(tenantId);
+  }
+
+  @Query('preflightErrorFrequency')
+  async getPreflightErrorFrequency(
+    @Args('tenantId') tenantId: string,
+    @Args('limit') limit: number = 10,
+    @Context() context: any
+  ) {
+    return this.preflightService.getErrorFrequency(tenantId, limit);
+  }
+
+  // =====================================================
+  // PREFLIGHT MUTATIONS
+  // =====================================================
+
+  @Mutation('createPreflightProfile')
+  async createPreflightProfile(
+    @Args('input') input: any,
+    @Context() context: any
+  ) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    const profile = await this.preflightService.createProfile({
+      tenantId,
+      profileName: input.profileName,
+      profileType: input.profileType,
+      rules: input.rules,
+      isDefault: input.isDefault,
+      description: input.description,
+      userId
+    });
+
+    return this.mapPreflightProfile(profile);
+  }
+
+  @Mutation('updatePreflightProfile')
+  async updatePreflightProfile(
+    @Args('id') id: string,
+    @Args('input') input: any,
+    @Context() context: any
+  ) {
+    const userId = context.req.user.id;
+
+    const profile = await this.preflightService.updateProfile(id, {
+      profileName: input.profileName,
+      rules: input.rules,
+      isDefault: input.isDefault,
+      isActive: input.isActive,
+      description: input.description,
+      versionNotes: input.versionNotes,
+      userId
+    });
+
+    return this.mapPreflightProfile(profile);
+  }
+
+  @Mutation('validatePdf')
+  async validatePdf(
+    @Args('input') input: any,
+    @Context() context: any
+  ) {
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    const report = await this.preflightService.validatePdf({
+      artworkFileId: input.artworkFileId,
+      jobId: input.jobId,
+      estimateId: input.estimateId,
+      profileId: input.profileId,
+      fileName: input.fileName,
+      tenantId,
+      userId
+    });
+
+    // Get profile and issues
+    const profile = await this.preflightService.getProfile(report.preflightProfileId);
+    const issues = await this.preflightService.getReportIssues(report.id);
+
+    return {
+      ...this.mapPreflightReport(report),
+      preflightProfile: profile ? this.mapPreflightProfile(profile) : null,
+      issues: issues.map(this.mapPreflightIssue)
+    };
+  }
+
+  @Mutation('approvePreflightReport')
+  async approvePreflightReport(
+    @Args('id') id: string,
+    @Args('notes') notes: string | null,
+    @Context() context: any
+  ) {
+    const userId = context.req.user.id;
+
+    const report = await this.preflightService.approveReport(
+      id,
+      userId,
+      notes || undefined
+    );
+
+    // Get profile and issues
+    const profile = await this.preflightService.getProfile(report.preflightProfileId);
+    const issues = await this.preflightService.getReportIssues(report.id);
+
+    return {
+      ...this.mapPreflightReport(report),
+      preflightProfile: profile ? this.mapPreflightProfile(profile) : null,
+      issues: issues.map(this.mapPreflightIssue)
+    };
+  }
+
+  @Mutation('rejectPreflightReport')
+  async rejectPreflightReport(
+    @Args('id') id: string,
+    @Args('reason') reason: string,
+    @Context() context: any
+  ) {
+    const userId = context.req.user.id;
+
+    const report = await this.preflightService.rejectReport(id, userId, reason);
+
+    // Get profile and issues
+    const profile = await this.preflightService.getProfile(report.preflightProfileId);
+    const issues = await this.preflightService.getReportIssues(report.id);
+
+    return {
+      ...this.mapPreflightReport(report),
+      preflightProfile: profile ? this.mapPreflightProfile(profile) : null,
+      issues: issues.map(this.mapPreflightIssue)
+    };
+  }
+
+  // =====================================================
+  // PREFLIGHT MAPPERS
+  // =====================================================
+
+  private mapPreflightProfile(profile: any) {
+    return {
+      id: profile.id,
+      tenantId: profile.tenantId,
+      profileName: profile.profileName,
+      profileType: profile.profileType,
+      version: profile.version,
+      rules: profile.rules,
+      isDefault: profile.isDefault,
+      isActive: profile.isActive
+    };
+  }
+
+  private mapPreflightReport(report: any) {
+    return {
+      id: report.id,
+      tenantId: report.tenantId,
+      jobId: report.jobId,
+      estimateId: report.estimateId,
+      artworkFileId: report.artworkFileId,
+      fileName: report.fileName,
+      fileSizeBytes: report.fileSizeBytes,
+      fileHash: report.fileHash,
+      profileVersion: report.profileVersion,
+      status: report.status,
+      totalErrors: report.totalErrors,
+      totalWarnings: report.totalWarnings,
+      totalInfo: report.totalInfo,
+      pdfMetadata: report.pdfVersion ? {
+        pdfVersion: report.pdfVersion,
+        pageCount: report.pageCount
+      } : null,
+      colorAnalysis: report.colorSpace ? {
+        colorSpace: report.colorSpace
+      } : null,
+      processingTimeMs: report.processingTimeMs,
+      processedAt: report.processedAt
+    };
+  }
+
+  private mapPreflightIssue(issue: any) {
+    return {
+      id: issue.id,
+      preflightReportId: issue.preflightReportId,
+      issueType: issue.issueType,
+      errorCode: issue.errorCode,
+      severity: issue.severity,
+      pageNumber: issue.pageNumber,
+      elementType: issue.elementType,
+      message: issue.message,
+      suggestedFix: issue.suggestedFix,
+      elementName: issue.elementName,
+      elementMetadata: issue.elementMetadata,
+      createdAt: issue.createdAt
     };
   }
 }

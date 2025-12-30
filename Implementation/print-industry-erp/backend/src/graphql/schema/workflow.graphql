@@ -1,0 +1,392 @@
+# =====================================================
+# Workflow Automation Engine - GraphQL Schema
+# REQ: REQ-STRATEGIC-AUTO-1767108044309
+# =====================================================
+
+# =====================================================
+# TYPES
+# =====================================================
+
+type WorkflowDefinition {
+  id: ID!
+  tenantId: ID!
+  name: String!
+  description: String
+  version: Int!
+  isActive: Boolean!
+  category: String
+  triggerConfig: JSON!
+  nodes: [WorkflowNode!]!
+  routes: [WorkflowRoute!]!
+  slaHours: Int
+  escalationEnabled: Boolean!
+  escalationUserId: ID
+  createdBy: ID
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type WorkflowNode {
+  id: ID!
+  nodeType: WorkflowNodeType!
+  name: String!
+  approverUserId: ID
+  approverRole: String
+  approvalLogic: ApprovalLogicType
+  serviceType: ServiceTaskType
+  serviceConfig: JSON
+  formFields: [FormField!]
+  assignedUserId: ID
+  assignedRole: String
+  conditionType: ConditionType
+  conditionExpression: String
+  slaHours: Int
+  timeoutAction: TimeoutAction
+}
+
+type WorkflowRoute {
+  fromNodeId: ID!
+  toNodeId: ID!
+  condition: String
+  isDefault: Boolean
+}
+
+type FormField {
+  name: String!
+  type: String!
+  label: String
+  required: Boolean
+  options: [String!]
+}
+
+type WorkflowInstance {
+  id: ID!
+  tenantId: ID!
+  workflowDefinitionId: ID!
+  workflowName: String!
+  workflowVersion: Int!
+  contextEntityType: String
+  contextEntityId: ID
+  contextData: JSON
+  status: WorkflowStatus!
+  currentNodeId: String
+  startedAt: DateTime!
+  completedAt: DateTime
+  slaDeadline: DateTime
+  createdBy: ID
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  nodes: [WorkflowInstanceNode!]
+  history: [WorkflowHistoryEntry!]
+}
+
+type WorkflowInstanceNode {
+  id: ID!
+  tenantId: ID!
+  instanceId: ID!
+  nodeId: ID!
+  nodeName: String
+  nodeType: WorkflowNodeType
+  status: NodeStatus!
+  assignedUserId: ID
+  startedAt: DateTime
+  completedAt: DateTime
+  slaDeadline: DateTime
+  action: NodeAction
+  actionByUserId: ID
+  actionDate: DateTime
+  comments: String
+  outputData: JSON
+  createdAt: DateTime!
+}
+
+type WorkflowHistoryEntry {
+  id: ID!
+  tenantId: ID!
+  instanceId: ID!
+  nodeId: String
+  eventType: WorkflowEventType!
+  eventByUserId: ID
+  eventDate: DateTime!
+  eventData: JSON
+  instanceSnapshot: JSON
+  createdAt: DateTime!
+}
+
+type UserTask {
+  taskId: ID!
+  instanceId: ID!
+  workflowName: String!
+  taskName: String!
+  nodeType: WorkflowNodeType!
+  assignedUserId: ID!
+  slaDeadline: DateTime
+  urgencyLevel: UrgencyLevel!
+  hoursRemaining: Float
+  isOverdue: Boolean!
+  contextEntityType: String
+  contextEntityId: ID
+  contextData: JSON
+  taskCreatedAt: DateTime!
+  tenantId: ID!
+}
+
+type WorkflowAnalytics {
+  workflowDefinitionId: ID!
+  workflowName: String!
+  workflowVersion: Int!
+  category: String
+  tenantId: ID!
+  totalInstances: Int!
+  completedInstances: Int!
+  failedInstances: Int!
+  runningInstances: Int!
+  escalatedInstances: Int!
+  avgCompletionHours: Float
+  onTimeCompletions: Int!
+  lateCompletions: Int!
+  slaCompliancePercentage: Float
+}
+
+# =====================================================
+# ENUMS
+# =====================================================
+
+enum WorkflowNodeType {
+  APPROVAL
+  SERVICE_TASK
+  USER_TASK
+  GATEWAY
+  SUB_WORKFLOW
+}
+
+enum ApprovalLogicType {
+  SEQUENTIAL
+  PARALLEL
+  ANY_ONE
+}
+
+enum ServiceTaskType {
+  AGENT_SPAWN
+  HTTP_CALL
+  DATABASE_QUERY
+  EMAIL_SEND
+}
+
+enum ConditionType {
+  AMOUNT_BASED
+  FIELD_VALUE
+  EXPRESSION
+}
+
+enum TimeoutAction {
+  ESCALATE
+  AUTO_APPROVE
+  FAIL
+}
+
+enum WorkflowStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  BLOCKED
+  ESCALATED
+  CANCELLED
+}
+
+enum NodeStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+enum NodeAction {
+  APPROVED
+  REJECTED
+  COMPLETED
+  FAILED
+  DELEGATED
+  ESCALATED
+}
+
+enum WorkflowEventType {
+  STARTED
+  NODE_ENTERED
+  NODE_COMPLETED
+  APPROVED
+  REJECTED
+  ESCALATED
+  COMPLETED
+  FAILED
+  DELEGATED
+  CANCELLED
+  SLA_BREACHED
+}
+
+enum UrgencyLevel {
+  URGENT
+  WARNING
+  NORMAL
+}
+
+# =====================================================
+# INPUTS
+# =====================================================
+
+input CreateWorkflowDefinitionInput {
+  name: String!
+  description: String
+  category: String
+  triggerConfig: JSON!
+  nodes: [WorkflowNodeInput!]!
+  routes: [WorkflowRouteInput!]!
+  slaHours: Int
+  escalationEnabled: Boolean
+  escalationUserId: ID
+}
+
+input WorkflowNodeInput {
+  id: ID!
+  nodeType: WorkflowNodeType!
+  name: String!
+  approverUserId: ID
+  approverRole: String
+  approvalLogic: ApprovalLogicType
+  serviceType: ServiceTaskType
+  serviceConfig: JSON
+  formFields: [FormFieldInput!]
+  assignedUserId: ID
+  assignedRole: String
+  conditionType: ConditionType
+  conditionExpression: String
+  slaHours: Int
+  timeoutAction: TimeoutAction
+}
+
+input WorkflowRouteInput {
+  fromNodeId: ID!
+  toNodeId: ID!
+  condition: String
+  isDefault: Boolean
+}
+
+input FormFieldInput {
+  name: String!
+  type: String!
+  label: String
+  required: Boolean
+  options: [String!]
+}
+
+input UpdateWorkflowDefinitionInput {
+  name: String
+  description: String
+  category: String
+  triggerConfig: JSON
+  nodes: [WorkflowNodeInput!]
+  routes: [WorkflowRouteInput!]
+  slaHours: Int
+  escalationEnabled: Boolean
+  escalationUserId: ID
+}
+
+input StartWorkflowInput {
+  workflowDefinitionId: ID!
+  contextEntityType: String!
+  contextEntityId: ID!
+  contextData: JSON
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+type Query {
+  # Workflow Definitions
+  workflowDefinitions(
+    tenantId: ID!
+    isActive: Boolean
+    category: String
+  ): [WorkflowDefinition!]!
+
+  workflowDefinition(id: ID!): WorkflowDefinition
+
+  # Workflow Instances
+  workflowInstances(
+    status: WorkflowStatus
+    entityType: String
+    limit: Int
+  ): [WorkflowInstance!]!
+
+  workflowInstance(id: ID!): WorkflowInstance
+
+  workflowInstanceHistory(instanceId: ID!): [WorkflowHistoryEntry!]!
+
+  # User Tasks
+  myPendingTasks(
+    urgencyLevel: UrgencyLevel
+    limit: Int
+  ): [UserTask!]!
+
+  # Analytics
+  workflowAnalytics(
+    workflowDefinitionId: ID
+    category: String
+  ): [WorkflowAnalytics!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+type Mutation {
+  # Workflow Definition Management
+  createWorkflowDefinition(
+    input: CreateWorkflowDefinitionInput!
+  ): WorkflowDefinition!
+
+  updateWorkflowDefinition(
+    id: ID!
+    input: UpdateWorkflowDefinitionInput!
+  ): WorkflowDefinition!
+
+  publishWorkflowDefinition(id: ID!): WorkflowDefinition!
+
+  archiveWorkflowDefinition(id: ID!): WorkflowDefinition!
+
+  # Workflow Execution
+  startWorkflow(input: StartWorkflowInput!): WorkflowInstance!
+
+  # User Actions on Tasks
+  approveTask(
+    taskId: ID!
+    comments: String
+  ): WorkflowInstance!
+
+  rejectTask(
+    taskId: ID!
+    reason: String!
+  ): WorkflowInstance!
+
+  delegateTask(
+    taskId: ID!
+    delegateToUserId: ID!
+  ): WorkflowInstance!
+
+  completeUserTask(
+    taskId: ID!
+    formData: JSON!
+  ): WorkflowInstance!
+
+  # Instance Management
+  cancelWorkflow(instanceId: ID!): WorkflowInstance!
+}
+
+# =====================================================
+# SCALARS
+# =====================================================
+
+scalar DateTime
+scalar JSON

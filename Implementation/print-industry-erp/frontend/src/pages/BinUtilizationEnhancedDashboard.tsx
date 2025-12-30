@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { useTranslation } from 'react-i18next';
 import {
   Activity,
   AlertTriangle,
@@ -9,7 +8,6 @@ import {
   CheckCircle,
   Clock,
   Loader,
-  Package,
   Target,
   TrendingDown,
   TrendingUp,
@@ -120,9 +118,7 @@ interface OptimizationRecommendation {
   materialName?: string;
 }
 
-export const BinUtilizationOptimizationDashboard: React.FC = () => {
-  const { t } = useTranslation();
-  const [selectedZone, setSelectedZone] = useState<string | undefined>(undefined);
+export const BinUtilizationEnhancedDashboard: React.FC = () => {
   const [selectedUtilizationStatus, setSelectedUtilizationStatus] = useState<
     'UNDERUTILIZED' | 'NORMAL' | 'OPTIMAL' | 'OVERUTILIZED' | undefined
   >(undefined);
@@ -172,10 +168,7 @@ export const BinUtilizationOptimizationDashboard: React.FC = () => {
   );
 
   // Fetch material velocity analysis
-  const {
-    data: velocityData,
-    loading: velocityLoading,
-  } = useQuery<{ getMaterialVelocityAnalysis: MaterialVelocityAnalysis[] }>(
+  useQuery<{ getMaterialVelocityAnalysis: MaterialVelocityAnalysis[] }>(
     GET_MATERIAL_VELOCITY_ANALYSIS,
     {
       variables: {
@@ -200,7 +193,6 @@ export const BinUtilizationOptimizationDashboard: React.FC = () => {
   // Fetch optimization recommendations
   const {
     data: recommendationsData,
-    loading: recommendationsLoading,
   } = useQuery<{ getOptimizationRecommendations: OptimizationRecommendation[] }>(
     GET_ENHANCED_OPTIMIZATION_RECOMMENDATIONS,
     {

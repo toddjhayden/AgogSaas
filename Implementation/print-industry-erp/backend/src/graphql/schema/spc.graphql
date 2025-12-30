@@ -1,0 +1,545 @@
+# =====================================================
+# STATISTICAL PROCESS CONTROL (SPC) SCHEMA
+# =====================================================
+# Purpose: GraphQL schema for SPC operations and quality analytics
+# REQ: REQ-STRATEGIC-AUTO-1767048328664 - Quality Management & SPC
+# Created: 2025-12-29
+# =====================================================
+
+# =====================================================
+# ENUMS
+# =====================================================
+
+enum SPCChartType {
+  XBAR_R
+  XBAR_S
+  I_MR
+  P_CHART
+  NP_CHART
+  C_CHART
+  U_CHART
+}
+
+enum SPCDataSource {
+  IOT_SENSOR
+  QUALITY_INSPECTION
+  MANUAL_ENTRY
+}
+
+enum SPCMeasurementQuality {
+  VERIFIED
+  ESTIMATED
+  QUESTIONABLE
+  REJECTED
+}
+
+enum SPCCalibrationStatus {
+  IN_CALIBRATION
+  OUT_OF_CALIBRATION
+  UNKNOWN
+}
+
+enum SPCMeasurementMethod {
+  AUTO_SENSOR
+  MANUAL_SPECTRO
+  MANUAL_ENTRY
+  VISUAL
+}
+
+enum SPCAlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SPCAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  INVESTIGATING
+  RESOLVED
+  FALSE_ALARM
+}
+
+enum SPCWesternElectricRule {
+  POINT_BEYOND_3SIGMA
+  TWO_OF_THREE_BEYOND_2SIGMA
+  FOUR_OF_FIVE_BEYOND_1SIGMA
+  EIGHT_CONSECUTIVE_SAME_SIDE
+  SIX_TRENDING
+  FOURTEEN_ALTERNATING
+  FIFTEEN_WITHIN_1SIGMA
+  EIGHT_BEYOND_1SIGMA
+}
+
+enum SPCCapabilityStatus {
+  EXCELLENT
+  ADEQUATE
+  MARGINAL
+  POOR
+}
+
+enum SPCRecalculationFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ON_DEMAND
+}
+
+# =====================================================
+# TYPES
+# =====================================================
+
+"""
+SPCControlChartDataPoint - Individual SPC measurement
+"""
+type SPCControlChartDataPoint {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Production context
+  productionRunId: ID
+  workCenterId: ID
+  productId: ID
+
+  # Parameter
+  parameterCode: String!
+  parameterName: String!
+  parameterType: String
+  chartType: SPCChartType!
+
+  # Measurement
+  measurementTimestamp: DateTime!
+  subgroupNumber: Int
+  subgroupSize: Int
+  measuredValue: Float!
+  measurementUnit: String
+
+  # Context
+  operatorUserId: ID
+  measurementMethod: SPCMeasurementMethod
+  measurementDeviceId: ID
+  qualityInspectionId: ID
+  lotNumber: String
+
+  # Data source
+  dataSource: SPCDataSource!
+  sensorReadingId: ID
+
+  # Data quality
+  measurementQuality: SPCMeasurementQuality!
+  confidenceScore: Float
+  calibrationStatus: SPCCalibrationStatus
+  dataQualityFlags: JSON
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+SPCControlLimits - Control limit configuration for a parameter
+"""
+type SPCControlLimits {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Parameter
+  parameterCode: String!
+  parameterName: String!
+  chartType: SPCChartType!
+
+  # Scope
+  productId: ID
+  workCenterId: ID
+  materialId: ID
+
+  # Specification limits
+  upperSpecLimit: Float
+  lowerSpecLimit: Float
+  targetValue: Float
+
+  # Control limits
+  upperControlLimit: Float!
+  centerLine: Float!
+  lowerControlLimit: Float
+
+  # Process statistics
+  processMean: Float
+  processStdDev: Float
+  processRange: Float
+
+  # Calculation metadata
+  calculationMethod: String
+  sampleSizeUsed: Int
+  dataPeriodStart: DateTime
+  dataPeriodEnd: DateTime
+
+  # Validity
+  effectiveFrom: Date!
+  effectiveTo: Date
+  isActive: Boolean!
+
+  # Recalculation
+  recalculationFrequency: SPCRecalculationFrequency
+  lastRecalculatedAt: DateTime
+  nextRecalculationAt: DateTime
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime
+  updatedBy: ID
+}
+
+"""
+SPCProcessCapability - Process capability analysis results
+"""
+type SPCProcessCapability {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Process
+  parameterCode: String!
+  parameterName: String!
+  productId: ID
+  workCenterId: ID
+
+  # Analysis period
+  analysisDate: Date!
+  analysisPeriodStart: DateTime!
+  analysisPeriodEnd: DateTime!
+
+  # Specification limits
+  upperSpecLimit: Float!
+  lowerSpecLimit: Float!
+  targetValue: Float
+
+  # Process statistics
+  processMean: Float!
+  processStdDev: Float!
+  processStdDevWithin: Float
+  processStdDevOverall: Float
+  sampleSize: Int!
+  subgroupCount: Int
+
+  # Short-term capability
+  cp: Float
+  cpk: Float
+  cpu: Float
+  cpl: Float
+
+  # Long-term performance
+  pp: Float
+  ppk: Float
+
+  # Process centering
+  k: Float
+
+  # Defect rates (PPM)
+  expectedPpmTotal: Float
+  expectedPpmUpper: Float
+  expectedPpmLower: Float
+
+  # Sigma level
+  sigmaLevel: Float
+
+  # Assessment
+  capabilityStatus: SPCCapabilityStatus!
+  isCentered: Boolean
+  isCapable: Boolean
+
+  # Recommendations
+  recommendations: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+}
+
+"""
+SPCOutOfControlAlert - Western Electric rule violation
+"""
+type SPCOutOfControlAlert {
+  id: ID!
+  tenantId: ID!
+  facilityId: ID!
+
+  # Production context
+  productionRunId: ID
+  workCenterId: ID!
+  productId: ID
+
+  # Alert details
+  alertTimestamp: DateTime!
+  parameterCode: String!
+  parameterName: String!
+  chartType: SPCChartType
+
+  # Rule violated
+  ruleType: SPCWesternElectricRule!
+  ruleDescription: String
+
+  # Measurement details
+  measuredValue: Float
+  controlLimitViolated: Float
+  deviationFromCenter: Float
+  sigmaLevel: Float
+
+  # Data points involved
+  chartDataIds: [ID!]
+
+  # Severity
+  severity: SPCAlertSeverity!
+
+  # Response tracking
+  status: SPCAlertStatus!
+  acknowledgedByUserId: ID
+  acknowledgedAt: DateTime
+
+  # Resolution
+  rootCause: String
+  correctiveAction: String
+  resolvedByUserId: ID
+  resolvedAt: DateTime
+
+  # Quality defect linkage
+  qualityDefectId: ID
+
+  # Notifications
+  notificationsSent: JSON
+
+  # Alert aggregation
+  isSuppressed: Boolean
+  suppressedReason: String
+  alertCount: Int
+
+  # Audit
+  createdAt: DateTime!
+}
+
+"""
+SPCDashboardSummary - Dashboard aggregation for SPC overview
+"""
+type SPCDashboardSummary {
+  totalParametersMonitored: Int!
+  parametersInControl: Int!
+  parametersOutOfControl: Int!
+  openAlerts: Int!
+  criticalAlerts: Int!
+  avgCpk: Float
+  avgCp: Float
+  capableProcesses: Int!
+  marginalProcesses: Int!
+  poorProcesses: Int!
+  alertsByRuleType: [SPCAlertCountByRuleType!]!
+  topParameters: [SPCParameterSummary!]!
+}
+
+type SPCAlertCountByRuleType {
+  ruleType: SPCWesternElectricRule!
+  count: Int!
+}
+
+type SPCParameterSummary {
+  parameterCode: String!
+  parameterName: String!
+  currentCpk: Float
+  alertCount: Int!
+  status: String!
+}
+
+# =====================================================
+# INPUT TYPES
+# =====================================================
+
+input CreateSPCMeasurementInput {
+  tenantId: ID!
+  facilityId: ID!
+  parameterCode: String!
+  parameterName: String!
+  parameterType: String
+  chartType: SPCChartType!
+  measuredValue: Float!
+  measurementUnit: String
+  productionRunId: ID
+  workCenterId: ID
+  productId: ID
+  measurementMethod: SPCMeasurementMethod
+  measurementDeviceId: ID
+  operatorUserId: ID
+  qualityInspectionId: ID
+  lotNumber: String
+  dataSource: SPCDataSource!
+}
+
+input CreateSPCControlLimitsInput {
+  tenantId: ID!
+  facilityId: ID!
+  parameterCode: String!
+  parameterName: String!
+  chartType: SPCChartType!
+  productId: ID
+  workCenterId: ID
+  materialId: ID
+  upperSpecLimit: Float
+  lowerSpecLimit: Float
+  targetValue: Float
+  upperControlLimit: Float!
+  centerLine: Float!
+  lowerControlLimit: Float
+  processMean: Float
+  processStdDev: Float
+  processRange: Float
+  calculationMethod: String
+  effectiveFrom: Date!
+  recalculationFrequency: SPCRecalculationFrequency
+}
+
+input UpdateSPCControlLimitsInput {
+  upperSpecLimit: Float
+  lowerSpecLimit: Float
+  targetValue: Float
+  upperControlLimit: Float
+  centerLine: Float
+  lowerControlLimit: Float
+  isActive: Boolean
+  recalculationFrequency: SPCRecalculationFrequency
+}
+
+input SPCCapabilityAnalysisInput {
+  tenantId: ID!
+  facilityId: ID
+  parameterCode: String!
+  productId: ID
+  workCenterId: ID
+  startDate: DateTime!
+  endDate: DateTime!
+}
+
+input SPCAlertFilterInput {
+  tenantId: ID!
+  facilityId: ID
+  status: SPCAlertStatus
+  severity: SPCAlertSeverity
+  startDate: DateTime
+  endDate: DateTime
+  parameterCode: String
+  workCenterId: ID
+  limit: Int
+}
+
+input SPCChartDataFilterInput {
+  tenantId: ID!
+  facilityId: ID
+  parameterCode: String!
+  chartType: SPCChartType
+  startDate: DateTime
+  endDate: DateTime
+  productionRunId: ID
+  workCenterId: ID
+  measurementQuality: SPCMeasurementQuality
+  limit: Int
+}
+
+input DateRangeInput {
+  startDate: Date!
+  endDate: Date!
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+type Query {
+  # Control chart data retrieval
+  spcControlChartData(filter: SPCChartDataFilterInput!): [SPCControlChartDataPoint!]! @complexity(value: 10, multipliers: ["filter.limit"])
+
+  # Control limits
+  spcControlLimits(
+    tenantId: ID!
+    parameterCode: String!
+    productId: ID
+    workCenterId: ID
+    asOfDate: Date
+  ): SPCControlLimits
+
+  # All active control limits for a tenant
+  spcAllControlLimits(
+    tenantId: ID!
+    facilityId: ID
+    isActive: Boolean
+  ): [SPCControlLimits!]!
+
+  # Process capability analysis
+  spcProcessCapability(input: SPCCapabilityAnalysisInput!): SPCProcessCapability!
+
+  # Historical capability trends
+  spcCapabilityTrends(
+    tenantId: ID!
+    facilityId: ID
+    parameterCode: String!
+    productId: ID
+    startDate: Date!
+    endDate: Date!
+  ): [SPCProcessCapability!]!
+
+  # Out-of-control alerts
+  spcAlerts(filter: SPCAlertFilterInput!): [SPCOutOfControlAlert!]!
+
+  # SPC dashboard summary
+  spcDashboardSummary(
+    tenantId: ID!
+    facilityId: ID!
+    dateRange: DateRangeInput!
+  ): SPCDashboardSummary!
+
+  # Single alert by ID
+  spcAlert(id: ID!): SPCOutOfControlAlert
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+type Mutation {
+  # Manual measurement recording
+  recordSPCMeasurement(input: CreateSPCMeasurementInput!): SPCControlChartDataPoint!
+
+  # Control limits management
+  createSPCControlLimits(input: CreateSPCControlLimitsInput!): SPCControlLimits!
+
+  updateSPCControlLimits(id: ID!, input: UpdateSPCControlLimitsInput!): SPCControlLimits!
+
+  recalculateSPCControlLimits(
+    tenantId: ID!
+    parameterCode: String!
+    facilityId: ID!
+    dataRangeInDays: Int
+  ): SPCControlLimits!
+
+  # Alert management
+  acknowledgeSPCAlert(id: ID!, userId: ID!): SPCOutOfControlAlert!
+
+  resolveSPCAlert(
+    id: ID!
+    userId: ID!
+    rootCause: String!
+    correctiveAction: String!
+  ): SPCOutOfControlAlert!
+
+  # Capability analysis trigger
+  runCapabilityAnalysis(input: SPCCapabilityAnalysisInput!): SPCProcessCapability!
+}
+
+# =====================================================
+# SUBSCRIPTIONS (Future enhancement)
+# =====================================================
+
+# type Subscription {
+#   spcNewMeasurement(parameterCode: String!): SPCControlChartDataPoint!
+#   spcNewAlert(tenantId: ID!, facilityId: ID): SPCOutOfControlAlert!
+# }

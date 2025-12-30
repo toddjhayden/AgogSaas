@@ -23,13 +23,11 @@ import { QuoteCostingService } from './quote-costing.service';
 
 @Injectable()
 export class QuotePricingService {
-  private pricingRuleEngine: PricingRuleEngineService;
-  private costingService: QuoteCostingService;
-
-  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {
-    this.pricingRuleEngine = new PricingRuleEngineService(db);
-    this.costingService = new QuoteCostingService(db);
-  }
+  constructor(
+    @Inject('DATABASE_POOL') private readonly db: Pool,
+    private readonly pricingRuleEngine: PricingRuleEngineService,
+    private readonly costingService: QuoteCostingService
+  ) {}
 
   /**
    * Calculate complete pricing for a quote line including price, cost, and margin

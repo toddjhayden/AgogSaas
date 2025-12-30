@@ -227,6 +227,13 @@ RUN_AGENTS.bat
 4. **[Standards/code/git-standards.md](../../Standards/code/git-standards.md)** - Commit format, branch naming
 5. **[.github/AI_ONBOARDING.md](../../.github/AI_ONBOARDING.md)** - Complete onboarding guide
 
+**🧪 MANDATORY Testing Documents (ALL AGENTS):**
+
+6. **[TESTING_ADDENDUM.md](./TESTING_ADDENDUM.md)** - Testing requirements for your role
+7. **[ORCHESTRATOR_TESTING_ENFORCEMENT.md](./ORCHESTRATOR_TESTING_ENFORCEMENT.md)** - How work is validated
+
+**⚠️ Work submitted without testing evidence WILL BE REJECTED.**
+
 ---
 
 ## NATS Deliverable Pattern
@@ -235,6 +242,28 @@ RUN_AGENTS.bat
 
 **Problem:** Spawning agents with full context consumes massive tokens
 **Solution:** Deliverable pattern - agents publish full reports to NATS, return tiny completion notices
+
+### 🚨 CRITICAL: Deliverables are stored in DATABASE, NOT files
+
+**DO NOT write deliverable `.md` files to disk!**
+
+The HostListener captures your completion JSON and stores everything in the `nats_deliverable_cache` table in the `agent_memory` database (port 5434). This is the **source of truth** for all agent deliverables.
+
+**Why?**
+- Files clutter the repository (we had 300+ orphaned deliverable files)
+- Database allows querying by REQ number, agent, stage
+- Automatic tracking of when deliverables were created
+- No need for file cleanup or archival
+
+**What you SHOULD do:**
+- Return your completion notice JSON to stdout
+- The HostListener automatically stores it in the database
+- Berry can query `nats_deliverable_cache` to review all deliverables for a REQ
+
+**What you should NOT do:**
+- ❌ Write files to `$AGENT_OUTPUT_DIR/deliverables/`
+- ❌ Write files like `AGENT_NAME_DELIVERABLE_REQ-XXX.md`
+- ❌ Create deliverable files in `backend/` or `frontend/` directories
 
 ### Your Deliverable (TWO outputs)
 
@@ -454,11 +483,31 @@ UNIQUE (tenant_id, sales_point_id, order_number)       -- Uniqueness constraint
 ```
 REQ → Cynthia (Research)
     → Sylvia (Critique/Gate)
-    → Roy (Backend) + Jen (Frontend)
-    → Billy (QA)
+    → Roy (Backend)
+    → Jen (Frontend)
+    → Billy (Backend QA)
+    → Liz (Frontend QA)
+    → [Todd] (Performance - if needed)
+    → [Vic] (Security - if needed)
     → Priya (Statistics)
+    → Berry (DevOps - commit/deploy)
+    → Tim (Documentation - update docs)
     → DONE
 ```
+
+**QA Team (4 agents):**
+| Agent | Focus | Conditional |
+|-------|-------|-------------|
+| Billy | Backend QA (API, GraphQL, database, RLS) | Always |
+| Liz | Frontend QA (Playwright, UI, accessibility) | Always |
+| Todd | Performance (load testing, N+1 queries) | If `needs_todd: true` |
+| Vic | Security (penetration, vulnerabilities) | If `needs_vic: true` |
+
+**Tim (Documentation):** After Berry commits, Tim updates:
+- CHANGELOG.md (always)
+- API.md (if endpoints changed)
+- README.md (if setup changed)
+- User guides (if UI changed)
 
 ### Communication Protocol
 

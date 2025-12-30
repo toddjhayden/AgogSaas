@@ -1,0 +1,348 @@
+# =====================================================
+# CRM & SALES PIPELINE MANAGEMENT - GraphQL Schema
+# =====================================================
+# Integrated CRM with contact management, opportunity tracking,
+# sales pipeline, and activity logging
+
+# =====================================================
+# TYPES
+# =====================================================
+
+type Contact {
+  id: ID!
+  tenantId: ID!
+  firstName: String!
+  lastName: String!
+  middleName: String
+  suffix: String
+  customerId: ID
+  jobTitle: String
+  department: String
+  emailPrimary: String
+  emailSecondary: String
+  phoneOffice: String
+  phoneMobile: String
+  phoneHome: String
+  linkedinUrl: String
+  twitterHandle: String
+  websiteUrl: String
+  addressLine1: String
+  addressLine2: String
+  city: String
+  state: String
+  postalCode: String
+  country: String
+  contactType: String
+  leadSource: String
+  industry: String
+  companySize: String
+  preferredContactMethod: String
+  communicationFrequency: String
+  timezone: String
+  languageCode: String
+  interests: [String!]
+  painPoints: [String!]
+  buyingAuthority: String
+  lastContactDate: DateTime
+  lastContactType: String
+  nextFollowUpDate: DateTime
+  engagementScore: Int
+  ownerUserId: ID
+  isActive: Boolean!
+  doNotContact: Boolean!
+  emailOptOut: Boolean!
+  marketingConsent: Boolean!
+  marketingConsentDate: DateTime
+  marketingConsentSource: String
+  notes: String
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type PipelineStage {
+  id: ID!
+  tenantId: ID!
+  stageName: String!
+  stageDescription: String
+  sequenceNumber: Int!
+  probabilityPercentage: Int!
+  isClosedWon: Boolean!
+  isClosedLost: Boolean!
+  targetDaysInStage: Int
+  isActive: Boolean!
+}
+
+type Opportunity {
+  id: ID!
+  tenantId: ID!
+  opportunityNumber: String!
+  opportunityName: String!
+  description: String
+  customerId: ID
+  primaryContactId: ID
+  pipelineStageId: ID!
+  stageEnteredAt: DateTime!
+  estimatedValue: Float!
+  currencyCode: String!
+  probabilityPercentage: Int
+  weightedValue: Float
+  expectedCloseDate: DateTime
+  actualCloseDate: DateTime
+  opportunityType: String
+  leadSource: String
+  productCategories: [String!]
+  primaryProductId: ID
+  competitors: [String!]
+  ourCompetitiveAdvantage: String
+  decisionMakers: [ID!]
+  decisionCriteria: String
+  budgetConfirmed: Boolean!
+  authorityConfirmed: Boolean!
+  needConfirmed: Boolean!
+  timelineConfirmed: Boolean!
+  ownerUserId: ID!
+  teamMembers: [ID!]
+  lastActivityDate: DateTime
+  nextActionDate: DateTime
+  nextActionDescription: String
+  status: String!
+  lostReason: String
+  lostReasonNotes: String
+  quoteId: ID
+  salesOrderId: ID
+  tags: [String!]
+  notes: String
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type Activity {
+  id: ID!
+  tenantId: ID!
+  activityType: String!
+  activitySubject: String!
+  activityDescription: String
+  opportunityId: ID
+  contactId: ID
+  customerId: ID
+  activityDate: DateTime!
+  durationMinutes: Int
+  location: String
+  attendees: [ID!]
+  externalAttendees: [String!]
+  outcome: String
+  nextSteps: String
+  emailSent: Boolean!
+  emailOpened: Boolean!
+  emailClicked: Boolean!
+  ownerUserId: ID!
+  isCompleted: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type Note {
+  id: ID!
+  tenantId: ID!
+  noteTitle: String
+  noteContent: String!
+  opportunityId: ID
+  contactId: ID
+  customerId: ID
+  activityId: ID
+  noteType: String
+  isPinned: Boolean!
+  isPrivate: Boolean!
+  createdBy: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime
+}
+
+type OpportunityStageHistory {
+  id: ID!
+  opportunityId: ID!
+  fromStageId: ID
+  fromStageName: String
+  toStageId: ID!
+  toStageName: String!
+  stageChangedAt: DateTime!
+  daysInPreviousStage: Int
+  changedByUserId: ID!
+  changeReason: String
+}
+
+type PipelineSummary {
+  stageId: ID!
+  stageName: String!
+  sequenceNumber: Int!
+  opportunityCount: Int!
+  totalValue: Float!
+  totalWeightedValue: Float!
+  avgProbability: Float!
+}
+
+type ActivitySummary {
+  activityType: String!
+  activityCount: Int!
+  totalMinutes: Int!
+  completedCount: Int!
+}
+
+# =====================================================
+# INPUTS
+# =====================================================
+
+input CreateContactInput {
+  firstName: String!
+  lastName: String!
+  middleName: String
+  suffix: String
+  customerId: ID
+  jobTitle: String
+  department: String
+  emailPrimary: String
+  emailSecondary: String
+  phoneOffice: String
+  phoneMobile: String
+  phoneHome: String
+  contactType: String
+  leadSource: String
+  ownerUserId: ID
+  notes: String
+}
+
+input UpdateContactInput {
+  id: ID!
+  firstName: String
+  lastName: String
+  jobTitle: String
+  emailPrimary: String
+  phoneMobile: String
+  nextFollowUpDate: DateTime
+  ownerUserId: ID
+  notes: String
+}
+
+input CreateOpportunityInput {
+  opportunityName: String!
+  description: String
+  customerId: ID
+  primaryContactId: ID
+  pipelineStageId: ID!
+  estimatedValue: Float!
+  currencyCode: String
+  expectedCloseDate: DateTime
+  opportunityType: String
+  leadSource: String
+  ownerUserId: ID!
+}
+
+input UpdateOpportunityInput {
+  id: ID!
+  opportunityName: String
+  description: String
+  pipelineStageId: ID
+  estimatedValue: Float
+  probabilityPercentage: Int
+  expectedCloseDate: DateTime
+  nextActionDate: DateTime
+  nextActionDescription: String
+  status: String
+  lostReason: String
+  lostReasonNotes: String
+}
+
+input CreateActivityInput {
+  activityType: String!
+  activitySubject: String!
+  activityDescription: String
+  opportunityId: ID
+  contactId: ID
+  customerId: ID
+  activityDate: DateTime
+  durationMinutes: Int
+  ownerUserId: ID!
+}
+
+input CreateNoteInput {
+  noteTitle: String
+  noteContent: String!
+  opportunityId: ID
+  contactId: ID
+  customerId: ID
+  activityId: ID
+  noteType: String
+  isPinned: Boolean
+  isPrivate: Boolean
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+type Query {
+  # Contacts
+  getContact(id: ID!): Contact
+  getContactsByCustomer(customerId: ID!): [Contact!]!
+  getContactsByOwner(ownerUserId: ID!): [Contact!]!
+  searchContacts(searchTerm: String!): [Contact!]!
+  getContactsRequiringFollowUp(ownerUserId: ID): [Contact!]!
+
+  # Pipeline Stages
+  getPipelineStages: [PipelineStage!]!
+  getPipelineStage(id: ID!): PipelineStage
+
+  # Opportunities
+  getOpportunity(id: ID!): Opportunity
+  getOpportunitiesByCustomer(customerId: ID!): [Opportunity!]!
+  getOpportunitiesByOwner(ownerUserId: ID!, status: String): [Opportunity!]!
+  getOpportunitiesByStage(pipelineStageId: ID!): [Opportunity!]!
+  getPipelineSummary(ownerUserId: ID): [PipelineSummary!]!
+  getOpportunitiesRequiringAction(ownerUserId: ID): [Opportunity!]!
+  getOpportunityStageHistory(opportunityId: ID!): [OpportunityStageHistory!]!
+
+  # Activities
+  getActivity(id: ID!): Activity
+  getActivitiesByOpportunity(opportunityId: ID!): [Activity!]!
+  getActivitiesByContact(contactId: ID!): [Activity!]!
+  getActivitiesByCustomer(customerId: ID!): [Activity!]!
+  getActivitiesByOwner(ownerUserId: ID!, limit: Int): [Activity!]!
+  getRecentActivities(ownerUserId: ID, limit: Int): [Activity!]!
+  getActivitySummary(ownerUserId: ID!, startDate: DateTime!, endDate: DateTime!): [ActivitySummary!]!
+
+  # Notes
+  getNote(id: ID!): Note
+  getNotesByOpportunity(opportunityId: ID!): [Note!]!
+  getNotesByContact(contactId: ID!): [Note!]!
+  getNotesByCustomer(customerId: ID!): [Note!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+type Mutation {
+  # Contacts
+  createContact(input: CreateContactInput!): Contact!
+  updateContact(input: UpdateContactInput!): Contact!
+  deleteContact(id: ID!): Boolean!
+
+  # Opportunities
+  createOpportunity(input: CreateOpportunityInput!): Opportunity!
+  updateOpportunity(input: UpdateOpportunityInput!): Opportunity!
+  deleteOpportunity(id: ID!): Boolean!
+
+  # Activities
+  createActivity(input: CreateActivityInput!): Activity!
+  markActivityCompleted(id: ID!, outcome: String, nextSteps: String): Activity!
+  deleteActivity(id: ID!): Boolean!
+
+  # Notes
+  createNote(input: CreateNoteInput!): Note!
+  updateNote(id: ID!, noteContent: String!, noteTitle: String): Note!
+  togglePinNote(id: ID!): Note!
+  deleteNote(id: ID!): Boolean!
+
+  # Pipeline Management
+  initializeDefaultPipelineStages: Boolean!
+}

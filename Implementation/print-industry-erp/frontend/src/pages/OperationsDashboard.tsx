@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Pause, CheckCircle, Clock } from 'lucide-react';
+import { Play, CheckCircle, Clock } from 'lucide-react';
 import { DataTable } from '../components/common/DataTable';
 import { Chart } from '../components/common/Chart';
 import { Breadcrumb } from '../components/layout/Breadcrumb';

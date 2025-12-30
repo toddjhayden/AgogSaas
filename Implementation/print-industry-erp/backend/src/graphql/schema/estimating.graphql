@@ -1,0 +1,353 @@
+# =====================================================
+# ESTIMATING MODULE - GraphQL Schema
+# REQ-STRATEGIC-AUTO-1767048328661
+# =====================================================
+
+type Estimate {
+  id: ID!
+  tenantId: ID!
+  estimateNumber: String!
+  estimateDate: Date!
+  revisionNumber: Int!
+  parentEstimateId: ID
+
+  # Customer/Job Info
+  customerId: ID
+  customerName: String
+  jobDescription: String!
+  quantityEstimated: Int!
+  productSpecification: JSON
+
+  # Cost Summary
+  totalMaterialCost: Float!
+  totalLaborCost: Float!
+  totalEquipmentCost: Float!
+  totalOverheadCost: Float!
+  totalOutsourcingCost: Float!
+  totalCost: Float!
+
+  # Pricing
+  suggestedPrice: Float
+  targetMarginPercentage: Float
+  markupPercentage: Float
+
+  # Time Estimates
+  estimatedLeadTimeDays: Int
+  estimatedProductionHours: Float
+
+  # Status
+  status: EstimateStatus!
+
+  # Template
+  isTemplate: Boolean!
+  templateName: String
+
+  # Conversion
+  convertedToQuoteId: ID
+  convertedAt: DateTime
+  convertedBy: ID
+
+  # Relations
+  operations: [EstimateOperation!]!
+  materials: [EstimateMaterial!]!
+
+  # Notes
+  internalNotes: String
+  customerNotes: String
+
+  # Audit
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: ID
+  updatedBy: ID
+  approvedBy: ID
+  approvedAt: DateTime
+}
+
+type EstimateOperation {
+  id: ID!
+  tenantId: ID!
+  estimateId: ID!
+
+  # Sequencing
+  sequenceNumber: Int!
+  operationType: OperationType!
+  operationDescription: String
+
+  # Resources
+  equipmentId: ID
+  workCenterId: ID
+
+  # Time
+  setupTimeHours: Float
+  runTimeHours: Float
+  totalTimeHours: Float
+  runRatePerHour: Float
+
+  # Labor
+  laborHours: Float
+  laborRatePerHour: Float
+  numberOfOperators: Int
+
+  # Costs
+  materialCost: Float!
+  laborCost: Float!
+  equipmentCost: Float!
+  overheadCost: Float!
+  outsourcingCost: Float!
+  operationTotalCost: Float!
+
+  # Outsourcing
+  isOutsourced: Boolean!
+  vendorId: ID
+  vendorQuoteAmount: Float
+
+  # Dependencies
+  predecessorOperationId: ID
+  dependencyType: DependencyType
+
+  # Standard Cost Reference
+  standardCostId: ID
+  costCalculationMethod: CostCalculationMethod
+
+  # Specifications
+  operationSpecifications: JSON
+
+  # Audit
+  createdAt: DateTime!
+}
+
+type EstimateMaterial {
+  id: ID!
+  tenantId: ID!
+  estimateId: ID!
+  estimateOperationId: ID
+
+  # Material Info
+  materialId: ID!
+  materialCode: String!
+  materialName: String!
+  materialCategory: MaterialCategory
+
+  # Quantity
+  quantityRequired: Float!
+  unitOfMeasure: String!
+  scrapPercentage: Float
+  quantityWithScrap: Float
+
+  # Cost
+  unitCost: Float!
+  totalCost: Float!
+  costSource: CostSource
+
+  # Vendor
+  preferredVendorId: ID
+  preferredVendorName: String
+
+  # Substitution
+  substituteMaterialId: ID
+  isSubstitute: Boolean!
+
+  # Specifications
+  materialSpecifications: JSON
+
+  # Audit
+  createdAt: DateTime!
+}
+
+# =====================================================
+# ENUMS
+# =====================================================
+
+enum EstimateStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  CONVERTED_TO_QUOTE
+  REJECTED
+}
+
+enum OperationType {
+  PREPRESS
+  PRINTING
+  CUTTING
+  FOLDING
+  STITCHING
+  BINDING
+  COATING
+  PACKAGING
+  DIE_CUTTING
+  LAMINATING
+}
+
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+}
+
+enum CostCalculationMethod {
+  STANDARD_COST
+  MANUAL_ENTRY
+  BOM_EXPLOSION
+  HISTORICAL_AVERAGE
+}
+
+enum MaterialCategory {
+  SUBSTRATE
+  INK
+  COATING
+  PLATES
+  DIES
+  CONSUMABLES
+}
+
+enum CostSource {
+  STANDARD_COST
+  CURRENT_PRICE
+  VENDOR_QUOTE
+  HISTORICAL_AVERAGE
+}
+
+# =====================================================
+# INPUTS
+# =====================================================
+
+input CreateEstimateInput {
+  customerName: String!
+  customerId: ID
+  jobDescription: String!
+  quantityEstimated: Int!
+  productSpecification: JSON
+  targetMarginPercentage: Float
+  internalNotes: String
+  customerNotes: String
+}
+
+input UpdateEstimateInput {
+  customerName: String
+  customerId: ID
+  jobDescription: String
+  quantityEstimated: Int
+  productSpecification: JSON
+  suggestedPrice: Float
+  targetMarginPercentage: Float
+  markupPercentage: Float
+  estimatedLeadTimeDays: Int
+  internalNotes: String
+  customerNotes: String
+  status: EstimateStatus
+}
+
+input AddEstimateOperationInput {
+  estimateId: ID!
+  operationType: OperationType!
+  operationDescription: String
+  sequenceNumber: Int
+  equipmentId: ID
+  workCenterId: ID
+  setupTimeHours: Float
+  runTimeHours: Float
+  runRatePerHour: Float
+  laborHours: Float
+  laborRatePerHour: Float
+  numberOfOperators: Int
+  isOutsourced: Boolean
+  vendorId: ID
+  vendorQuoteAmount: Float
+  standardCostId: ID
+  costCalculationMethod: CostCalculationMethod
+  operationSpecifications: JSON
+}
+
+input UpdateEstimateOperationInput {
+  operationType: OperationType
+  operationDescription: String
+  sequenceNumber: Int
+  setupTimeHours: Float
+  runTimeHours: Float
+  laborHours: Float
+  laborRatePerHour: Float
+  numberOfOperators: Int
+  vendorQuoteAmount: Float
+  operationSpecifications: JSON
+}
+
+input AddEstimateMaterialInput {
+  estimateId: ID!
+  estimateOperationId: ID
+  materialId: ID!
+  materialCode: String!
+  materialName: String!
+  materialCategory: MaterialCategory
+  quantityRequired: Float!
+  unitOfMeasure: String!
+  scrapPercentage: Float
+  unitCost: Float!
+  costSource: CostSource
+  preferredVendorId: ID
+  preferredVendorName: String
+  materialSpecifications: JSON
+}
+
+input ConvertToQuoteInput {
+  customerId: ID!
+  validUntil: Date!
+  salesRepId: ID
+  notes: String
+}
+
+input EstimateFilters {
+  status: EstimateStatus
+  customerId: ID
+  dateFrom: Date
+  dateTo: Date
+  isTemplate: Boolean
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+extend type Query {
+  estimate(estimateId: ID!): Estimate
+  estimates(filters: EstimateFilters, limit: Int, offset: Int): [Estimate!]!
+  estimateByNumber(estimateNumber: String!, revisionNumber: Int): Estimate
+  estimateTemplates: [Estimate!]!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+extend type Mutation {
+  # Estimate CRUD
+  createEstimate(input: CreateEstimateInput!): Estimate!
+  updateEstimate(estimateId: ID!, input: UpdateEstimateInput!): Estimate!
+  deleteEstimate(estimateId: ID!): Boolean!
+
+  # Operations
+  addEstimateOperation(input: AddEstimateOperationInput!): EstimateOperation!
+  updateEstimateOperation(operationId: ID!, input: UpdateEstimateOperationInput!): EstimateOperation!
+  deleteEstimateOperation(operationId: ID!): Boolean!
+
+  # Materials
+  addEstimateMaterial(input: AddEstimateMaterialInput!): EstimateMaterial!
+  deleteEstimateMaterial(materialId: ID!): Boolean!
+
+  # Cost Calculations
+  recalculateEstimate(estimateId: ID!): Estimate!
+
+  # Versioning
+  createEstimateRevision(estimateId: ID!): Estimate!
+
+  # Conversion
+  convertEstimateToQuote(estimateId: ID!, quoteInput: ConvertToQuoteInput!): Quote!
+
+  # Templates
+  createEstimateTemplate(estimateId: ID!, templateName: String!): Estimate!
+  applyEstimateTemplate(estimateId: ID!, templateId: ID!): Estimate!
+
+  # Approval
+  approveEstimate(estimateId: ID!): Estimate!
+  rejectEstimate(estimateId: ID!, reason: String): Estimate!
+}

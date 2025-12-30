@@ -3,11 +3,15 @@
  * Launches all autonomous work generation services
  */
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { MetricsProviderService } from '../src/proactive/metrics-provider.service';
 import { RecommendationPublisherService } from '../src/proactive/recommendation-publisher.service';
 import { RecoveryHealthCheckDaemon } from '../src/proactive/recovery-health-check.daemon';
 import { ValueChainExpertDaemon } from '../src/proactive/value-chain-expert.daemon';
 import { ProductOwnerDaemon } from '../src/proactive/product-owner.daemon';
+import { SeniorAuditorDaemon } from '../src/proactive/senior-auditor.daemon';
 
 async function main() {
   console.log('🤖 Starting Proactive Daemons...\n');
@@ -56,11 +60,17 @@ async function main() {
     console.log('✅ Sarah monitoring sales domain\n');
 
     // 7. Start Product Owner: Alex (Procurement)
-    console.log('[7/6] Starting Product Owner: Alex (Procurement)...');
+    console.log('[7/8] Starting Product Owner: Alex (Procurement)...');
     const alex = new ProductOwnerDaemon('procurement');
     await alex.initialize();
     await alex.startDaemon();
     console.log('✅ Alex monitoring procurement domain\n');
+
+    // 8. Start Senior Auditor: Sam (System Health)
+    console.log('[8/8] Starting Senior Auditor: Sam...');
+    const sam = new SeniorAuditorDaemon();
+    await sam.start(); // Sam runs startup audit immediately, then daily at 2 AM
+    console.log('✅ Sam running (startup audit NOW, then daily at 2 AM)\n');
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ All Proactive Daemons Running!');
@@ -69,11 +79,12 @@ async function main() {
     console.log('Services:');
     console.log('  • Metrics Provider: Publishing every 5 minutes');
     console.log('  • Recommendation Publisher: Listening for recommendations');
-    console.log('  • Recovery & Health Check: Runs NOW, then every 5 hours (recovers stuck workflows, restarts services)');
-    console.log('  • Value Chain Expert: Runs in 5 minutes, then every 5 hours (generates new work)');
-    console.log('  • Marcus (PO): Monitoring inventory metrics every 6 hours');
-    console.log('  • Sarah (PO): Monitoring sales metrics every 6 hours');
-    console.log('  • Alex (PO): Monitoring procurement metrics every 6 hours\n');
+    console.log('  • Recovery & Health Check: Runs NOW, then every 5 hours');
+    console.log('  • Value Chain Expert: Runs in 5 minutes, then every 5 hours');
+    console.log('  • Marcus (PO): Monitoring inventory metrics every 5 hours');
+    console.log('  • Sarah (PO): Monitoring sales metrics every 5 hours');
+    console.log('  • Alex (PO): Monitoring procurement metrics every 5 hours');
+    console.log('  • Sam (Auditor): Runs NOW, then daily at 2 AM (2hr timeout, creates REQs for issues)\n');
 
     console.log('NATS Subjects:');
     console.log('  • agog.metrics.* - Business metrics published here');
@@ -93,6 +104,7 @@ async function main() {
       await marcus.close();
       await sarah.close();
       await alex.close();
+      await sam.stop();
 
       console.log('✅ All daemons stopped');
       process.exit(0);

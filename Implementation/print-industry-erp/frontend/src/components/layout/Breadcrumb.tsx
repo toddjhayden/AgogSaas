@@ -1,10 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
 export const Breadcrumb: React.FC = () => {
-  const { t } = useTranslation();
   const location = useLocation();
   const pathnames = location.pathname.split('/').filter((x) => x);
 

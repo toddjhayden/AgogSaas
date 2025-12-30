@@ -1,0 +1,409 @@
+# Advanced Reporting & Business Intelligence Suite
+# REQ-STRATEGIC-AUTO-1767048328662
+#
+# This schema provides:
+# 1. Cross-domain analytics queries (vendor → production, customer → warehouse)
+# 2. Export functionality (PDF, Excel, CSV)
+# 3. Pre-built report templates
+# 4. Analytics aggregations and KPIs
+
+# ============================================================================
+# CROSS-DOMAIN ANALYTICS
+# ============================================================================
+
+"""
+Vendor impact on production operations
+Correlates vendor performance with manufacturing efficiency
+"""
+type VendorProductionImpact {
+  vendorId: ID!
+  vendorName: String!
+  tenantId: ID!
+
+  # Vendor Performance Metrics
+  onTimeDeliveryPct: Float!
+  qualityAcceptancePct: Float!
+  avgLeadTimeDays: Float!
+
+  # Production Impact Metrics
+  productionOEE: Float!
+  productionDowntimeHours: Float!
+  materialShortageIncidents: Int!
+  estimatedCostImpact: Float!
+
+  # Statistical Analysis
+  correlationCoefficient: Float!
+  pValue: Float!
+  isStatisticallySignificant: Boolean!
+
+  # Time Period
+  startDate: Date!
+  endDate: Date!
+  dataPoints: Int!
+}
+
+"""
+Customer profitability analysis across all touchpoints
+Includes sales, warehouse costs, and quality issues
+"""
+type CustomerProfitability {
+  customerId: ID!
+  customerName: String!
+  tenantId: ID!
+
+  # Revenue Metrics
+  totalRevenue: Float!
+  totalOrders: Int!
+  avgOrderValue: Float!
+
+  # Cost Metrics
+  warehouseCosts: Float!
+  qualityCosts: Float!
+  shippingCosts: Float!
+  totalCosts: Float!
+
+  # Profitability
+  grossProfit: Float!
+  grossMarginPct: Float!
+  netProfit: Float!
+  netMarginPct: Float!
+
+  # Warehouse Impact
+  avgBinUtilizationPct: Float!
+  totalStorageDays: Int!
+  crossDockOpportunities: Int!
+
+  # Quality Impact
+  qualityIssues: Int!
+  returnRate: Float!
+
+  # Time Period
+  startDate: Date!
+  endDate: Date!
+}
+
+"""
+End-to-end order cycle time analysis
+Tracks order from entry through production, warehouse, and shipping
+"""
+type OrderCycleAnalysis {
+  orderId: ID!
+  orderNumber: String!
+  customerId: ID!
+  customerName: String!
+  tenantId: ID!
+
+  # Cycle Time Breakdown (in hours)
+  quoteToOrderTime: Float!
+  orderToProductionTime: Float!
+  productionTime: Float!
+  productionToWarehouseTime: Float!
+  warehouseTime: Float!
+  shippingTime: Float!
+  totalCycleTime: Float!
+
+  # Performance vs Benchmarks
+  targetCycleTime: Float!
+  varianceHours: Float!
+  variancePct: Float!
+  performanceRating: String! # EXCELLENT, GOOD, AVERAGE, POOR
+
+  # Bottleneck Identification
+  bottleneckStage: String!
+  bottleneckDuration: Float!
+  bottleneckReason: String
+
+  # Timestamps
+  orderDate: DateTime!
+  completionDate: DateTime
+  isComplete: Boolean!
+}
+
+"""
+Material flow analysis across the supply chain
+Tracks material from vendor through warehouse to production
+"""
+type MaterialFlowAnalysis {
+  materialId: ID!
+  materialCode: String!
+  materialDescription: String!
+  tenantId: ID!
+
+  # Supply Chain Metrics
+  avgLeadTimeDays: Float!
+  avgWarehouseDwellDays: Float!
+  avgProductionConsumptionRate: Float!
+
+  # Inventory Metrics
+  currentStock: Float!
+  safetyStock: Float!
+  reorderPoint: Float!
+  avgInventoryValue: Float!
+
+  # Vendor Performance
+  primaryVendorId: ID!
+  primaryVendorName: String!
+  vendorOnTimeDeliveryPct: Float!
+  vendorQualityPct: Float!
+
+  # Warehouse Performance
+  avgBinUtilization: Float!
+  putawayEfficiency: Float!
+  pickingEfficiency: Float!
+
+  # Production Demand
+  avgMonthlyDemand: Float!
+  demandVariability: Float!
+  stockoutRisk: String! # LOW, MEDIUM, HIGH, CRITICAL
+
+  # Time Period
+  startDate: Date!
+  endDate: Date!
+}
+
+# ============================================================================
+# EXPORT FUNCTIONALITY
+# ============================================================================
+
+"""
+Export format options for reports
+"""
+enum ExportFormat {
+  PDF
+  EXCEL
+  CSV
+  JSON
+}
+
+"""
+Export request configuration
+"""
+input ExportReportInput {
+  reportType: ReportType!
+  format: ExportFormat!
+
+  # Report parameters
+  tenantId: ID!
+  facilityId: ID
+  startDate: Date!
+  endDate: Date!
+
+  # Filters (JSON object for flexibility)
+  filters: JSON
+
+  # Export options
+  includeCharts: Boolean
+  includeRawData: Boolean
+  emailTo: [String!]
+
+  # Template customization
+  templateId: String
+  customTitle: String
+  customFooter: String
+}
+
+"""
+Report types available for export
+"""
+enum ReportType {
+  # Cross-domain reports
+  VENDOR_PRODUCTION_IMPACT
+  CUSTOMER_PROFITABILITY
+  ORDER_CYCLE_ANALYSIS
+  MATERIAL_FLOW
+
+  # Domain-specific reports
+  VENDOR_SCORECARD
+  BIN_UTILIZATION
+  INVENTORY_FORECAST
+  PRODUCTION_OEE
+  FINANCIAL_SUMMARY
+
+  # Executive reports
+  EXECUTIVE_DASHBOARD
+  KPI_SUMMARY
+}
+
+"""
+Export job result
+"""
+type ExportResult {
+  exportId: ID!
+  reportType: ReportType!
+  format: ExportFormat!
+  status: ExportStatus!
+
+  # Download information
+  downloadUrl: String
+  fileSize: Int
+  expiresAt: DateTime
+
+  # Execution metadata
+  requestedAt: DateTime!
+  completedAt: DateTime
+  executionTimeMs: Int
+
+  # Error information
+  error: String
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+# ============================================================================
+# ANALYTICS AGGREGATIONS
+# ============================================================================
+
+"""
+Executive KPI dashboard summary
+"""
+type ExecutiveKPISummary {
+  tenantId: ID!
+  facilityId: ID
+  periodStart: Date!
+  periodEnd: Date!
+
+  # Financial KPIs
+  totalRevenue: Float!
+  totalCosts: Float!
+  grossProfit: Float!
+  grossMarginPct: Float!
+
+  # Operational KPIs
+  avgOEE: Float!
+  avgBinUtilization: Float!
+  avgOnTimeDelivery: Float!
+  avgOrderCycleTime: Float!
+
+  # Vendor KPIs
+  vendorCount: Int!
+  avgVendorRating: Float!
+  criticalVendorIssues: Int!
+
+  # Customer KPIs
+  activeCustomers: Int!
+  avgCustomerMargin: Float!
+  customerSatisfaction: Float
+
+  # Forecast KPIs
+  forecastAccuracyPct: Float!
+  stockoutRiskMaterials: Int!
+  excessInventoryValue: Float!
+
+  # Trends (vs previous period)
+  revenueTrend: Float!
+  oeeTrend: Float!
+  marginTrend: Float!
+}
+
+"""
+Time-series data point for trend analysis
+"""
+type TimeSeriesDataPoint {
+  timestamp: DateTime!
+  value: Float!
+  label: String
+}
+
+"""
+Trend analysis result
+"""
+type TrendAnalysis {
+  metric: String!
+  period: String! # DAILY, WEEKLY, MONTHLY
+  dataPoints: [TimeSeriesDataPoint!]!
+
+  # Statistical metrics
+  avgValue: Float!
+  minValue: Float!
+  maxValue: Float!
+  stdDev: Float!
+
+  # Trend direction
+  trend: String! # INCREASING, DECREASING, STABLE, VOLATILE
+  trendStrength: Float! # 0-1
+
+  # Anomalies
+  anomalyCount: Int!
+  lastAnomaly: DateTime
+}
+
+# ============================================================================
+# QUERY OPERATIONS
+# ============================================================================
+
+type Query {
+  # Cross-Domain Analytics
+  vendorProductionImpact(
+    vendorId: ID!
+    startDate: Date!
+    endDate: Date!
+    tenantId: ID!
+  ): VendorProductionImpact
+
+  customerProfitability(
+    customerId: ID!
+    startDate: Date!
+    endDate: Date!
+    tenantId: ID!
+    includeWarehouseCosts: Boolean
+    includeQualityCosts: Boolean
+  ): CustomerProfitability
+
+  orderCycleAnalysis(
+    orderId: ID!
+    tenantId: ID!
+  ): OrderCycleAnalysis
+
+  materialFlowAnalysis(
+    materialId: ID!
+    startDate: Date!
+    endDate: Date!
+    tenantId: ID!
+  ): MaterialFlowAnalysis
+
+  # Aggregations
+  executiveKPISummary(
+    tenantId: ID!
+    facilityId: ID
+    startDate: Date!
+    endDate: Date!
+  ): ExecutiveKPISummary
+
+  trendAnalysis(
+    metric: String!
+    period: String!
+    startDate: Date!
+    endDate: Date!
+    tenantId: ID!
+    facilityId: ID
+  ): TrendAnalysis
+
+  # Export status
+  exportStatus(exportId: ID!): ExportResult
+}
+
+# ============================================================================
+# MUTATION OPERATIONS
+# ============================================================================
+
+type Mutation {
+  # Export operations
+  exportReport(input: ExportReportInput!): ExportResult!
+
+  # Cancel export
+  cancelExport(exportId: ID!): Boolean!
+}
+
+# ============================================================================
+# SCALARS
+# ============================================================================
+
+scalar Date
+scalar DateTime
+scalar JSON

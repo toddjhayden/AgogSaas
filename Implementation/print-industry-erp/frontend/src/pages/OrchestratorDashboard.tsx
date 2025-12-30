@@ -63,7 +63,7 @@ export const OrchestratorDashboard = () => {
     { variables: { last: 10 }, pollInterval: autoRefresh ? 10000 : 0 }
   );
 
-  const { data: escalationsData, loading: escalationsLoading, refetch: refetchEscalations } =
+  const { data: escalationsData, refetch: refetchEscalations } =
     useQuery(GET_ESCALATION_QUEUE, { pollInterval: autoRefresh ? 30000 : 0 });
 
   const { data: healthData, loading: healthLoading, refetch: refetchHealth } = useQuery(

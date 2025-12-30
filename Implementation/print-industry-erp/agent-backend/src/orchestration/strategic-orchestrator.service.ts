@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CircuitBreaker, CircuitState } from './circuit-breaker';
 import { WorkflowPersistenceService } from './workflow-persistence.service';
+import { AgentKnowledgeService } from '../knowledge/agent-knowledge.service';
 
 interface StrategicDecision {
   agent: string;
@@ -25,9 +26,10 @@ export class StrategicOrchestratorService {
   private agentSpawner!: AgentSpawnerService;
   private orchestrator!: OrchestratorService;
   private mcpClient!: MCPMemoryClient;
+  private knowledge!: AgentKnowledgeService;
 
   // Path to OWNER_REQUESTS.md file (mounted in Docker at /app/project-spirit)
-  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || 'D:/GitHub/agogsaas/project-spirit/owner_requests/OWNER_REQUESTS.md';
+  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md';
 
   // Track which requests have been processed
   private processedRequests: Set<string> = new Set();
@@ -37,6 +39,9 @@ export class StrategicOrchestratorService {
   // Circuit breaker for preventing runaway workflows
   private circuitBreaker = new CircuitBreaker();
   private persistence!: WorkflowPersistenceService;
+
+  // Gap Fix #12: Concurrency limit
+  private readonly MAX_CONCURRENT_WORKFLOWS = 5;
 
   async initialize(): Promise<void> {
     // Connect to NATS with authentication
@@ -80,11 +85,15 @@ export class StrategicOrchestratorService {
     // Initialize MCP Memory Client
     this.mcpClient = new MCPMemoryClient();
 
+    // Initialize Agent Knowledge Service (learnings, decisions, cache)
+    this.knowledge = new AgentKnowledgeService();
+    console.log('[StrategicOrchestrator] ✅ Agent Knowledge Service initialized');
+
     // Initialize workflow persistence
     this.persistence = new WorkflowPersistenceService();
     await this.recoverWorkflows();
 
-    console.log('[StrategicOrchestrator] ✅ Initialized successfully (with memory integration)');
+    console.log('[StrategicOrchestrator] ✅ Initialized successfully (with memory + knowledge integration)');
   }
 
   /**
@@ -142,20 +151,107 @@ export class StrategicOrchestratorService {
   /**
    * Recover workflows from PostgreSQL on startup
    */
+  /**
+   * Gap Fix #2, #4, #8: Comprehensive workflow recovery on startup
+   */
   private async recoverWorkflows(): Promise<void> {
+    console.log('[StrategicOrchestrator] Starting workflow recovery...');
+
     try {
-      const workflows = await this.persistence.recoverWorkflows();
-      
-      if (workflows.length === 0) {
-        console.log('[StrategicOrchestrator] No workflows to recover');
+      // 1. Recover from PostgreSQL persistence
+      const persistedWorkflows = await this.persistence.recoverWorkflows();
+      for (const workflow of persistedWorkflows) {
+        console.log(`[StrategicOrchestrator] Recovered persisted workflow ${workflow.reqNumber} at stage ${workflow.currentStage}`);
+        this.processedRequests.add(workflow.reqNumber);
+      }
+
+      // 2. Scan OWNER_REQUESTS.md for IN_PROGRESS workflows
+      if (!fs.existsSync(this.ownerRequestsPath)) {
+        console.log('[StrategicOrchestrator] OWNER_REQUESTS.md not found, skipping recovery');
         return;
       }
 
-      for (const workflow of workflows) {
-        console.log(`[StrategicOrchestrator] Recovering workflow ${workflow.reqNumber} at stage ${workflow.currentStage}`);
-        // Mark as already processed to prevent duplicate spawning
-        this.processedRequests.add(workflow.reqNumber);
+      const content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+      const reqPattern = /### (REQ-[A-Z0-9-]+):/g;
+      const statusPattern = /\*\*Status\*\*:\s*(\w+)/;
+
+      let match;
+      const inProgressReqs: string[] = [];
+      const blockedReqs: string[] = [];
+
+      while ((match = reqPattern.exec(content)) !== null) {
+        const reqNumber = match[1];
+        const startPos = match.index;
+        const nextMatch = reqPattern.exec(content);
+        const endPos = nextMatch ? nextMatch.index : content.length;
+        reqPattern.lastIndex = nextMatch ? nextMatch.index : content.length;
+
+        const reqSection = content.substring(startPos, endPos);
+        const statusMatch = reqSection.match(statusPattern);
+
+        if (statusMatch) {
+          const status = statusMatch[1];
+          if (status === 'IN_PROGRESS') {
+            inProgressReqs.push(reqNumber);
+          } else if (status === 'BLOCKED') {
+            blockedReqs.push(reqNumber);
+          }
+        }
       }
+
+      // 3. Recover IN_PROGRESS workflows
+      console.log(`[StrategicOrchestrator] Found ${inProgressReqs.length} IN_PROGRESS workflows`);
+      for (const reqId of inProgressReqs) {
+        try {
+          // Query NATS to see if workflow state exists
+          const stateMsg = await this.nc.request(`agog.workflows.state.${reqId}`, '', { timeout: 1000 });
+          const state = JSON.parse(stateMsg.string());
+          console.log(`[StrategicOrchestrator] ✅ Workflow ${reqId} found in NATS, state: ${state.state}`);
+          this.processedRequests.add(reqId);
+        } catch (error) {
+          // No state in NATS - restart workflow from beginning RIGHT NOW
+          console.log(`[StrategicOrchestrator] ⚠️ Workflow ${reqId} not in NATS, restarting immediately...`);
+
+          const { title, assignedTo } = this.extractRequestDetails(content, reqId);
+
+          // Update status back to NEW so it gets picked up
+          await this.updateRequestStatus(reqId, 'NEW', 'Recovery restart - no NATS state found');
+
+          console.log(`[StrategicOrchestrator] ✅ Reset ${reqId} to NEW for restart`);
+          // Don't add to processedRequests - let next scan pick it up as NEW
+        }
+      }
+
+      // 4. Recover BLOCKED workflows and rebuild sub-requirement subscriptions
+      console.log(`[StrategicOrchestrator] Found ${blockedReqs.length} BLOCKED workflows`);
+      for (const reqId of blockedReqs) {
+        try {
+          // Query NATS for sub-requirement metadata
+          const metadataMsg = await this.nc.request(`agog.workflows.sub-requirements.${reqId}`, '', { timeout: 1000 });
+          const metadata = JSON.parse(metadataMsg.string());
+
+          console.log(`[StrategicOrchestrator] Recovered ${metadata.totalCount} sub-requirements for ${reqId}`);
+          console.log(`[StrategicOrchestrator] Progress: ${metadata.completedCount}/${metadata.totalCount} complete`);
+
+          // Check if all sub-requirements already complete
+          if (metadata.completedCount === metadata.totalCount) {
+            console.log(`[StrategicOrchestrator] All sub-requirements complete, resuming ${reqId}`);
+            await this.updateRequestStatus(reqId, 'IN_PROGRESS', 'Sub-requirements complete');
+            // Don't add to processedRequests - let scanOwnerRequests handle resume
+          } else {
+            // Rebuild subscription to monitor remaining sub-requirements
+            const subRequirements = metadata.subRequirements.map((subReqId: string) => ({ reqId: subReqId }));
+            await this.subscribeToSubRequirementCompletions(reqId, subRequirements);
+            this.processedRequests.add(reqId);
+          }
+        } catch (error) {
+          console.error(`[StrategicOrchestrator] Failed to recover BLOCKED workflow ${reqId}:`, error);
+          // Don't add to processedRequests - escalate on next scan if still blocked
+        }
+      }
+
+      console.log(`[StrategicOrchestrator] ✅ Workflow recovery complete`);
+
     } catch (error: any) {
       console.error('[StrategicOrchestrator] Failed to recover workflows:', error.message);
     }
@@ -181,9 +277,8 @@ export class StrategicOrchestratorService {
         });
       }
     }, 60000); // Every 60 seconds
-// **FIX: Monitor IN_PROGRESS workflows and spawn next agents**    const workflowProgressInterval = setInterval(() => {      if (this.isRunning) {        this.progressInProgressWorkflows().catch((error) => {          console.error("[StrategicOrchestrator] Error progressing workflows:", error);        });      }    }, 30000); // Every 30 seconds - check for stage completions
 
-    // **FIX: Monitor IN_PROGRESS workflows and spawn next agents**
+    // 2. Monitor IN_PROGRESS workflows and spawn next agents
     const workflowProgressInterval = setInterval(() => {
       if (this.isRunning) {
         this.progressInProgressWorkflows().catch((error) => {
@@ -192,21 +287,57 @@ export class StrategicOrchestratorService {
       }
     }, 30000); // Every 30 seconds - check for stage completions
 
-    // 2. Subscribe to blocked workflow events
+    // Gap Fix #5: Heartbeat monitoring daemon (every 2 minutes)
+    const heartbeatInterval = setInterval(() => {
+      if (this.isRunning) {
+        this.checkWorkflowHeartbeats().catch((error) => {
+          console.error('[StrategicOrchestrator] Error checking heartbeats:', error);
+        });
+      }
+    }, 120000); // Every 2 minutes
+
+    // Gap Fix #13: State reconciliation daemon (every 5 minutes)
+    const reconciliationInterval = setInterval(() => {
+      if (this.isRunning) {
+        this.reconcileWorkflowStates().catch((error) => {
+          console.error('[StrategicOrchestrator] Error reconciling states:', error);
+        });
+      }
+    }, 300000); // Every 5 minutes
+
+    // 3. Subscribe to blocked workflow events
     this.subscribeToBlockedWorkflows().catch((error) => {
       console.error('[StrategicOrchestrator] Error in blocked workflow subscription:', error);
     });
 
-    // 3. Subscribe to workflow completion events for memory storage
+    // 4. Subscribe to workflow completion events for memory storage
     this.subscribeToWorkflowCompletions().catch((error) => {
       console.error('[StrategicOrchestrator] Error in workflow completion subscription:', error);
     });
 
+    // 5. Subscribe to new requirements from NATS (from Sam audits, sub-requirement decomposition, etc.)
+    this.subscribeToNewRequirements().catch((error) => {
+      console.error('[StrategicOrchestrator] Error in requirements subscription:', error);
+    });
+
+    // Gap Fix #9: Subscribe to agent error events
+    this.subscribeToAgentErrors().catch((error) => {
+      console.error('[StrategicOrchestrator] Error in agent error subscription:', error);
+    });
+
+    // Subscribe to deliverables for caching
+    this.subscribeToDeliverablesForCaching().catch((error) => {
+      console.error('[StrategicOrchestrator] Error in deliverables caching subscription:', error);
+    });
+
     console.log('[StrategicOrchestrator] ✅ Daemon running');
     console.log('[StrategicOrchestrator] - Monitoring OWNER_REQUESTS.md every 60 seconds');
+    console.log('[StrategicOrchestrator] - Monitoring IN_PROGRESS workflows every 30 seconds');
+    console.log('[StrategicOrchestrator] - Checking workflow heartbeats every 2 minutes (Gap #5)');
+    console.log('[StrategicOrchestrator] - Reconciling workflow states every 5 minutes (Gap #13)');
     console.log('[StrategicOrchestrator] - Subscribed to blocked workflow events');
     console.log('[StrategicOrchestrator] - Subscribed to workflow completion events (memory integration)');
-    console.log("[StrategicOrchestrator] - Monitoring IN_PROGRESS workflows every 30 seconds");
+    console.log('[StrategicOrchestrator] - Subscribed to new requirements (agog.requirements.new, agog.requirements.sub.new)');
 
     // Initial scan
     console.log('[StrategicOrchestrator] 🔄 Running initial scan...');
@@ -264,10 +395,25 @@ export class StrategicOrchestratorService {
 
     console.log(`[StrategicOrchestrator] Total requests found: ${requests.length}`);
 
+    // Gap Fix #12: Check concurrent workflow limit before processing new workflows
+    const activeWorkflows = requests.filter(r => r.status === 'IN_PROGRESS').length;
+    if (activeWorkflows >= this.MAX_CONCURRENT_WORKFLOWS) {
+      console.log(`[StrategicOrchestrator] Concurrency limit reached: ${activeWorkflows}/${this.MAX_CONCURRENT_WORKFLOWS} workflows active - skipping new starts`);
+    }
+
     for (const { reqNumber, status } of requests) {
       // Only process NEW, PENDING, or REJECTED requests
       if (status !== 'NEW' && status !== 'PENDING' && status !== 'REJECTED') {
         continue;
+      }
+
+      // Gap Fix #12: Enforce concurrency limit - don't start new workflows if at max
+      if (status === 'NEW') {
+        const currentActive = requests.filter(r => r.status === 'IN_PROGRESS').length;
+        if (currentActive >= this.MAX_CONCURRENT_WORKFLOWS) {
+          console.log(`[StrategicOrchestrator] Skipping ${reqNumber} - at concurrency limit (${currentActive}/${this.MAX_CONCURRENT_WORKFLOWS})`);
+          continue;
+        }
       }
 
       // DUPLICATE PREVENTION: Check if workflow already exists
@@ -384,7 +530,7 @@ export class StrategicOrchestratorService {
    * Update request status in OWNER_REQUESTS.md
    * Returns true if successful, false if failed
    */
-  private async updateRequestStatus(reqNumber: string, newStatus: string): Promise<boolean> {
+  private async updateRequestStatus(reqNumber: string, newStatus: string, reason?: string): Promise<boolean> {
     try {
       let content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
 
@@ -409,7 +555,10 @@ export class StrategicOrchestratorService {
       const verified = verifyContent.includes(`${reqNumber}`) && verifyContent.includes(`**Status**: ${newStatus}`);
 
       if (verified) {
-        console.log(`[StrategicOrchestrator] ✅ Updated ${reqNumber} status to ${newStatus}`);
+        const logMessage = reason
+          ? `✅ Updated ${reqNumber} status to ${newStatus} (${reason})`
+          : `✅ Updated ${reqNumber} status to ${newStatus}`;
+        console.log(`[StrategicOrchestrator] ${logMessage}`);
         return true;
       } else {
         console.error(`[StrategicOrchestrator] ❌ Failed to verify status update for ${reqNumber}`);
@@ -565,6 +714,85 @@ export class StrategicOrchestratorService {
   }
 
   /**
+   * Subscribe to new requirements from NATS (from Sam audits, sub-requirement decomposition, etc.)
+   */
+  private async subscribeToNewRequirements(): Promise<void> {
+    console.log('[StrategicOrchestrator] Subscribing to new requirements from NATS...');
+
+    // Subscribe to both subjects for compatibility
+    const sub1 = this.nc.subscribe('agog.requirements.new');
+    const sub2 = this.nc.subscribe('agog.requirements.sub.new');
+
+    const processMessage = async (msg: any) => {
+      try {
+        const req = JSON.parse(msg.string());
+        // Support both req_number (from Sam) and reqId (from sub-requirements)
+        const reqNumber = req.req_number || req.reqId;
+        const title = req.title;
+        const source = req.source || (req.parent ? 'sub-requirement' : 'unknown');
+
+        console.log(`[StrategicOrchestrator] 📨 Received new requirement: ${reqNumber} (Source: ${source})`);
+
+        // Check if we already processed this requirement
+        if (this.processedRequests.has(reqNumber)) {
+          console.log(`[StrategicOrchestrator] ${reqNumber} already processed - skipping`);
+          return;
+        }
+
+        // Mark as processed
+        this.processedRequests.add(reqNumber);
+
+        // Start workflow
+        console.log(`[StrategicOrchestrator] 🆕 Starting workflow for: ${reqNumber}`);
+        if (req.parent) {
+          console.log(`[StrategicOrchestrator] Parent: ${req.parent}, Priority: ${req.priority}, Type: ${req.type}`);
+        } else if (req.priority) {
+          console.log(`[StrategicOrchestrator] Priority: ${req.priority}`);
+        }
+
+        await this.orchestrator.startWorkflow(reqNumber, title, 'marcus');
+        await this.persistence.createWorkflow({
+          reqNumber,
+          title,
+          assignedTo: 'marcus',
+          currentStage: 0,
+          metadata: {
+            source,
+            priority: req.priority,
+            parent: req.parent,
+            audit_type: req.audit_type,
+            description: req.description,
+          }
+        });
+
+        console.log(`[StrategicOrchestrator] ✅ Workflow started for ${reqNumber}`);
+
+      } catch (error: any) {
+        console.error('[StrategicOrchestrator] Error processing requirement:', error.message);
+      }
+    };
+
+    // Process messages from both subscriptions
+    (async () => {
+      for await (const msg of sub1) {
+        await processMessage(msg);
+      }
+    })().catch(error => {
+      console.error('[StrategicOrchestrator] Requirements subscription error (new):', error.message);
+    });
+
+    (async () => {
+      for await (const msg of sub2) {
+        await processMessage(msg);
+      }
+    })().catch(error => {
+      console.error('[StrategicOrchestrator] Requirements subscription error (sub.new):', error.message);
+    });
+
+    console.log('[StrategicOrchestrator] ✅ Subscribed to new requirements (agog.requirements.new, agog.requirements.sub.new)');
+  }
+
+  /**
    * Handle a blocked critique from Sylvia
    */
   private async handleBlockedCritique(event: any): Promise<void> {
@@ -572,45 +800,54 @@ export class StrategicOrchestratorService {
 
     console.log(`[StrategicOrchestrator] Handling blocked critique for ${reqNumber}`);
     console.log(`[StrategicOrchestrator] Reason: ${reason}`);
-
-    // Determine which strategic agent owns this feature
-    const strategicAgent = this.routeToStrategicAgent(reqNumber);
-    console.log(`[StrategicOrchestrator] Routing to strategic agent: ${strategicAgent}`);
+    console.log(`[StrategicOrchestrator] Blockers:`, blockers);
 
     try {
-      // Get strategic context from past memories
-      const featureTitle = event.title || reqNumber;
-      const memoryContext = await this.getStrategicContext(reqNumber, featureTitle);
+      // Gap Fix #21: Check recursion depth to prevent infinite sub-requirements
+      const depth = (reqNumber.match(/SUB/g) || []).length;
+      const MAX_RECURSION_DEPTH = 3;
 
-      // Fetch Sylvia's critique deliverable from NATS (if available)
-      // For now, we'll use the event data directly
-      const critiqueContext = {
-        reqNumber,
-        blockedReason: reason,
-        blockers: blockers || [],
-        eventData: event,
-        memoryContext, // Include past learnings
-      };
+      if (depth >= MAX_RECURSION_DEPTH) {
+        console.error(`[StrategicOrchestrator] ❌ Maximum recursion depth (${MAX_RECURSION_DEPTH}) exceeded for ${reqNumber}`);
+        await this.escalateWorkflow(reqNumber, 'MAX_DEPTH_EXCEEDED', {
+          depth,
+          maxDepth: MAX_RECURSION_DEPTH,
+          reason: 'Requirement too complex, needs human decomposition',
+          blockers
+        });
+        return;
+      }
 
-      // Spawn strategic agent to make a decision
-      const decision = await this.agentSpawner.spawnAgent({
-        agentId: strategicAgent,
-        reqNumber,
-        featureTitle: `Review Blocked Critique: ${reqNumber}`,
-        contextData: critiqueContext,
-        timeoutMs: 600000, // 10 minutes for strategic decision
-      });
+      console.log(`[StrategicOrchestrator] Recursion depth: ${depth}/${MAX_RECURSION_DEPTH}`);
 
-      // Publish decision to NATS
-      await this.js.publish(
-        `agog.strategic.decisions.${reqNumber}`,
-        JSON.stringify(decision)
-      );
+      // Fetch Sylvia's full critique from NATS to get detailed issues
+      const critiqueSubject = `agog.deliverables.sylvia.critique.${reqNumber}`;
+      const critiqueDeliverable = await this.fetchDeliverableFromNATS(critiqueSubject);
 
-      console.log(`[StrategicOrchestrator] Strategic decision: ${(decision as any).decision || 'APPROVE'}`);
+      // Parse issues from critique
+      const issues = this.parseIssuesFromCritique(critiqueDeliverable, blockers);
 
-      // Apply the decision (cast to StrategicDecision)
-      await this.applyStrategicDecision(decision as unknown as StrategicDecision);
+      console.log(`[StrategicOrchestrator] Parsed ${issues.length} issues from critique`);
+
+      if (issues.length === 0) {
+        console.log(`[StrategicOrchestrator] No actionable issues found - resuming workflow`);
+        await this.orchestrator.resumeWorkflow(reqNumber, { decision: 'APPROVE' } as any);
+        return;
+      }
+
+      // Create sub-requirements for each issue
+      const subRequirements = await this.createSubRequirements(reqNumber, issues);
+
+      console.log(`[StrategicOrchestrator] Created ${subRequirements.length} sub-requirements`);
+
+      // Publish sub-requirements to NATS work queue (NOT to OWNER_REQUESTS.md)
+      await this.publishSubRequirementsToNATS(reqNumber, subRequirements);
+
+      // Update original requirement status to BLOCKED
+      await this.updateRequestStatus(reqNumber, 'BLOCKED', `Waiting for ${subRequirements.length} sub-requirements to complete`);
+
+      // Subscribe to sub-requirement completions in NATS
+      await this.subscribeToSubRequirementCompletions(reqNumber, subRequirements);
 
     } catch (error: any) {
       console.error(`[StrategicOrchestrator] Failed to handle blocked critique for ${reqNumber}:`, error.message);
@@ -619,7 +856,7 @@ export class StrategicOrchestratorService {
       await this.publishEscalation({
         req_number: reqNumber,
         priority: 'NEEDS_HUMAN_DECISION',
-        reason: `Strategic agent failed: ${error.message}`,
+        reason: `Failed to create sub-requirements: ${error.message}`,
         original_event: event,
       });
     }
@@ -633,6 +870,24 @@ export class StrategicOrchestratorService {
 
     console.log(`[StrategicOrchestrator] Applying decision for ${req_number}: ${decisionType}`);
     console.log(`[StrategicOrchestrator] Reasoning: ${reasoning}`);
+
+    // Store decision in knowledge database for future reference
+    try {
+      await this.knowledge.storeDecision({
+        req_number,
+        agent: decision.agent,
+        decision: decisionType,
+        reasoning,
+        instructions_for_roy: decision.instructions_for_roy,
+        instructions_for_jen: decision.instructions_for_jen,
+        priority_fixes: decision.priority_fixes,
+        deferred_items: decision.deferred_items,
+        business_context: decision.business_context
+      });
+      console.log(`[StrategicOrchestrator] 💾 Stored decision in knowledge database`);
+    } catch (error: any) {
+      console.error(`[StrategicOrchestrator] Failed to store decision:`, error.message);
+    }
 
     if (decisionType === 'APPROVE') {
       // Resume workflow
@@ -701,6 +956,61 @@ export class StrategicOrchestratorService {
       console.log(`[StrategicOrchestrator] 📨 Escalation published for ${data.req_number}`);
     } catch (error: any) {
       console.error('[StrategicOrchestrator] Failed to publish escalation:', error.message);
+    }
+  }
+
+  /**
+   * Gap Fix #6: Proper escalation mechanism with status updates and file logging
+   */
+  private async escalateWorkflow(reqId: string, reason: string, context: any): Promise<void> {
+    console.log(`[StrategicOrchestrator] 🚨 ESCALATING: ${reqId} - ${reason}`);
+
+    try {
+      // 1. Update OWNER_REQUESTS.md status to ESCALATED
+      await this.updateRequestStatus(reqId, 'ESCALATED', reason);
+
+      // 2. Update NATS workflow state
+      await this.js.publish(
+        `agog.workflows.state.${reqId}`,
+        JSON.stringify({
+          reqId,
+          state: 'ESCALATED',
+          reason,
+          timestamp: new Date().toISOString()
+        })
+      );
+
+      // 3. Publish escalation event
+      await this.js.publish(
+        `agog.escalations.${reqId}`,
+        JSON.stringify({
+          reqId,
+          reason,
+          context,
+          priority: context.critical ? 'CRITICAL' : 'HIGH',
+          timestamp: new Date().toISOString()
+        })
+      );
+
+      // 4. Write escalation file for human review
+      const escalationDir = path.join(__dirname, '..', '..', '..', '.claude', 'escalations');
+      if (!fs.existsSync(escalationDir)) {
+        fs.mkdirSync(escalationDir, { recursive: true });
+      }
+
+      const escalationFile = path.join(escalationDir, `${reqId}.json`);
+      fs.writeFileSync(escalationFile, JSON.stringify({
+        reqId,
+        reason,
+        context,
+        escalatedAt: new Date().toISOString()
+      }, null, 2));
+
+      console.log(`[StrategicOrchestrator] ✅ Escalation complete - file written to ${escalationFile}`);
+
+    } catch (error: any) {
+      console.error(`[StrategicOrchestrator] Failed to escalate ${reqId}:`, error.message);
+      // Don't throw - escalation failures shouldn't crash the system
     }
   }
 
@@ -955,6 +1265,462 @@ export class StrategicOrchestratorService {
    */
 
   /**
+   * Fetch deliverable from NATS
+   */
+  private async fetchDeliverableFromNATS(subject: string): Promise<any> {
+    try {
+      const jsm = await this.nc.jetstreamManager();
+      const streamName = 'agog_features_critique'; // Sylvia's deliverables stream
+
+      const msg = await jsm.streams.getMessage(streamName, { last_by_subj: subject });
+      return JSON.parse(msg.data.toString());
+    } catch (error: any) {
+      console.error(`[StrategicOrchestrator] Failed to fetch deliverable from ${subject}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Parse issues from Sylvia's critique
+   */
+  private parseIssuesFromCritique(critiqueDeliverable: any, blockers: any[]): Array<{ title: string; description: string; priority: string; type: string }> {
+    const issues: Array<{ title: string; description: string; priority: string; type: string }> = [];
+
+    // If blockers array provided, use it
+    if (blockers && blockers.length > 0) {
+      for (const blocker of blockers) {
+        issues.push({
+          title: blocker.title || blocker.issue || blocker,
+          description: blocker.description || blocker.details || String(blocker),
+          priority: blocker.priority || 'P1',
+          type: blocker.type || 'backend'
+        });
+      }
+    }
+
+    // Otherwise parse from critique deliverable content
+    if (critiqueDeliverable && critiqueDeliverable.summary) {
+      const criticalIssuesMatch = critiqueDeliverable.summary.match(/(\d+) CRITICAL/);
+      if (criticalIssuesMatch) {
+        const count = parseInt(criticalIssuesMatch[1]);
+        console.log(`[StrategicOrchestrator] Found ${count} critical issues mentioned`);
+      }
+
+      // Extract BLOCKER items from summary
+      const blockerRegex = /❌\s*\*\*(.+?)\*\*\s*-\s*(.+?)(?=\n|$)/g;
+      let match;
+      while ((match = blockerRegex.exec(critiqueDeliverable.summary)) !== null) {
+        issues.push({
+          title: match[1].trim(),
+          description: match[2].trim(),
+          priority: 'P0',
+          type: 'backend'
+        });
+      }
+    }
+
+    return issues;
+  }
+
+  /**
+   * Create sub-requirements from issues
+   */
+  private async createSubRequirements(parentReqId: string, issues: any[]): Promise<Array<{ reqId: string; title: string; description: string; priority: string }>> {
+    const subRequirements = [];
+    const timestamp = Date.now();
+
+    for (let i = 0; i < issues.length; i++) {
+      const issue = issues[i];
+      const subReqId = `${parentReqId}-SUB${i + 1}-${timestamp}`;
+
+      subRequirements.push({
+        reqId: subReqId,
+        title: issue.title,
+        description: issue.description,
+        priority: issue.priority || 'P1',
+        parent: parentReqId,
+        type: issue.type || 'backend'
+      });
+    }
+
+    return subRequirements;
+  }
+
+  /**
+   * Publish sub-requirements to NATS work queue
+   */
+  private async publishSubRequirementsToNATS(parentReqId: string, subRequirements: any[]): Promise<void> {
+    console.log(`[StrategicOrchestrator] Publishing ${subRequirements.length} sub-requirements to NATS`);
+
+    for (const subReq of subRequirements) {
+      // Publish to requirements stream
+      await this.nc.publish('agog.requirements.sub.new', JSON.stringify({
+        reqId: subReq.reqId,
+        title: subReq.title,
+        description: subReq.description,
+        priority: subReq.priority,
+        parent: parentReqId,
+        type: subReq.type,
+        status: 'NEW',
+        createdAt: new Date().toISOString()
+      }));
+
+      console.log(`[StrategicOrchestrator] ✅ Published ${subReq.reqId} to NATS (Priority: ${subReq.priority})`);
+    }
+
+    // Store sub-requirement list in parent workflow metadata
+    await this.nc.publish(`agog.workflows.sub-requirements.${parentReqId}`, JSON.stringify({
+      parentReqId,
+      subRequirements: subRequirements.map(sr => sr.reqId),
+      totalCount: subRequirements.length,
+      createdAt: new Date().toISOString()
+    }));
+
+    console.log(`[StrategicOrchestrator] ✅ Published ${subRequirements.length} sub-requirements to NATS work queue`);
+  }
+
+  /**
+   * Subscribe to sub-requirement completions in NATS and resume parent when all done
+   */
+  private async subscribeToSubRequirementCompletions(parentReqId: string, subRequirements: any[]): Promise<void> {
+    console.log(`[StrategicOrchestrator] 👀 Subscribing to ${subRequirements.length} sub-requirement completions for ${parentReqId}`);
+
+    const completedSubReqs = new Set<string>();
+    const totalCount = subRequirements.length;
+
+    // Subscribe to Berry completions for all sub-requirements
+    const subject = 'agog.deliverables.berry.devops.>';
+    const sub = this.nc.subscribe(subject);
+
+    (async () => {
+      for await (const msg of sub) {
+        try {
+          const deliverable = JSON.parse(msg.string());
+          const subReqId = deliverable.reqId;
+
+          // Check if this is one of our sub-requirements
+          const isOurSubReq = subRequirements.some(sr => sr.reqId === subReqId);
+          if (!isOurSubReq) continue;
+
+          // Mark as completed
+          completedSubReqs.add(subReqId);
+          console.log(`[StrategicOrchestrator] ✅ Sub-requirement ${subReqId} completed (${completedSubReqs.size}/${totalCount})`);
+
+          // Check if all sub-requirements are done
+          if (completedSubReqs.size === totalCount) {
+            console.log(`[StrategicOrchestrator] ✅ All ${totalCount} sub-requirements complete for ${parentReqId} - resuming workflow`);
+
+            // Unsubscribe
+            sub.unsubscribe();
+
+            // Update parent status to IN_PROGRESS
+            await this.updateRequestStatus(parentReqId, 'IN_PROGRESS', 'Sub-requirements complete');
+
+            // Get parent requirement details from OWNER_REQUESTS.md
+            const content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+            const { title, assignedTo } = this.extractRequestDetails(content, parentReqId);
+
+            // Resume workflow from backend stage (Roy implements the fixes)
+            try {
+              await this.orchestrator.resumeWorkflowFromStage(parentReqId, title, assignedTo, 2); // Stage 2 = Roy
+              console.log(`[StrategicOrchestrator] ✅ Resumed ${parentReqId} from backend stage`);
+            } catch (error: any) {
+              console.error(`[StrategicOrchestrator] Failed to resume ${parentReqId}:`, error.message);
+            }
+          }
+        } catch (error: any) {
+          console.error('[StrategicOrchestrator] Error processing sub-requirement completion:', error.message);
+        }
+      }
+    })().catch(error => {
+      console.error(`[StrategicOrchestrator] Subscription error for ${parentReqId}:`, error.message);
+    });
+  }
+
+  /**
+   * Gap Fix #5: Check workflow heartbeats and detect stuck workflows
+   * Gap Fix #3: Enforce maximum workflow duration (8 hours)
+   */
+  private async checkWorkflowHeartbeats(): Promise<void> {
+    if (!fs.existsSync(this.ownerRequestsPath)) {
+      return;
+    }
+
+    const content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+    const reqPattern = /### (REQ-[A-Z0-9-]+):/g;
+    const statusPattern = /\*\*Status\*\*:\s*(\w+)/;
+
+    let match;
+    const now = Date.now();
+    const MAX_WORKFLOW_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours
+    const HEARTBEAT_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+    while ((match = reqPattern.exec(content)) !== null) {
+      const reqNumber = match[1];
+      const startPos = match.index;
+      const nextMatch = reqPattern.exec(content);
+      const endPos = nextMatch ? nextMatch.index : content.length;
+      reqPattern.lastIndex = nextMatch ? nextMatch.index : content.length;
+
+      const reqSection = content.substring(startPos, endPos);
+      const statusMatch = reqSection.match(statusPattern);
+
+      if (!statusMatch || statusMatch[1] !== 'IN_PROGRESS') {
+        continue;
+      }
+
+      try {
+        // Check NATS for workflow state
+        const stateMsg = await this.nc.request(`agog.workflows.state.${reqNumber}`, '', { timeout: 1000 });
+        const state = JSON.parse(stateMsg.string());
+
+        const startTime = new Date(state.startedAt || state.timestamp).getTime();
+        const duration = now - startTime;
+
+        // Gap Fix #3: Check maximum duration
+        if (duration > MAX_WORKFLOW_DURATION_MS) {
+          console.error(`[StrategicOrchestrator] ❌ Workflow ${reqNumber} exceeded max duration (${Math.floor(duration / 3600000)}h > 8h)`);
+          await this.escalateWorkflow(reqNumber, 'MAX_DURATION_EXCEEDED', {
+            duration_ms: duration,
+            duration_hours: Math.floor(duration / 3600000),
+            max_hours: 8,
+            reason: 'Workflow taking too long, needs human intervention'
+          });
+          continue;
+        }
+
+        // Gap Fix #5: Check heartbeat
+        if (state.lastHeartbeat) {
+          const lastHeartbeat = new Date(state.lastHeartbeat).getTime();
+          const timeSinceHeartbeat = now - lastHeartbeat;
+
+          if (timeSinceHeartbeat > HEARTBEAT_TIMEOUT_MS) {
+            console.error(`[StrategicOrchestrator] ❌ Workflow ${reqNumber} heartbeat timeout (${Math.floor(timeSinceHeartbeat / 60000)} min)`);
+            await this.escalateWorkflow(reqNumber, 'HEARTBEAT_TIMEOUT', {
+              last_heartbeat: state.lastHeartbeat,
+              timeout_minutes: Math.floor(timeSinceHeartbeat / 60000),
+              current_stage: state.currentStage,
+              reason: 'Workflow appears stuck, no heartbeat detected'
+            });
+          }
+        }
+
+      } catch (error) {
+        // No state in NATS - workflow might be orphaned
+        console.warn(`[StrategicOrchestrator] ⚠️ No NATS state found for IN_PROGRESS workflow ${reqNumber}`);
+      }
+    }
+  }
+
+  /**
+   * Gap Fix #13: Reconcile workflow states between OWNER_REQUESTS.md and NATS
+   */
+  private async reconcileWorkflowStates(): Promise<void> {
+    if (!fs.existsSync(this.ownerRequestsPath)) {
+      return;
+    }
+
+    const content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+    const reqPattern = /### (REQ-[A-Z0-9-]+):/g;
+    const statusPattern = /\*\*Status\*\*:\s*(\w+)/;
+
+    let match;
+    const reconciliations = [];
+
+    while ((match = reqPattern.exec(content)) !== null) {
+      const reqNumber = match[1];
+      const startPos = match.index;
+      const nextMatch = reqPattern.exec(content);
+      const endPos = nextMatch ? nextMatch.index : content.length;
+      reqPattern.lastIndex = nextMatch ? nextMatch.index : content.length;
+
+      const reqSection = content.substring(startPos, endPos);
+      const statusMatch = reqSection.match(statusPattern);
+
+      if (!statusMatch) {
+        continue;
+      }
+
+      const fileStatus = statusMatch[1];
+
+      try {
+        // Query NATS for workflow state
+        const stateMsg = await this.nc.request(`agog.workflows.state.${reqNumber}`, '', { timeout: 1000 });
+        const natsState = JSON.parse(stateMsg.string());
+
+        // Compare states
+        if (fileStatus !== natsState.state) {
+          console.warn(`[StrategicOrchestrator] ⚠️ State mismatch for ${reqNumber}: File=${fileStatus}, NATS=${natsState.state}`);
+
+          // NATS is source of truth - update file to match
+          if (natsState.state === 'COMPLETE' && fileStatus !== 'COMPLETE') {
+            console.log(`[StrategicOrchestrator] Reconciling ${reqNumber}: NATS shows COMPLETE, updating file`);
+            await this.updateRequestStatus(reqNumber, 'COMPLETE', 'Reconciled from NATS');
+            reconciliations.push({ reqNumber, from: fileStatus, to: 'COMPLETE' });
+          } else if (natsState.state === 'IN_PROGRESS' && fileStatus === 'NEW') {
+            console.log(`[StrategicOrchestrator] Reconciling ${reqNumber}: NATS shows IN_PROGRESS, updating file`);
+            await this.updateRequestStatus(reqNumber, 'IN_PROGRESS', 'Reconciled from NATS');
+            reconciliations.push({ reqNumber, from: fileStatus, to: 'IN_PROGRESS' });
+          } else if (natsState.state === 'BLOCKED' && fileStatus === 'IN_PROGRESS') {
+            console.log(`[StrategicOrchestrator] Reconciling ${reqNumber}: NATS shows BLOCKED, updating file`);
+            await this.updateRequestStatus(reqNumber, 'BLOCKED', 'Reconciled from NATS');
+            reconciliations.push({ reqNumber, from: fileStatus, to: 'BLOCKED' });
+          }
+        }
+
+      } catch (error) {
+        // No NATS state - file might be authoritative
+        if (fileStatus === 'IN_PROGRESS') {
+          console.warn(`[StrategicOrchestrator] ⚠️ File shows IN_PROGRESS for ${reqNumber} but no NATS state exists`);
+          // This was already handled by recoverWorkflows(), so just log it
+        }
+      }
+    }
+
+    if (reconciliations.length > 0) {
+      console.log(`[StrategicOrchestrator] ✅ Reconciled ${reconciliations.length} workflow states`);
+    }
+  }
+
+  /**
+   * Subscribe to all agent deliverables and cache them for quick lookup
+   */
+  private async subscribeToDeliverablesForCaching(): Promise<void> {
+    console.log('[StrategicOrchestrator] Subscribing to deliverables for caching...');
+
+    const agentStreams = [
+      { agent: 'cynthia', stream: 'research', stage: 0 },
+      { agent: 'sylvia', stream: 'critique', stage: 1 },
+      { agent: 'roy', stream: 'backend', stage: 2 },
+      { agent: 'jen', stream: 'frontend', stage: 3 },
+      { agent: 'billy', stream: 'qa', stage: 4 },
+      { agent: 'priya', stream: 'statistics', stage: 5 },
+      { agent: 'berry', stream: 'devops', stage: 6 },
+    ];
+
+    for (const { agent, stream, stage } of agentStreams) {
+      const subject = `agog.deliverables.${agent}.${stream}.>`;
+
+      const sub = this.nc.subscribe(subject);
+
+      (async () => {
+        for await (const msg of sub) {
+          try {
+            const deliverable = JSON.parse(msg.string());
+            const reqNumber = deliverable.req_number || msg.subject.split('.').pop();
+
+            // Cache the deliverable
+            await this.knowledge.cacheDeliverable({
+              req_number: reqNumber,
+              agent: agent,
+              stage: stage,
+              deliverable: deliverable
+            });
+
+            console.log(`[StrategicOrchestrator] 💾 Cached deliverable: ${reqNumber} from ${agent}`);
+
+            // If this is a critique with APPROVE decision, extract and store learnings
+            if (agent === 'sylvia' && deliverable.decision === 'APPROVE') {
+              await this.extractAndStoreLearnings(reqNumber, deliverable);
+            }
+
+          } catch (error: any) {
+            // Not all messages are JSON deliverables, skip quietly
+          }
+        }
+      })().catch(error => {
+        console.error(`[StrategicOrchestrator] Error in ${agent} deliverable subscription:`, error.message);
+      });
+    }
+
+    console.log('[StrategicOrchestrator] ✅ Subscribed to deliverables for caching');
+  }
+
+  /**
+   * Extract learnings from successful workflows
+   */
+  private async extractAndStoreLearnings(reqNumber: string, critiqueDeliverable: any): Promise<void> {
+    try {
+      // Extract positive patterns from approved work
+      if (critiqueDeliverable.positive_findings && critiqueDeliverable.positive_findings.length > 0) {
+        for (const finding of critiqueDeliverable.positive_findings.slice(0, 3)) {
+          await this.knowledge.storeLearning({
+            agent_id: 'sylvia',
+            learning_type: 'best_practice',
+            title: finding.title || 'Approved Pattern',
+            description: finding.description || finding,
+            example_context: `From ${reqNumber}`,
+            confidence_score: 0.7,
+            times_applied: 1,
+            times_failed: 0
+          });
+        }
+      }
+
+      // Extract anti-patterns from critique (even if approved with notes)
+      if (critiqueDeliverable.concerns && critiqueDeliverable.concerns.length > 0) {
+        for (const concern of critiqueDeliverable.concerns.slice(0, 2)) {
+          await this.knowledge.storeLearning({
+            agent_id: 'sylvia',
+            learning_type: 'gotcha',
+            title: concern.title || 'Common Issue',
+            description: concern.description || concern,
+            example_context: `From ${reqNumber}`,
+            confidence_score: 0.6,
+            times_applied: 0,
+            times_failed: 0
+          });
+        }
+      }
+
+      console.log(`[StrategicOrchestrator] 📚 Extracted learnings from ${reqNumber}`);
+    } catch (error: any) {
+      console.error(`[StrategicOrchestrator] Failed to extract learnings:`, error.message);
+    }
+  }
+
+  /**
+   * Gap Fix #9: Subscribe to agent error events
+   */
+  private async subscribeToAgentErrors(): Promise<void> {
+    console.log('[StrategicOrchestrator] Subscribing to agent error events...');
+
+    const sub = this.nc.subscribe('agog.errors.agent.>');
+
+    (async () => {
+      for await (const msg of sub) {
+        try {
+          const error = JSON.parse(msg.string());
+          console.error(`[StrategicOrchestrator] 🚨 Agent error: ${error.agentId} - ${error.error} (${error.reqId})`);
+
+          // Handle different error types
+          if (error.error === 'CLI_NOT_FOUND') {
+            // Claude CLI not available - escalate immediately
+            await this.escalateWorkflow(error.reqId, 'CLI_NOT_FOUND', {
+              agentId: error.agentId,
+              reason: 'Claude CLI not available on Windows host',
+              critical: true
+            });
+          } else if (error.error === 'NATS_UNAVAILABLE') {
+            // NATS connection issue - don't retry, wait for recovery
+            console.warn(`[StrategicOrchestrator] NATS unavailable for ${error.reqId}, waiting for recovery`);
+          } else if (error.error === 'TIMEOUT' || error.error === 'CRASH') {
+            // Agent crashed or timed out - orchestrator will handle retry
+            console.warn(`[StrategicOrchestrator] Agent ${error.agentId} ${error.error} for ${error.reqId}`);
+          }
+
+        } catch (err: any) {
+          console.error('[StrategicOrchestrator] Error processing agent error event:', err.message);
+        }
+      }
+    })().catch(error => {
+      console.error('[StrategicOrchestrator] Agent error subscription error:', error.message);
+    });
+
+    console.log('[StrategicOrchestrator] ✅ Subscribed to agent error events');
+  }
+
+  /**
    * Stop the daemon
    */
   async stop(): Promise<void> {
@@ -972,6 +1738,10 @@ export class StrategicOrchestratorService {
       await this.mcpClient.close();
     }
 
+    if (this.knowledge) {
+      await this.knowledge.close();
+    }
+
     if (this.agentSpawner) {
       await this.agentSpawner.close();
     }
@@ -984,6 +1754,6 @@ export class StrategicOrchestratorService {
       await this.nc.close();
     }
 
-    console.log('[StrategicOrchestrator] ✅ Closed (including memory client)');
+    console.log('[StrategicOrchestrator] ✅ Closed (including memory + knowledge services)');
   }
 }

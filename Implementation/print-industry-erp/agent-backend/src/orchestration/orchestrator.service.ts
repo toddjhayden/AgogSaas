@@ -10,6 +10,7 @@ interface WorkflowStage {
   onSuccess: 'next' | 'complete' | 'decision';
   onFailure: 'retry' | 'block' | 'notify';
   onConditional?: 'block' | 'notify';
+  conditional?: 'needs_todd' | 'needs_vic'; // Only run if previous stage set this flag
 }
 
 interface FeatureWorkflow {
@@ -63,13 +64,42 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     onFailure: 'notify',
   },
   {
-    name: 'QA Testing',
+    name: 'Backend QA',
     agent: 'billy',
-    natsSubject: 'agog.features.qa.{reqNumber}',
-    timeout: 2700000, // 45 minutes (reduced from 2 hours)
+    natsSubject: 'agog.features.qa-backend.{reqNumber}',
+    timeout: 2700000, // 45 minutes
     retries: 0,
     onSuccess: 'next',
     onFailure: 'block',
+  },
+  {
+    name: 'Frontend QA',
+    agent: 'liz',
+    natsSubject: 'agog.features.qa-frontend.{reqNumber}',
+    timeout: 2700000, // 45 minutes
+    retries: 0,
+    onSuccess: 'next',
+    onFailure: 'block',
+  },
+  {
+    name: 'Performance Testing',
+    agent: 'todd',
+    natsSubject: 'agog.features.qa-performance.{reqNumber}',
+    timeout: 3600000, // 1 hour (load tests take time)
+    retries: 0,
+    onSuccess: 'next',
+    onFailure: 'block',
+    conditional: 'needs_todd', // Only run if Billy or Liz flagged
+  },
+  {
+    name: 'Security Testing',
+    agent: 'vic',
+    natsSubject: 'agog.features.qa-security.{reqNumber}',
+    timeout: 3600000, // 1 hour (security scans take time)
+    retries: 0,
+    onSuccess: 'next',
+    onFailure: 'block',
+    conditional: 'needs_vic', // Only run if Billy or Liz flagged
   },
   {
     name: 'Statistics',
@@ -86,8 +116,17 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     natsSubject: 'agog.features.devops.{reqNumber}',
     timeout: 900000, // 15 minutes (reduced from 1 hour)
     retries: 0,
-    onSuccess: 'complete',
+    onSuccess: 'next',
     onFailure: 'block',
+  },
+  {
+    name: 'Documentation Update',
+    agent: 'tim',
+    natsSubject: 'agog.features.documentation.{reqNumber}',
+    timeout: 1800000, // 30 minutes
+    retries: 0,
+    onSuccess: 'complete',
+    onFailure: 'notify', // Don't block on documentation failures
   },
 ];
 
@@ -254,6 +293,24 @@ export class OrchestratorService {
     const stage = workflow.stages[stageIndex];
     workflow.currentStage = stageIndex;
 
+    // Check if this is a conditional stage that should be skipped
+    if (this.shouldSkipConditionalStage(workflow, stage)) {
+      await this.publishEvent('stage.skipped', {
+        reqNumber,
+        stage: stage.name,
+        reason: `No ${stage.conditional} flag set by previous stages`,
+      });
+
+      // Move to next stage
+      const nextStage = stageIndex + 1;
+      if (nextStage < workflow.stages.length) {
+        await this.executeStage(reqNumber, nextStage);
+      } else {
+        await this.completeWorkflow(reqNumber);
+      }
+      return;
+    }
+
     console.log(`[${reqNumber}] Stage ${stageIndex + 1}/${workflow.stages.length}: ${stage.name}`);
 
     // Publish stage.started event with full context for host listener
@@ -390,10 +447,33 @@ export class OrchestratorService {
       'sylvia': 'critique',
       'roy': 'backend',
       'jen': 'frontend',
-      'billy': 'qa',
+      'billy': 'qa-backend',
+      'liz': 'qa-frontend',
+      'todd': 'qa-performance',
+      'vic': 'qa-security',
       'priya': 'statistics',
+      'berry': 'devops',
+      'tim': 'documentation',
     };
     return streamMap[agent] || agent;
+  }
+
+  /**
+   * Check if a conditional stage should be skipped
+   */
+  private shouldSkipConditionalStage(workflow: FeatureWorkflow, stage: WorkflowStage): boolean {
+    if (!stage.conditional) return false; // Not conditional, don't skip
+
+    // Check all previous deliverables for the flag
+    for (const [, deliverable] of workflow.stageDeliverables) {
+      if (deliverable[stage.conditional] === true) {
+        return false; // Flag is set, DON'T skip
+      }
+    }
+
+    // Flag not found in any deliverable, skip this stage
+    console.log(`[${workflow.reqNumber}] Skipping ${stage.name} - no ${stage.conditional} flag set`);
+    return true;
   }
 
   private async handleStageSuccess(reqNumber: string, stageIndex: number, deliverable?: any): Promise<void> {

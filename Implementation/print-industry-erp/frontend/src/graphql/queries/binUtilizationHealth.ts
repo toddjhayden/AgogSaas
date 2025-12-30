@@ -42,6 +42,13 @@ export const GET_BIN_OPTIMIZATION_HEALTH = gql`
           processingTimeMs
           note
         }
+        fragmentationMonitoring {
+          status
+          message
+          fragmentationIndex
+          fragmentationLevel
+          requiresConsolidation
+        }
       }
     }
   }

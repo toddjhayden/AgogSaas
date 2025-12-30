@@ -66,12 +66,14 @@ WORKFLOW STAGES (Automatic)
   4. Jen (Frontend)            - React UI
   5. Billy (QA)                - Playwright MCP tests (MANDATORY!)
   6. Priya (Statistics)        - Metrics
+  7. Berry (DevOps)            - Git commit + Push to GitHub (MANDATORY!)
 
 
 CHECK PROGRESS
 ──────────────
   Status:       OWNER_REQUESTS.md (auto-updates)
   Deliverables: backend/agent-output/deliverables/
+  GitHub:       https://github.com/toddjhayden/AgogSaas/commits/master
   NATS:         http://localhost:8223
 
 
@@ -85,7 +87,13 @@ TROUBLESHOOTING
   Fix:     Check Strategic Orchestrator window for errors
 
   Problem: Billy not testing
-  Fix:     Workflow must complete all 6 stages - check orchestrator
+  Fix:     Workflow must complete all 7 stages - check orchestrator
+
+  Problem: Work not appearing on GitHub
+  Fix:     1. Check Berry (Stage 7) completed successfully
+           2. Verify GitHub authentication: gh auth status
+           3. Check git push succeeded: git status
+           4. View Berry's deliverable for error details
 
 
 FILES

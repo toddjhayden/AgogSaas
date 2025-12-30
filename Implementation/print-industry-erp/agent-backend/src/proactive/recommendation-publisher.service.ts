@@ -21,7 +21,7 @@ export interface Recommendation {
 export class RecommendationPublisherService {
   private nc!: NatsConnection;
   private isRunning = false;
-  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || 'D:/GitHub/agogsaas/project-spirit/owner_requests/OWNER_REQUESTS.md';
+  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md';
 
   async initialize(): Promise<void> {
     const natsUrl = process.env.NATS_URL || 'nats://localhost:4223';
@@ -171,7 +171,7 @@ ${requirements}
   private async commitRecommendation(rec: Recommendation): Promise<void> {
     try {
       const { execSync } = require('child_process');
-      const cwd = process.env.OWNER_REQUESTS_DIR || 'D:/GitHub/agogsaas/project-spirit/owner_requests';
+      const cwd = process.env.OWNER_REQUESTS_DIR || '/app/project-spirit/owner_requests';
 
       execSync('git add OWNER_REQUESTS.md', { cwd });
       execSync(`git commit -m "feat: Auto-generated recommendation ${rec.reqNumber} from ${rec.generatedBy}"`, { cwd });

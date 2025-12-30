@@ -11,6 +11,7 @@ export interface UserPreferences {
   language: 'en' | 'zh';
   selectedFacility: string | null;
   theme: 'light' | 'dark';
+  tenantId?: string; // Added for multi-tenant support
 }
 
 interface AppState {
@@ -19,6 +20,7 @@ interface AppState {
   setLanguage: (language: 'en' | 'zh') => void;
   setFacility: (facilityId: string | null) => void;
   setTheme: (theme: 'light' | 'dark') => void;
+  setTenantId: (tenantId: string) => void; // Added for multi-tenant support
 
   // KPI favorites
   kpiFavorites: KPIFavorite[];
@@ -32,7 +34,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Initial preferences
       preferences: {
         language: 'en',
@@ -54,6 +56,16 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           preferences: { ...state.preferences, theme },
         })),
+
+      setTenantId: (tenantId) => {
+        set((state) => ({
+          preferences: { ...state.preferences, tenantId },
+        }));
+        // Update global accessor for GraphQL client
+        if (typeof window !== 'undefined') {
+          (window as any).__getTenantId = () => tenantId;
+        }
+      },
 
       // KPI favorites
       kpiFavorites: [],

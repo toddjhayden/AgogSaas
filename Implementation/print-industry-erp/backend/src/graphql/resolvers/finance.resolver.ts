@@ -1,6 +1,11 @@
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { Inject } from '@nestjs/common';
 import { Pool } from 'pg';
+import { InvoiceService } from '../../modules/finance/services/invoice.service';
+import { PaymentService } from '../../modules/finance/services/payment.service';
+import { JournalEntryService } from '../../modules/finance/services/journal-entry.service';
+import { CreateInvoiceDto, UpdateInvoiceDto, VoidInvoiceDto } from '../../modules/finance/dto/invoice.dto';
+import { CreatePaymentDto, ApplyPaymentDto } from '../../modules/finance/dto/payment.dto';
 
 /**
  * Finance GraphQL Resolver
@@ -19,7 +24,12 @@ import { Pool } from 'pg';
 
 @Resolver('Finance')
 export class FinanceResolver {
-  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
+  constructor(
+    @Inject('DATABASE_POOL') private readonly db: Pool,
+    private readonly invoiceService: InvoiceService,
+    private readonly paymentService: PaymentService,
+    private readonly journalEntryService: JournalEntryService,
+  ) {}
 
   // =====================================================
   // FINANCIAL PERIOD QUERIES
@@ -1033,8 +1043,47 @@ export class FinanceResolver {
     const userId = context.req.user.id;
     const tenantId = context.req.user.tenantId;
 
-    // TODO: Full invoice creation with lines, tax calculation, GL posting
-    throw new Error('Not yet implemented');
+    // Calculate totals from lines
+    const subtotal = input.lines.reduce((sum, line) => sum + line.lineAmount, 0);
+    const taxAmount = input.lines.reduce((sum, line) => sum + (line.taxAmount || 0), 0);
+    const totalAmount = subtotal + taxAmount;
+
+    // Map GraphQL input to service DTO
+    const dto: CreateInvoiceDto = {
+      tenantId,
+      facilityId: input.facilityId,
+      invoiceType: input.invoiceType,
+      customerId: input.customerId,
+      vendorId: input.vendorId,
+      invoiceNumber: undefined, // Auto-generate
+      invoiceDate: new Date(input.invoiceDate),
+      dueDate: new Date(input.dueDate),
+      currencyCode: input.currencyCode,
+      exchangeRate: undefined, // Auto-lookup
+      lines: input.lines.map(line => ({
+        description: line.description,
+        quantity: line.quantity || 1,
+        unitPrice: line.unitPrice,
+        amount: line.lineAmount,
+        accountId: line.revenueAccountId,
+        taxAmount: line.taxAmount || 0,
+        discountAmount: 0,
+      })),
+      subtotal,
+      taxAmount,
+      shippingAmount: 0,
+      discountAmount: 0,
+      totalAmount,
+      notes: input.notes,
+      referenceNumber: input.purchaseOrderNumber,
+      postToGL: true, // Always post to GL
+    };
+
+    // Call service
+    const invoice = await this.invoiceService.createInvoice(dto, userId);
+
+    // Return GraphQL type
+    return this.mapInvoiceRow(invoice);
   }
 
   @Mutation('updateInvoice')
@@ -1043,12 +1092,31 @@ export class FinanceResolver {
     @Args('input') input: any,
     @Context() context: any
   ) {
-    throw new Error('Not yet implemented');
+    const userId = context.req.user.id;
+
+    const dto: UpdateInvoiceDto = {
+      invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : undefined,
+      dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+      notes: input.notes,
+      referenceNumber: input.referenceNumber,
+    };
+
+    const invoice = await this.invoiceService.updateInvoice(id, dto, userId);
+    return this.mapInvoiceRow(invoice);
   }
 
   @Mutation('voidInvoice')
   async voidInvoice(@Args('id') id: string, @Context() context: any) {
-    throw new Error('Not yet implemented');
+    const userId = context.req.user.id;
+
+    const dto: VoidInvoiceDto = {
+      reason: 'Voided via GraphQL',
+      voidDate: new Date(),
+      reverseGL: true, // Always reverse GL on void
+    };
+
+    const invoice = await this.invoiceService.voidInvoice(id, dto, userId);
+    return this.mapInvoiceRow(invoice);
   }
 
   // =====================================================
@@ -1057,7 +1125,34 @@ export class FinanceResolver {
 
   @Mutation('createPayment')
   async createPayment(@Args('input') input: any, @Context() context: any) {
-    throw new Error('Not yet implemented');
+    const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
+
+    const dto: CreatePaymentDto = {
+      tenantId,
+      facilityId: input.facilityId,
+      paymentType: input.paymentType,
+      customerId: input.customerId,
+      vendorId: input.vendorId,
+      paymentNumber: undefined, // Auto-generate
+      paymentDate: new Date(input.paymentDate),
+      depositDate: input.depositDate ? new Date(input.depositDate) : undefined,
+      amount: input.paymentAmount,
+      currencyCode: input.currencyCode,
+      exchangeRate: undefined, // Auto-lookup
+      paymentMethod: input.paymentMethod,
+      checkNumber: input.checkNumber,
+      transactionId: input.transactionId,
+      paidByName: input.paidByName,
+      bankAccountId: input.bankAccountId,
+      applyToInvoices: [], // Will handle in separate mutation
+      notes: input.notes,
+      referenceNumber: input.referenceNumber,
+      postToGL: true, // Always post to GL
+    };
+
+    const payment = await this.paymentService.createPayment(dto, userId);
+    return this.mapPaymentRow(payment);
   }
 
   @Mutation('applyPayment')
@@ -1066,7 +1161,31 @@ export class FinanceResolver {
     @Args('applications') applications: any[],
     @Context() context: any
   ) {
-    throw new Error('Not yet implemented');
+    const userId = context.req.user.id;
+
+    // Apply each invoice application
+    for (const app of applications) {
+      const dto: ApplyPaymentDto = {
+        paymentId,
+        invoiceId: app.invoiceId,
+        amountToApply: app.amountApplied,
+        appliedDate: new Date(),
+      };
+
+      await this.paymentService.applyPayment(dto, userId);
+    }
+
+    // Return updated payment
+    const paymentResult = await this.db.query(
+      `SELECT * FROM payments WHERE id = $1 AND deleted_at IS NULL`,
+      [paymentId]
+    );
+
+    if (paymentResult.rows.length === 0) {
+      throw new Error(`Payment ${paymentId} not found`);
+    }
+
+    return this.mapPaymentRow(paymentResult.rows[0]);
   }
 
   // =====================================================

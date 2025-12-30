@@ -40,12 +40,15 @@ The daemon runs continuously and:
   4. **Jen** (Frontend) - Implements React UI
   5. **Billy** (QA) - **MANDATORY Playwright MCP testing**
   6. **Priya** (Statistics) - Generates metrics
+  7. **Berry** (DevOps) - **MANDATORY Git commit + Push to GitHub**
 
 ### 3. Quality Gates Enforced
 - ✅ Billy MUST test with Playwright MCP before COMPLETE
+- ✅ Berry MUST commit and push to GitHub before COMPLETE
 - ✅ Chuck (Senior Review) checks code quality
 - ✅ Workflows CANNOT skip stages
-- ✅ No "fake complete" - actual testing required
+- ✅ No "fake complete" - actual testing and deployment required
+- ✅ All work MUST appear on GitHub (no local-only commits)
 
 ---
 
@@ -85,6 +88,7 @@ Files:
 - `jen-frontend-REQ-XXX-YYY.md`
 - `billy-qa-REQ-XXX-YYY.md`
 - `priya-statistics-REQ-XXX-YYY.md`
+- `berry-devops-REQ-XXX-YYY.md`
 
 ---
 
@@ -113,7 +117,7 @@ Files:
    - Detect your NEW request
    - Update status to IN_PROGRESS
    - Spawn Cynthia to start research
-   - Execute full 6-stage workflow
+   - Execute full 7-stage workflow (ending with Berry pushing to GitHub)
 
 5. **Check progress:**
    - Watch `agent-output/deliverables/` for reports
@@ -178,8 +182,10 @@ Stage 4: Jen (Frontend)
 Stage 5: Billy (QA - MANDATORY PLAYWRIGHT TESTING)
          ↓ publishes to NATS
 Stage 6: Priya (Statistics)
-         ↓
-Workflow COMPLETE → Memory Storage
+         ↓ publishes to NATS
+Stage 7: Berry (DevOps - MANDATORY GIT PUSH)
+         ↓ commits + pushes to GitHub
+Workflow COMPLETE → Memory Storage → Code on GitHub
 ```
 
 ---

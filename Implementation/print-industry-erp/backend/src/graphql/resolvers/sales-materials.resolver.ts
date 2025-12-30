@@ -554,41 +554,7 @@ export class SalesMaterialsResolver {
     return result.rows.map(this.mapVendorPerformanceRow);
   }
 
-  @Query('vendorScorecard')
-  async getVendorScorecard(
-    @Args('tenantId') tenantId: string,
-    @Args('vendorId') vendorId: string,
-    @Context() context: any
-  ) {
-    // Security: Validate tenant access
-    validateTenantAccess(context, tenantId);
-
-    return this.vendorPerformanceService.getVendorScorecard(tenantId, vendorId);
-  }
-
-  @Query('vendorComparisonReport')
-  async getVendorComparisonReport(
-    @Args('tenantId') tenantId: string,
-    @Args('year') year: number,
-    @Args('month') month: number,
-    @Args('vendorType') vendorType: string | null,
-    @Args('topN') topN: number = 5,
-    @Context() context: any
-  ) {
-    // Security: Validate tenant access
-    validateTenantAccess(context, tenantId);
-
-    // Validation: Check year, month, and topN ranges
-    validateVendorComparisonInput({ year, month, topN });
-
-    return this.vendorPerformanceService.getVendorComparisonReport(
-      tenantId,
-      year,
-      month,
-      vendorType,
-      topN
-    );
-  }
+  // REMOVED: vendorScorecard and vendorComparisonReport queries - now in vendor-performance.resolver.ts
 
   // =====================================================
   // CUSTOMERS QUERIES
@@ -755,46 +721,54 @@ export class SalesMaterialsResolver {
     @Args('offset') offset: number = 0,
     @Context() context: any
   ) {
-    let whereClause = `tenant_id = $1`;
+    let whereClause = `q.tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramIndex = 2;
 
     if (facilityId) {
-      whereClause += ` AND facility_id = $${paramIndex++}`;
+      whereClause += ` AND q.facility_id = $${paramIndex++}`;
       params.push(facilityId);
     }
 
     if (customerId) {
-      whereClause += ` AND customer_id = $${paramIndex++}`;
+      whereClause += ` AND q.customer_id = $${paramIndex++}`;
       params.push(customerId);
     }
 
     if (status) {
-      whereClause += ` AND status = $${paramIndex++}`;
+      whereClause += ` AND q.status = $${paramIndex++}`;
       params.push(status);
     }
 
     if (salesRepUserId) {
-      whereClause += ` AND sales_rep_user_id = $${paramIndex++}`;
+      whereClause += ` AND q.sales_rep_user_id = $${paramIndex++}`;
       params.push(salesRepUserId);
     }
 
     if (startDate) {
-      whereClause += ` AND quote_date >= $${paramIndex++}`;
+      whereClause += ` AND q.quote_date >= $${paramIndex++}`;
       params.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ` AND quote_date <= $${paramIndex++}`;
+      whereClause += ` AND q.quote_date <= $${paramIndex++}`;
       params.push(endDate);
     }
 
     params.push(limit, offset);
 
     const result = await this.db.query(
-      `SELECT * FROM quotes
+      `SELECT
+         q.*,
+         c.customer_name,
+         f.facility_name,
+         u.full_name as sales_rep_name
+       FROM quotes q
+       LEFT JOIN customers c ON q.customer_id = c.id
+       LEFT JOIN facilities f ON q.facility_id = f.id
+       LEFT JOIN users u ON q.sales_rep_user_id = u.id
        WHERE ${whereClause}
-       ORDER BY quote_date DESC, quote_number DESC
+       ORDER BY q.quote_date DESC, q.quote_number DESC
        LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
       params
     );
@@ -805,7 +779,16 @@ export class SalesMaterialsResolver {
   @Query('quote')
   async getQuote(@Args('id') id: string) {
     const result = await this.db.query(
-      `SELECT * FROM quotes WHERE id = $1`,
+      `SELECT
+         q.*,
+         c.customer_name,
+         f.facility_name,
+         u.full_name as sales_rep_name
+       FROM quotes q
+       LEFT JOIN customers c ON q.customer_id = c.id
+       LEFT JOIN facilities f ON q.facility_id = f.id
+       LEFT JOIN users u ON q.sales_rep_user_id = u.id
+       WHERE q.id = $1`,
       [id]
     );
 
@@ -827,7 +810,16 @@ export class SalesMaterialsResolver {
   @Query('quoteByNumber')
   async getQuoteByNumber(@Args('quoteNumber') quoteNumber: string) {
     const result = await this.db.query(
-      `SELECT * FROM quotes WHERE quote_number = $1`,
+      `SELECT
+         q.*,
+         c.customer_name,
+         f.facility_name,
+         u.full_name as sales_rep_name
+       FROM quotes q
+       LEFT JOIN customers c ON q.customer_id = c.id
+       LEFT JOIN facilities f ON q.facility_id = f.id
+       LEFT JOIN users u ON q.sales_rep_user_id = u.id
+       WHERE q.quote_number = $1`,
       [quoteNumber]
     );
 
@@ -2432,9 +2424,13 @@ export class SalesMaterialsResolver {
       quoteDate: row.quote_date,
       expirationDate: row.expiration_date,
       customerId: row.customer_id,
+      customerName: row.customer_name,
       contactName: row.contact_name,
       contactEmail: row.contact_email,
+      contactPhone: row.contact_phone,
       salesRepUserId: row.sales_rep_user_id,
+      salesRepName: row.sales_rep_name,
+      facilityName: row.facility_name,
       quoteCurrencyCode: row.quote_currency_code,
       subtotal: row.subtotal ? parseFloat(row.subtotal) : null,
       taxAmount: row.tax_amount ? parseFloat(row.tax_amount) : null,
