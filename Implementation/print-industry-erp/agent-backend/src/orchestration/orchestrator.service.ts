@@ -29,7 +29,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     name: 'Research',
     agent: 'cynthia',
     natsSubject: 'agog.features.research.{reqNumber}',
-    timeout: 7200000, // 2 hours
+    timeout: 2700000, // 45 minutes (agents work faster than humans)
     retries: 0,
     onSuccess: 'next',
     onFailure: 'block',
@@ -38,7 +38,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     name: 'Critique',
     agent: 'sylvia',
     natsSubject: 'agog.features.critique.{reqNumber}',
-    timeout: 3600000, // 1 hour
+    timeout: 1800000, // 30 minutes
     retries: 0,
     onSuccess: 'decision',
     onFailure: 'block',
@@ -48,7 +48,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     name: 'Backend Implementation',
     agent: 'roy',
     natsSubject: 'agog.features.backend.{reqNumber}',
-    timeout: 14400000, // 4 hours
+    timeout: 3600000, // 1 hour (reduced from 4 hours)
     retries: 1,
     onSuccess: 'next',
     onFailure: 'notify',
@@ -57,7 +57,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     name: 'Frontend Implementation',
     agent: 'jen',
     natsSubject: 'agog.features.frontend.{reqNumber}',
-    timeout: 14400000, // 4 hours
+    timeout: 3600000, // 1 hour (reduced from 4 hours)
     retries: 1,
     onSuccess: 'next',
     onFailure: 'notify',
@@ -66,7 +66,7 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     name: 'QA Testing',
     agent: 'billy',
     natsSubject: 'agog.features.qa.{reqNumber}',
-    timeout: 7200000, // 2 hours
+    timeout: 2700000, // 45 minutes (reduced from 2 hours)
     retries: 0,
     onSuccess: 'next',
     onFailure: 'block',
@@ -75,18 +75,18 @@ const STANDARD_FEATURE_WORKFLOW: WorkflowStage[] = [
     name: 'Statistics',
     agent: 'priya',
     natsSubject: 'agog.features.statistics.{reqNumber}',
-    timeout: 1800000, // 30 min
+    timeout: 5400000, // 90 minutes (1.5 hours)
     retries: 0,
-    onSuccess: 'next', // Changed from 'complete' to 'next' to continue to Berry
+    onSuccess: 'next',
     onFailure: 'notify',
   },
   {
     name: 'DevOps Deployment',
     agent: 'berry',
     natsSubject: 'agog.features.devops.{reqNumber}',
-    timeout: 3600000, // 1 hour
+    timeout: 900000, // 15 minutes (reduced from 1 hour)
     retries: 0,
-    onSuccess: 'complete', // NOW workflow is truly complete after Git commit
+    onSuccess: 'complete',
     onFailure: 'block',
   },
 ];
@@ -161,6 +161,34 @@ export class OrchestratorService {
 
       await jsm.streams.add(streamConfig);
       console.log(`[Orchestrator] ✅ Stream ${streamName} created`);
+    }
+
+    // Initialize missing agent deliverable streams (berry and miki for DevOps)
+    const missingAgentStreams = [
+      { name: 'agog_features_devops', subjects: ['agog.deliverables.berry.>', 'agog.deliverables.miki.>'] },
+    ];
+
+    for (const stream of missingAgentStreams) {
+      try {
+        await jsm.streams.info(stream.name);
+        console.log(`[Orchestrator] Stream ${stream.name} already exists`);
+      } catch (error) {
+        console.log(`[Orchestrator] Creating stream: ${stream.name}`);
+
+        const streamConfig: Partial<StreamConfig> = {
+          name: stream.name,
+          subjects: stream.subjects,
+          storage: StorageType.File,
+          retention: RetentionPolicy.Limits,
+          max_msgs: 10000,
+          max_bytes: 1024 * 1024 * 1024, // 1GB
+          max_age: 7 * 24 * 60 * 60 * 1_000_000_000, // 7 days (nanoseconds)
+          discard: DiscardPolicy.Old,
+        };
+
+        await jsm.streams.add(streamConfig);
+        console.log(`[Orchestrator] ✅ Stream ${stream.name} created`);
+      }
     }
   }
 
@@ -283,6 +311,14 @@ export class OrchestratorService {
           clearTimeout(timeout);
           try {
             const deliverable = JSON.parse(msg.string());
+
+            // Gap Fix #18: Validate deliverable schema
+            if (!this.validateDeliverable(deliverable)) {
+              console.error(`[Orchestrator] Invalid deliverable schema from ${subject}:`, deliverable);
+              reject(new Error(`Invalid deliverable schema - missing required fields`));
+              return;
+            }
+
             resolve(deliverable);
           } catch (error) {
             reject(new Error(`Failed to parse deliverable from ${subject}: ${error}`));
@@ -290,6 +326,34 @@ export class OrchestratorService {
         }
       })();
     });
+  }
+
+  /**
+   * Gap Fix #18: Validate deliverable has required fields
+   */
+  private validateDeliverable(deliverable: any): boolean {
+    // Required fields for all deliverables
+    if (!deliverable.agent) {
+      console.error('[Orchestrator] Deliverable missing agent field');
+      return false;
+    }
+    if (!deliverable.status) {
+      console.error('[Orchestrator] Deliverable missing status field');
+      return false;
+    }
+    if (!deliverable.summary && deliverable.status !== 'BLOCKED') {
+      console.error('[Orchestrator] Deliverable missing summary field');
+      return false;
+    }
+
+    // Validate status values
+    const validStatuses = ['COMPLETE', 'BLOCKED', 'FAILED', 'ERROR'];
+    if (!validStatuses.includes(deliverable.status)) {
+      console.error(`[Orchestrator] Invalid status: ${deliverable.status}`);
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -337,6 +401,46 @@ export class OrchestratorService {
     if (!workflow) return;
 
     const stage = workflow.stages[stageIndex];
+
+    // Gap Fix #10: Check Billy test failures BEFORE marking success
+    if (stage.agent === 'billy' && deliverable?.testResult === 'FAIL') {
+      // Initialize billy failure count if not exists
+      if (!(workflow as any).billyFailureCount) {
+        (workflow as any).billyFailureCount = 0;
+      }
+
+      (workflow as any).billyFailureCount++;
+      const failureCount = (workflow as any).billyFailureCount;
+
+      console.error(`[${reqNumber}] Billy test FAILED (${failureCount}/3 failures)`);
+
+      if (failureCount >= 3) {
+        // Too many failures - escalate instead of blocking
+        console.error(`[${reqNumber}] Billy exceeded max failures (3) - ESCALATING`);
+
+        // Publish escalation event
+        await this.js.publish('agog.escalations.' + reqNumber, JSON.stringify({
+          reqId: reqNumber,
+          reason: 'BILLY_MAX_FAILURES',
+          context: {
+            failureCount,
+            testResult: deliverable.testResult,
+            failures: deliverable.failures || [],
+            reason: 'Excessive test failures (3+), manual intervention required'
+          },
+          priority: 'HIGH',
+          timestamp: new Date().toISOString()
+        }));
+
+        // Mark workflow as failed to stop further execution
+        workflow.status = 'failed';
+        return;
+      } else {
+        // Block workflow for bug fixes (will create sub-requirements via Strategic Orchestrator)
+        await this.handleStageBlocked(reqNumber, stageIndex, deliverable);
+        return;
+      }
+    }
 
     // TOKEN BURN PREVENTION: Don't store full deliverable content
     // Deliverables are in NATS - agents fetch them directly when needed

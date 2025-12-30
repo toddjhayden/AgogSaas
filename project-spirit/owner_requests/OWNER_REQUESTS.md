@@ -18,7 +18,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766516859233: Optimize Bin Utilization Algorithm
 
 **Status**: COMPLETE
@@ -37,7 +36,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766516859233: Optimize Bin Utilization Algorithm
 
 **Status**: COMPLETE
@@ -55,7 +53,6 @@
 - Create bin consolidation recommendations
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766516942302: Optimize Bin Utilization Algorithm
 
@@ -75,7 +72,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766527153113: Optimize Bin Utilization Algorithm
 
 **Status**: COMPLETE
@@ -93,7 +89,6 @@
 - Create bin consolidation recommendations
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766527796497: Optimize Bin Utilization Algorithm
 
@@ -113,7 +108,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766545799451: Optimize Bin Utilization Algorithm
 
 **Status**: COMPLETE
@@ -131,7 +125,6 @@
 - Create bin consolidation recommendations
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766550547073: Optimize Bin Utilization Algorithm
 
@@ -151,7 +144,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766568547079: Optimize Bin Utilization Algorithm
 
 **Status**: COMPLETE
@@ -169,7 +161,6 @@
 - Create bin consolidation recommendations
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766584106655: Optimize Bin Utilization Algorithm
 
@@ -189,7 +180,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766600259419: Optimize Bin Utilization Algorithm
 
 **Status**: COMPLETE
@@ -207,7 +197,6 @@
 - Create bin consolidation recommendations
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766627342634: Vendor Scorecards
 
@@ -227,7 +216,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766627757384: Sales Quote Automation
 
@@ -249,7 +237,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766639415938: PO Approval Workflow
 
 **Status**: COMPLETE
@@ -269,7 +256,6 @@
 - Enable mobile approval capabilities for managers
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766639534835: Inventory Forecasting
 
@@ -291,7 +277,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766657618088: Vendor Scorecards
 
 **Status**: COMPLETE
@@ -310,7 +295,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766675619639: Inventory Forecasting
 
@@ -332,7 +316,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766676891764: PO Approval Workflow
 
 **Status**: COMPLETE
@@ -352,7 +335,6 @@
 - Enable mobile approval capabilities for managers
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1735125600000: Sales Quote Automation
 
@@ -374,7 +356,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766689933757: Vendor Scorecards
 
 **Status**: COMPLETE
@@ -393,7 +374,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1735134000000: PO Approval Workflow
 
@@ -415,7 +395,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766697133555: Inventory Forecasting
 
 **Status**: COMPLETE
@@ -435,7 +414,6 @@
 - Enable scenario planning and what-if analysis capabilities
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766704336590: Sales Quote Automation
 
@@ -457,7 +435,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766711533941: Vendor Scorecards
 
 **Status**: COMPLETE
@@ -476,7 +453,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766713101438: PO Approval Workflow
 
@@ -498,7 +474,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766718736461: Inventory Forecasting
 
 **Status**: COMPLETE
@@ -518,7 +493,6 @@
 - Enable scenario planning and what-if analysis capabilities
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1735249200000: Sales Quote Automation
 
@@ -540,7 +514,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1735249636000: Vendor Scorecards
 
 **Status**: COMPLETE
@@ -559,7 +532,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1735251169000: PO Approval Workflow
 
@@ -581,7 +553,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1735252025000: Inventory Forecasting
 
 **Status**: COMPLETE
@@ -601,7 +572,6 @@
 - Enable scenario planning and what-if analysis capabilities
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1735253018773: Sales Quote Automation
 
@@ -623,7 +593,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1735255545000: Vendor Scorecards
 
 **Status**: COMPLETE
@@ -642,7 +611,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1735257600000: PO Approval Workflow
 
@@ -664,7 +632,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766790735924: Inventory Forecasting
 
 **Status**: COMPLETE
@@ -685,7 +652,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1735262800000: Vendor Scorecards
 
 **Status**: COMPLETE
@@ -704,7 +670,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766805136685: Sales Quote Automation
 
@@ -726,7 +691,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766821112012: PO Approval Workflow
 
 **Status**: COMPLETE
@@ -747,7 +711,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1735325347000: Vendor Scorecards
 
 **Status**: COMPLETE
@@ -766,7 +729,6 @@
 - Generate vendor performance reports and alerts
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766857111626: Inventory Forecasting
 
@@ -788,7 +750,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766862737958: Sales Quote Automation
 
 **Status**: COMPLETE
@@ -809,7 +770,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766869936958: PO Approval Workflow
 
 **Status**: COMPLETE
@@ -829,7 +789,6 @@
 - Enable mobile approval capabilities for managers
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766875111384: Vendor Scorecards
 
@@ -869,6 +828,7 @@
 - Verify tenant_id context propagation to WMS queries
 
 **Affected Pages**:
+
 - /wms/bin-utilization
 - /wms/bin-utilization-enhanced  
 - /wms/health
@@ -894,6 +854,7 @@
 - Verify /procurement/purchase-orders page loads successfully
 
 **Affected Page**:
+
 - /procurement/purchase-orders
 
 ---
@@ -917,6 +878,7 @@
 - Verify no mixed language display remains
 
 **Affected Page**:
+
 - /kpis
 
 ---
@@ -940,6 +902,7 @@
 - Test WMS queries receive tenant context automatically
 
 **Affected Pages**:
+
 - /wms/data-quality
 - All multi-tenant WMS queries
 
@@ -965,7 +928,6 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1766911112767: Sales Quote Automation
 
 **Status**: COMPLETE
@@ -985,7 +947,6 @@
 - Enable customer self-service quote portal
 
 ---
-
 
 ### REQ-STRATEGIC-AUTO-1766929114445: PO Approval Workflow
 
@@ -1007,7 +968,6 @@
 
 ---
 
-
 ### REQ-TEST-AUTO-DEPLOY-1766943255000: Test Auto-Deployment System
 
 **Status**: NEW
@@ -1027,6 +987,7 @@
 - Test endpoint is accessible and returns correct JSON
 
 **Test Validation**:
+
 - Endpoint accessible at http://localhost:4001/api/test/auto-deploy
 - Returns valid JSON with current timestamp
 - No manual intervention required for deployment
@@ -1034,10 +995,9 @@
 
 ---
 
-
 ### REQ-STRATEGIC-AUTO-1735400400000: Vendor Scorecards
 
-**Status**: NEW
+**Status**: COMPLETE
 **Owner**: marcus
 **Priority**: P2
 **Business Value**: Implement comprehensive vendor performance tracking and scorecards to improve supplier quality, reduce procurement costs by 12%, and enhance vendor relationship management. Enables data-driven vendor selection and contract negotiations.
@@ -1054,3 +1014,1049 @@
 
 ---
 
+### REQ-STRATEGIC-AUTO-1735405200000: Inventory Forecasting
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Implement intelligent inventory forecasting to reduce stockouts by 40%, minimize excess inventory by 30%, and optimize working capital utilization. Enables predictive demand planning based on historical trends, seasonality, and market conditions.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-28T16:20:00.000Z
+
+**Requirements**:
+
+- Design ML-based demand forecasting engine with historical data analysis
+- Create multi-factor forecasting models (seasonality, trends, promotions)
+- Implement automated reorder point and safety stock calculations
+- Add inventory optimization dashboard with forecasting accuracy metrics
+- Generate inventory recommendations and replenishment alerts
+- Enable scenario planning and what-if analysis capabilities
+
+---
+
+### REQ-STRATEGIC-AUTO-1735409486000: PO Approval Workflow
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Implement automated purchase order approval workflows to reduce approval cycle time by 60%, enforce spending controls, and improve procurement compliance. Enables multi-level approval routing based on PO value, budget availability, and vendor risk assessment.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-28T17:31:26.000Z
+
+**Requirements**:
+
+- Design configurable approval workflow engine with role-based routing
+- Create approval threshold rules based on PO value and categories
+- Implement budget validation and authorization controls
+- Add real-time approval notifications and escalation mechanisms
+- Generate PO approval analytics and bottleneck identification
+- Enable mobile approval capabilities for managers
+
+---
+
+### REQ-STRATEGIC-AUTO-1767045901871: Workflow Recovery & Self-Healing System
+
+**Status**: DEFERRED
+**Deferred Reason**: HIGH RISK - Would modify orchestrator core logic and agentic flow. Manual implementation required.
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Critical infrastructure gap - Orchestrator restarts cause workflow amnesia. IN_PROGRESS workflows orphaned forever. Implements 21 identified workflow gaps including recovery mechanisms, heartbeat monitoring, escalation paths, and state reconciliation. Reduces workflow failures by 80%, enables 24/7 autonomous operation, prevents stuck requirements.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:05:01.871Z
+**RICE Score**: Reach: 10 | Impact: 10 | Confidence: 9 | Effort: 8 | **Total: 11.25**
+
+**Requirements**:
+
+- Implement IN_PROGRESS recovery mechanism (GAP 2) - Query NATS on startup, restart orphaned workflows
+- Add workflow heartbeat system (GAP 5) - Publish every 3 min, monitor for stale workflows
+- Implement proper escalation mechanism (GAP 6) - Update OWNER_REQUESTS.md to ESCALATED, publish to agog.escalations.{reqId}, log to .claude/escalations/
+- Add sub-requirement monitoring recovery (GAP 8) - Persist tracking in NATS metadata, rebuild subscriptions on restart
+- Implement maximum workflow duration (GAP 3) - 8 hour total timeout, force escalation when exceeded
+- Add state reconciliation daemon (GAP 13) - Sync OWNER_REQUESTS.md from NATS every 10 minutes, NATS is source of truth
+- Subscribe to agent error events (GAP 9) - Monitor agog.errors.agent.>, trigger retries or escalation
+- Add Billy failure limit (GAP 10) - Max 3 test failures before escalation
+- Implement concurrency limit (GAP 12) - Max 5 concurrent workflows, priority queue for P0
+- Add sub-requirement recursion depth limit (GAP 21) - Max depth of 3, prevent infinite recursion
+
+**Success Criteria**:
+
+- Orchestrator restart recovers all IN_PROGRESS workflows within 60 seconds
+- Stale workflows detected and escalated within 10 minutes
+- State consistency maintained between NATS, PostgreSQL, OWNER_REQUESTS.md
+- Zero orphaned workflows after restart
+- Escalated workflows logged to .claude/escalations/ with full context
+
+---
+
+### REQ-STRATEGIC-AUTO-1767045901872: Real-Time Monitoring Dashboard Integration
+
+**Status**: DEFERRED
+**Deferred Reason**: MEDIUM RISK - Would modify NATS subscriptions in monitoring resolver. Manual implementation required.
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Monitoring dashboard shows stub data instead of real system metrics. Connect to NATS streams for live agent activity, error tracking, and workflow status. Enables real-time visibility into agentic system health, reduces MTTR by 70%, provides operational transparency.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:05:01.872Z
+**RICE Score**: Reach: 8 | Impact: 8 | Confidence: 9 | Effort: 5 | **Total: 11.52**
+
+**Requirements**:
+
+- Connect monitoring.resolver.ts to NATS subscriptions (agog.monitoring.health, agog.metrics.system)
+- Implement error tracking queries from agog.errors.> stream
+- Parse OWNER_REQUESTS.md for active fixes (IN_PROGRESS, BLOCKED, ESCALATED)
+- Subscribe to agog.orchestration.events.> for agent activity tracking
+- Implement GraphQL subscriptions for real-time dashboard updates
+- Add error-fix mapping database (errors table, fixes table, error_fix_mapping)
+- Create agent activity service to track workflow progress
+- Add system health aggregation from NATS health reports
+- Implement metrics collection for workflow statistics (completion rate, average duration, failure rate)
+- Replace all stub data with live queries
+
+**Success Criteria**:
+
+- Dashboard shows real agent activity within 5 seconds of NATS event
+- Error counts match actual errors in system
+- Active fixes list matches OWNER_REQUESTS.md IN_PROGRESS items
+- GraphQL subscriptions push updates to frontend without polling
+- All dashboard metrics update in real-time
+
+---
+
+### REQ-STRATEGIC-AUTO-1767045901873: NestJS Migration Phase 3 - WMS & Procurement Modules
+
+**Status**: NEW
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Continue modernization journey - migrate WMS and Procurement modules to NestJS dependency injection. Improves code maintainability, enables better testing, standardizes architecture across backend. Phase 2 (Forecasting) complete, Phase 3 targets high-traffic modules.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:05:01.873Z
+**RICE Score**: Reach: 7 | Impact: 6 | Confidence: 10 | Effort: 6 | **Total: 7.00**
+
+**Requirements**:
+
+- Create WmsModule with all WMS services (@Injectable() decorators)
+- Migrate 8 WMS services: BinUtilizationService, BinOptimizationService, InventoryLocationsService, LotsService, MaterialVelocityService, BinDataQualityService, BinUtilizationPredictionService
+- Create WMS GraphQL object types and DTOs (BinUtilization, InventoryLocation, Lot, BinOptimizationConfig)
+- Update WmsResolver to use constructor injection
+- Create ProcurementModule with vendor and PO services
+- Migrate 5 Procurement services: VendorPerformanceService, PurchaseOrderService, VendorScorecardService, POApprovalWorkflowService
+- Create Procurement GraphQL types (Vendor, PurchaseOrder, VendorScorecard, ApprovalWorkflow)
+- Update ProcurementResolver to use constructor injection
+- Register both modules in AppModule
+- Run build tests and verify GraphQL introspection
+
+**Success Criteria**:
+
+- All WMS and Procurement services use @Injectable()
+- Modules registered in AppModule with proper exports
+- TypeScript build passes with zero errors
+- GraphQL playground shows all migrated types
+- All existing functionality preserved (zero regression)
+
+---
+
+### REQ-STRATEGIC-AUTO-1767045901874: Deployment Health Verification & Smoke Tests
+
+**Status**: DEFERRED
+**Deferred Reason**: MEDIUM RISK - Would modify deployment-executor.service.ts. Manual implementation required.
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Deployments succeed but features could be broken. Rollbacks appear successful but system non-functional. Implements post-deployment smoke tests and rollback verification (GAP 14). Reduces production incidents by 60%, increases deployment confidence.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:05:01.874Z
+**RICE Score**: Reach: 9 | Impact: 8 | Confidence: 8 | Effort: 4 | **Total: 14.40**
+
+**Requirements**:
+
+- Create comprehensive smoke test suite for critical paths
+- Test health endpoint, database connectivity, NATS connection
+- Verify critical GraphQL queries (forecasting, WMS, procurement, sales)
+- Test authentication and authorization flows
+- Add database migration verification (check tables exist, constraints valid)
+- Implement post-deployment smoke test execution in deployment-executor.service.ts
+- Add post-rollback smoke tests with critical escalation if failing
+- Create smoke test results logging to agog.deployment.smoke-test.{reqId}
+- Add smoke test status to Berry deliverable payload
+- Implement smoke test failure escalation (CRITICAL priority)
+
+**Success Criteria**:
+
+- Smoke tests execute automatically after every deployment
+- Failed deployments trigger automatic rollback
+- Rollback failures escalate with CRITICAL priority
+- Smoke test results logged to NATS for audit trail
+- Berry deliverable includes smoke test status
+
+---
+
+### REQ-STRATEGIC-AUTO-1767045901875: Agent Error Resilience & Git Transaction Safety
+
+**Status**: DEFERRED
+**Deferred Reason**: HIGH RISK - Would modify Host Listener behavior and agent spawning. Manual implementation required.
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Agent failures leave repository in inconsistent state. Git operations fail mid-commit causing dirty working tree. Implements GAP 16, 18, 19, 20 for robust agent execution and database migrations. Reduces agent failure impact by 75%, prevents repository corruption.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:05:01.875Z
+**RICE Score**: Reach: 7 | Impact: 7 | Confidence: 8 | Effort: 5 | **Total: 7.84**
+
+**Requirements**:
+
+- Implement git transaction safety protocol for all agents
+- Create feature branch (feature/{reqId}) before making changes
+- Verify git status clean before starting work
+- Wrap all changes in git transaction (add, commit on branch)
+- On failure: git reset --hard origin/main, report FAILED
+- Add deliverable validation schemas for all agent types (Cynthia, Sylvia, Roy, Jen, Billy, Priya, Berry)
+- Validate deliverable JSON against schema before processing
+- On invalid deliverable: log error, publish agog.errors.deliverable.{reqId}, retry stage once
+- Implement database migration transaction wrapping (BEGIN/COMMIT/ROLLBACK)
+- Test migrations in dev environment before production apply
+- Add Host Listener spawned agent tracking (.claude/agents/spawned/{reqId}.json)
+- Implement orphaned agent cleanup on Host Listener restart
+- Resume monitoring for active agents after crash recovery
+
+**Success Criteria**:
+
+- All agent git operations use feature branches
+- Repository never in dirty state after agent failure
+- Invalid deliverables detected and retried
+- Database migrations always transactional
+- Host Listener restart doesn't orphan agent processes
+
+---
+
+### REQ-STRATEGIC-AUTO-1767045901876: Performance Analytics & Optimization Dashboard
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: No visibility into system performance metrics. Backend queries, WMS operations, forecasting calculations running without monitoring. Create performance analytics dashboard showing query times, bottlenecks, resource usage. Enables proactive optimization, reduces response times by 40%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:05:01.876Z
+**RICE Score**: Reach: 6 | Impact: 7 | Confidence: 7 | Effort: 6 | **Total: 4.90**
+
+**Requirements**:
+
+- Implement query performance logging in all GraphQL resolvers
+- Track query execution time, result size, database query count
+- Create performance_metrics table (query_name, duration_ms, timestamp, user_id, result_count)
+- Implement NestJS interceptor for automatic performance tracking
+- Create PerformanceAnalytics GraphQL schema (slowest queries, average response times, p95/p99 latency)
+- Build Performance Dashboard page in frontend (charts for query performance over time)
+- Add database query performance monitoring (pg_stat_statements integration)
+- Track materialized view refresh performance
+- Implement caching recommendations based on query patterns
+- Add performance alerts for queries exceeding thresholds (>1s warning, >3s critical)
+
+**Success Criteria**:
+
+- All GraphQL queries tracked automatically via interceptor
+- Performance dashboard shows real-time metrics
+- Slowest queries identified with execution plans
+- Performance degradation alerts sent to NATS
+- Optimization recommendations generated weekly
+
+---
+
+### REQ-STRATEGIC-AUTO-1767045901877: Multi-Language Support Completion
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Chinese translations incomplete causing mixed language display (REQ-I18N-CHINESE-1766892755202). Complete i18n implementation for all pages. Improves UX for Chinese-speaking users, enables global deployment, professional appearance.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:05:01.877Z
+**RICE Score**: Reach: 5 | Impact: 5 | Confidence: 10 | Effort: 3 | **Total: 8.33**
+
+**Requirements**:
+
+- Audit all frontend components for hardcoded English strings
+- Compare zh-CN.json with en-US.json to identify missing keys
+- Add all missing Chinese translations (estimated 200+ keys)
+- Ensure all components use i18n translation function t()
+- Add translations for: KPIs page, all dashboard headings, form labels, validation messages, error messages
+- Implement translation key coverage tests
+- Add language switching persistence (localStorage)
+- Test all pages in Chinese locale
+- Verify no mixed language display remains
+- Create translation maintenance documentation
+
+**Success Criteria**:
+
+- 100% translation coverage for Chinese locale
+- All pages display fully in selected language
+- Language preference persists across sessions
+- No hardcoded English strings in components
+- Translation tests prevent future regressions
+
+---
+
+### REQ-STRATEGIC-AUTO-1767048328658: Production Planning & Scheduling Module
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Critical gap - no production scheduling capabilities. Print industry requires job scheduling, press assignment, color sequence optimization, and makeready time minimization. Reduces production lead times by 35%, improves press utilization by 25%, enables real-time job tracking. Foundational for manufacturing operations.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:45:28.658Z
+**RICE Score**: Reach: 9 | Impact: 10 | Confidence: 8 | Effort: 9 | **Total: 8.89**
+
+**Requirements**:
+
+- Design production work order management system with status tracking (PENDING, SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED)
+- Create press/equipment master with capacity planning and availability calendars
+- Implement job scheduling algorithm with constraint-based optimization (press compatibility, color sequence, delivery deadlines)
+- Add makeready time calculation and color change sequence optimization
+- Create production schedule Gantt chart visualization with drag-and-drop rescheduling
+- Implement gang-run optimization (combine similar jobs on single press run)
+- Add production bottleneck analysis and capacity utilization reporting
+- Create shop floor tablet interface for work order tracking and time capture
+- Implement WIP (Work-In-Progress) tracking with real-time status updates
+- Add integration with sales orders and inventory forecasting
+
+**Success Criteria**:
+
+- Production schedule optimizes press utilization above 80%
+- Makeready times reduced by tracking color sequence optimization
+- Work orders tracked through all production stages
+- Real-time production status visible to sales and customer service
+- Schedule adherence measured and reported
+
+**Strategic Impact**:
+Enables core manufacturing operations. Without this, system lacks ability to manage actual production workflow - the heart of print business operations.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767048328659: Customer Portal & Self-Service Ordering
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Customer service team manually handles all order inquiries and reorders. Customer portal enables self-service ordering, reorder history, proof approvals, shipment tracking, and invoice access. Reduces customer service workload by 60%, improves customer satisfaction scores, enables 24/7 ordering capability.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:45:28.659Z
+**RICE Score**: Reach: 8 | Impact: 9 | Confidence: 9 | Effort: 7 | **Total: 10.29**
+
+**Requirements**:
+
+- Design customer authentication system with role-based access (buyers, approvers, accounting)
+- Create order history dashboard with reorder functionality (one-click reorder)
+- Implement online proof approval workflow with markup/annotation tools
+- Add shipment tracking integration with real-time carrier status
+- Create invoice/statement portal with payment history and online payment
+- Implement quote request forms with file upload for specifications
+- Add product catalog browsing with saved favorites/templates
+- Create notification system (order confirmations, shipment alerts, proof ready)
+- Implement customer-specific pricing and contract terms
+- Add reporting dashboard (spending analysis, order trends, delivery performance)
+
+**Success Criteria**:
+
+- 70% of reorders placed via self-service portal
+- Customer service tickets reduced by 50% within 6 months
+- Average proof approval cycle reduced from 48 hours to 12 hours
+- Customer satisfaction score improved by 25%
+- Portal adoption rate above 60% of active customers
+
+**Strategic Impact**:
+Transforms customer experience from reactive to proactive. Enables scaling without proportional customer service headcount growth.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767048328660: Real-Time Production Analytics Dashboard
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Management lacks real-time visibility into production performance. Build executive dashboard showing OEE (Overall Equipment Effectiveness), job completion rates, quality metrics, and capacity utilization. Enables data-driven decisions, identifies bottlenecks in real-time, improves accountability.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:45:28.660Z
+**RICE Score**: Reach: 7 | Impact: 8 | Confidence: 8 | Effort: 5 | **Total: 8.96**
+
+**Requirements**:
+
+- Design OEE calculation engine (Availability × Performance × Quality) per press/department
+- Create real-time production dashboard with current job status across all presses
+- Implement downtime tracking and categorization (planned, unplanned, breakdown, changeover)
+- Add job completion velocity metrics (jobs/hour, on-time completion percentage)
+- Create quality defect tracking and pareto analysis (top defect types)
+- Implement capacity utilization heatmaps (hourly, daily, weekly views)
+- Add labor efficiency tracking (actual vs estimated hours)
+- Create material waste tracking and trending
+- Implement alert system for production variances (job delays, quality issues, equipment downtime)
+- Add mobile dashboard for management visibility
+
+**Success Criteria**:
+
+- Real-time OEE calculated and displayed for all production lines
+- Management reviews dashboard daily for performance trends
+- Production issues identified within 30 minutes of occurrence
+- Monthly production review time reduced from 4 hours to 1 hour
+- Data-driven decision making increases operational efficiency by 15%
+
+**Strategic Impact**:
+Provides transparency into production operations. Enables continuous improvement culture through data visibility.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767048328661: Estimating & Job Costing Module
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: No automated job costing or estimating system. Sales team manually calculates estimates leading to errors and inconsistent pricing. Build estimating engine with paper cost, press time, finishing operations, and margin management. Reduces quote errors by 80%, standardizes pricing, improves margin visibility.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:45:28.661Z
+**RICE Score**: Reach: 9 | Impact: 9 | Confidence: 9 | Effort: 8 | **Total: 9.11**
+
+**Requirements**:
+
+- Design estimating engine with component-based costing (paper, ink, press time, finishing, shipping)
+- Create material price lookup with vendor pricing and quantity breaks
+- Implement press rate calculation based on equipment, setup time, run speed, crew size
+- Add finishing operation pricing (cutting, folding, binding, packaging)
+- Create margin management tools (target margin, floor pricing, approval workflows for low margins)
+- Implement job costing comparison (estimated vs actual) for continuous improvement
+- Add version control for estimates (track revisions, win/loss analysis)
+- Create estimating templates for common job types (business cards, brochures, catalogs)
+- Implement competitive pricing intelligence (track competitor quotes)
+- Add reporting: quote-to-order conversion rate, margin analysis by customer/job type
+
+**Success Criteria**:
+
+- Quote generation time reduced from 2 hours to 15 minutes
+- Pricing accuracy improved (variance between estimate and actual cost <5%)
+- Margin visibility enables data-driven pricing decisions
+- Quote-to-order conversion rate increased by 20%
+- Standardized pricing across all sales reps
+
+**Strategic Impact**:
+Critical for profitability management. Enables competitive pricing while protecting margins. Foundation for revenue growth.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767048328662: Advanced Reporting & Business Intelligence Suite
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: System generates transactional data but lacks analytical reporting. Build BI suite with customizable reports, dashboards, and scheduled report delivery. Enables executive decision-making, customer insights, operational KPIs. Reduces manual reporting effort by 75%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:45:28.662Z
+**RICE Score**: Reach: 8 | Impact: 7 | Confidence: 8 | Effort: 6 | **Total: 7.47**
+
+**Requirements**:
+
+- Design report builder with drag-and-drop interface (filters, grouping, sorting, charts)
+- Create executive dashboard templates (revenue trends, profitability, customer acquisition, production metrics)
+- Implement scheduled report delivery (email/PDF, daily/weekly/monthly)
+- Add ad-hoc query builder for power users
+- Create standard report library (sales by customer, inventory aging, vendor performance, job profitability)
+- Implement data export functionality (Excel, CSV, PDF)
+- Add drill-down capabilities from summary to detail views
+- Create custom KPI tracking with target vs actual comparisons
+- Implement report sharing and collaboration (save, share, subscribe)
+- Add visualization library (bar charts, line graphs, pie charts, heatmaps, gauges)
+
+**Success Criteria**:
+
+- 30+ standard reports available covering all business areas
+- Executive team uses dashboards weekly for performance reviews
+- Ad-hoc reporting reduces IT backlog by 50%
+- Report generation time reduced from hours to seconds
+- Data-driven insights lead to 3+ strategic initiatives per quarter
+
+**Strategic Impact**:
+Transforms data into actionable insights. Enables proactive business management vs reactive firefighting.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767048328663: Equipment Maintenance & Asset Management
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Print equipment requires preventive maintenance to avoid costly breakdowns. Track equipment service history, schedule preventive maintenance, manage spare parts inventory, and monitor equipment performance. Reduces unplanned downtime by 50%, extends equipment life, improves production reliability.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:45:28.663Z
+**RICE Score**: Reach: 6 | Impact: 8 | Confidence: 7 | Effort: 6 | **Total: 6.22**
+
+**Requirements**:
+
+- Design equipment master database (presses, cutters, folders, binders) with specifications and documentation
+- Create preventive maintenance scheduling system (calendar-based and meter-based triggers)
+- Implement work order management for maintenance tasks (planned and unplanned)
+- Add service history tracking (parts replaced, labor hours, costs)
+- Create spare parts inventory management with min/max levels and reorder points
+- Implement equipment downtime tracking with root cause analysis
+- Add maintenance calendar with technician assignment and time tracking
+- Create equipment performance dashboards (MTBF, MTTR, availability)
+- Implement mobile maintenance app for technicians (checklists, time entry, parts usage)
+- Add vendor service contract management and warranty tracking
+
+**Success Criteria**:
+
+- 90% of preventive maintenance completed on schedule
+- Unplanned equipment downtime reduced by 40%
+- Equipment-related production delays reduced by 50%
+- Spare parts inventory optimized (reduce stockouts and excess inventory)
+- Maintenance costs tracked and trended for budget planning
+
+**Strategic Impact**:
+Protects production capacity investment. Preventive approach reduces emergency repairs and production disruptions.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767048328664: Quality Management & SPC (Statistical Process Control)
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: Quality defects discovered late in production or at customer site. Implement quality checkpoints, defect tracking, SPC monitoring, and root cause analysis. Reduces customer complaints by 60%, improves first-pass quality, enables continuous improvement culture.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-29T22:45:28.664Z
+**RICE Score**: Reach: 7 | Impact: 8 | Confidence: 7 | Effort: 7 | **Total: 6.29**
+
+**Requirements**:
+
+- Design quality checkpoint workflow integrated with production stages (prepress, press, finishing)
+- Create defect classification system (categories, severity levels, responsible departments)
+- Implement SPC charts for key quality metrics (color consistency, registration, trim accuracy)
+- Add customer complaint management with RMA tracking and resolution workflows
+- Create non-conformance report (NCR) system with root cause analysis tools (5 Whys, fishbone diagrams)
+- Implement corrective/preventive action (CAPA) tracking with effectiveness verification
+- Add quality audit scheduling and checklist management
+- Create quality metrics dashboard (defect rates, first-pass yield, customer returns)
+- Implement supplier quality tracking (material defects traced to vendors)
+- Add quality cost tracking (internal failure, external failure, appraisal, prevention)
+
+**Success Criteria**:
+
+- Customer quality complaints reduced by 50% within 12 months
+- First-pass quality yield improved from 85% to 95%
+- Quality costs as percentage of revenue reduced by 30%
+- 100% of quality issues tracked with root cause documented
+- Continuous improvement initiatives driven by quality data
+
+**Strategic Impact**:
+Protects brand reputation. Quality issues directly impact customer retention and profitability. Data-driven quality improvement.
+
+---
+
+### REQ-MISSING-TOAST-IMPORT-1767129600000: Add react-hot-toast Dependency
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Critical - Monitoring page fails to load due to missing react-hot-toast import. Blocking http://localhost:3000/monitoring from functioning. Required for toast notifications in BinOptimizationConfigPage.
+**Generated By**: claude-code
+**Generated At**: 2025-12-29T14:00:00.000Z
+
+**Requirements**:
+
+- Install react-hot-toast package via npm
+- Verify BinOptimizationConfigPage.tsx import resolves correctly
+- Test http://localhost:3000/monitoring page loads successfully
+- Verify toast notifications display properly for user feedback
+
+**Affected Page**:
+
+- /monitoring
+
+**Error Details**:
+
+```
+[plugin:vite:import-analysis] Failed to resolve import "react-hot-toast" from "src/pages/BinOptimizationConfigPage.tsx"
+at src/pages/BinOptimizationConfigPage.tsx:35:22
+```
+
+---
+
+### REQ-STRATEGIC-AUTO-1767066329938: Complete Estimating  Job Costing Module
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: CRITICAL - Estimating and job costing schemas exist (654 lines GraphQL) but ZERO implementation. Cannot estimate jobs or analyze profitability. Blocks sales quotes and financial analysis.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T03:45:29.938Z
+**RICE Score**: Reach: 10 | Impact: 10 | Confidence: 10 | Effort: 8 | **Total: 12.50**
+
+**Requirements**: Create estimating.resolver.ts, job-costing.resolver.ts, EstimatingService, JobCostingService, 4 frontend pages (Estimate Builder, List, Cost Comparison, Profitability Analysis), cost calculation engine, variance tracking.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767066329939: Implement Frontend Authentication
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: CRITICAL SECURITY - useAuth.ts entirely mocked, anyone can access all features. NO JWT, NO sessions. Production blocker.
+**Generated By**: strategic-recommendation-generator  
+**Generated At**: 2025-12-30T03:45:29.938Z
+**RICE Score**: Reach: 10 | Impact: 10 | Confidence: 10 | Effort: 3 | **Total: 33.33**
+
+**Requirements**: Replace mock auth with real provider (Auth0/Cognito/JWT), token storage, refresh logic, login/logout flows, protected routes, session management.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767066329940: Complete Finance Module
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: Finance 50% placeholder - P&L/Balance Sheet hardcoded, GL posting unvalidated, period close missing, invoice/payment stubs.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T03:45:29.938Z
+**RICE Score**: Reach: 9 | Impact: 10 | Confidence: 9 | Effort: 6 | **Total: 13.50**
+
+**Requirements**: Implement real financial reports from GL, debit/credit validation, period close, AR/AP processing, audit trails.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767066329941: Carrier Shipping Integrations
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Shipping completely manual - no FedEx/UPS/USPS APIs. Cannot generate labels or track shipments. Reduces errors 80%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T03:45:29.938Z
+**RICE Score**: Reach: 9 | Impact: 9 | Confidence: 8 | Effort: 5 | **Total: 12.96**
+
+**Requirements**: Implement FedEx/UPS/USPS APIs, webhook handlers, label generation, tracking updates, address validation.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767066329942: PDF Preflight  Color Management
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: CRITICAL GAP - No PDF preflight or color management. Cannot validate files before printing. Table stakes for print industry. Reduces prepress errors 85%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T03:45:29.938Z
+**RICE Score**: Reach: 10 | Impact: 10 | Confidence: 7 | Effort: 7 | **Total: 10.00**
+
+**Requirements**: Integrate preflight engine (Enfocus/callas), ICC profiles, press calibration, spot color library, soft proofing.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767066329943: Customer Portal Frontend
+
+**Status**: COMPLETE
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: Backend complete but NO frontend - zero ROI. Enables 24/7 self-service, reduces support 60%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T03:45:29.938Z
+**RICE Score**: Reach: 8 | Impact: 9 | Confidence: 9 | Effort: 6 | **Total: 10.80**
+
+**Requirements**: Build separate customer app, order history, one-click reorder, proof approval, tracking, invoices, quotes.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767066329944: GraphQL Authorization  Tenant Isolation
+
+**Status**: IN_PROGRESS
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: CRITICAL SECURITY - Minimal auth checks, no RBAC, no tenant isolation. Data leakage risk. Production blocker.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T03:45:29.938Z
+**RICE Score**: Reach: 10 | Impact: 10 | Confidence: 9 | Effort: 4 | **Total: 22.50**
+
+**Requirements**: Implement RBAC, permission guards on all resolvers, tenant_id filtering, audit logging, security testing.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329260: Complete Row-Level Security (RLS) for Multi-Tenancy
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P0
+**Business Value**: CRITICAL SECURITY GAP - Only 89 of 240 tables (37%) have RLS policies. 151 unprotected tables create massive data leakage risk between tenants. Production blocker for multi-tenant SaaS deployment. Protects sensitive data including estimates, job costs, production schedules, customer portal, and SPC quality metrics.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.260Z
+**RICE Score**: Reach: 10 | Impact: 10 | Confidence: 10 | Effort: 3 | **Total: 33.33**
+
+**Requirements**:
+
+- Create V0.0.50__add_rls_estimating_job_costing.sql for estimates, estimate_operations, estimate_materials, job_costs, job_cost_updates tables
+- Create V0.0.51__add_rls_production_tables.sql for work_centers, production_orders, production_runs, routing_templates, routing_operations, changeover_details
+- Create V0.0.52__add_rls_preflight_spc.sql for preflight_profiles, preflight_reports, spc_control_chart_data, spc_control_limits, spc_process_capability
+- Create V0.0.53__add_rls_customer_portal.sql for customer_users, artwork_files, proofs, customer_activity_log
+- Add automated RLS policy testing suite to verify tenant isolation on all protected tables
+- Document RLS policy patterns for future table additions
+- Test multi-tenant data access controls with integration tests
+
+**Success Criteria**:
+
+- 100% of application tables have RLS policies (240/240)
+- No tenant can query another tenant's data through any GraphQL endpoint
+- Automated tests verify RLS enforcement on all protected tables
+- Documentation exists for RLS policy creation standards
+
+**Strategic Impact**:
+Blocks production deployment. Data breach risk is unacceptable for SaaS. Highest priority security fix.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329261: Payment Gateway Integration - Stripe & ACH
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: CRITICAL REVENUE GAP - No payment processing capability. Cannot accept credit cards or ACH payments online. Manual payment collection increases DSO (Days Sales Outstanding) by 15 days, creates accounting overhead, and blocks customer portal self-service. Stripe integration enables instant payment capture, reduces payment friction by 80%, improves cash flow.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.261Z
+**RICE Score**: Reach: 9 | Impact: 10 | Confidence: 9 | Effort: 4 | **Total: 20.25**
+
+**Requirements**:
+
+- Create payment_methods, payment_transactions, payment_reconciliation database tables
+- Implement StripeClientService with payment intent creation, card tokenization, webhook handling
+- Add ACH/bank account payment support for B2B customers
+- Create PaymentProcessingService for payment orchestration and retry logic
+- Implement payment reconciliation matching to invoices
+- Add PCI compliance infrastructure (tokenization, no card storage, audit logging)
+- Create GraphQL mutations: processPayment, savePaymentMethod, refundPayment
+- Build frontend payment forms with Stripe Elements integration
+- Implement payment status webhooks for async payment confirmation
+- Add automated payment receipts and confirmation emails
+
+**Success Criteria**:
+
+- Credit card payments processed with <2% failure rate
+- ACH payments available for invoices >$1000
+- Payment reconciliation automated (90%+ auto-match rate)
+- PCI compliance verified (no card data touches backend)
+- Customer portal accepts payments 24/7 without staff intervention
+
+**Strategic Impact**:
+Enables online revenue collection. Reduces manual accounting work by 70%. Critical for customer portal ROI and cash flow improvement.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329262: Wire Job Costing Resolver to Service Layer
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: QUICK WIN - JobCostingService fully implemented but resolver throws "not yet initialized" errors. 5 frontend pages blocked (JobCostingDashboard, VarianceReportPage, CostComparisonPage). Zero code change needed in service layer - just dependency injection. Enables critical profitability analysis and estimate vs actual variance tracking. 1 day fix unlocks $50K+ in delayed feature value.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.262Z
+**RICE Score**: Reach: 8 | Impact: 9 | Confidence: 10 | Effort: 1 | **Total: 72.00**
+
+**Requirements**:
+
+- Inject JobCostingService into JobCostingResolver constructor
+- Remove "throw new Error('not yet initialized')" stubs from all resolver methods
+- Call corresponding service methods (initializeJobCost, updateJobCost, reconcileJobCost, closeJobCost)
+- Add error handling and validation in resolver layer
+- Test all GraphQL queries: jobCost, jobCostVarianceReport, jobCostsByDateRange
+- Test all GraphQL mutations: initializeJobCost, updateJobCost, reconcileJobCost, closeJobCost
+- Verify frontend pages load successfully with real data
+
+**Success Criteria**:
+
+- All job costing GraphQL operations return real data (not errors)
+- JobCostingDashboard.tsx displays actual vs estimated cost variance
+- VarianceReportPage.tsx shows profitable vs losing jobs
+- No resolver methods throw initialization errors
+- Zero service code changes required
+
+**Strategic Impact**:
+Massive ROI - 1 day of wiring work unlocks complete job profitability visibility. Enables data-driven pricing decisions and identifies unprofitable job types.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329263: Shop Floor Data Collection - Mobile Production Reporting
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: MAJOR OPERATIONS GAP - No real-time production data capture. Operators manually write on paper travelers, data entered hours/days later, no visibility into current job status. Build mobile-friendly production reporting for barcode scanning, labor time tracking, quantity reporting, and scrap/rework entry. Enables real-time OEE calculation, eliminates data entry lag, improves production visibility by 90%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.263Z
+**RICE Score**: Reach: 9 | Impact: 9 | Confidence: 8 | Effort: 6 | **Total: 10.80**
+
+**Requirements**:
+
+- Design mobile-responsive shop floor interface (tablet/phone optimized)
+- Implement barcode scanning API for work order lookup (QR codes on travelers)
+- Create labor time tracking with clock in/out, pause, and task switching
+- Add quantity reporting with good/scrap/rework categorization
+- Implement downtime reason code capture (breakdown, changeover, material shortage)
+- Create ShopFloorDataCollectionService for real-time data ingestion
+- Add GraphQL mutations: clockIn, clockOut, reportQuantity, reportDowntime, scanWorkOrder
+- Build offline-first PWA capability (sync when network returns)
+- Implement real-time OEE recalculation on production updates
+- Create operator dashboard showing current job, target vs actual pace, quality alerts
+
+**Success Criteria**:
+
+- Production data captured within 5 minutes of occurrence (vs hours/days delay)
+- 90%+ of operators adopt mobile reporting within 30 days
+- OEE calculated in real-time (not end-of-shift)
+- Paper travelers eliminated on 80%+ of jobs
+- Labor time accuracy improved from 60% to 95%
+
+**Strategic Impact**:
+Transforms production visibility from lagging to real-time. Enables proactive management intervention when jobs fall behind. Foundation for continuous improvement initiatives.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329264: Material Requirements Planning (MRP) Engine
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: PLANNING GAP - Bill of Materials (BOM) tables exist but no MRP explosion logic. Cannot calculate net material requirements or generate planned purchase orders. Manual material planning causes stockouts (15% of jobs delayed) and excess inventory ($200K+ tied up). MRP automation reduces material shortages by 80%, optimizes inventory turns, enables push-button material planning.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.264Z
+**RICE Score**: Reach: 8 | Impact: 8 | Confidence: 7 | Effort: 7 | **Total: 6.86**
+
+**Requirements**:
+
+- Design MRP calculation engine with BOM explosion (multi-level traversal)
+- Implement net requirements calculation (Gross Requirements - On Hand - On Order + Safety Stock)
+- Create planned order generation with lead time offsetting
+- Add lot sizing logic (economic order quantity, lot-for-lot, period order quantity)
+- Implement action messages (expedite, cancel, reschedule existing POs)
+- Create MRP run scheduler (daily, weekly, or on-demand execution)
+- Add MRP pegging to trace requirements back to parent demand
+- Implement exception reporting (late orders, excess inventory, shortages)
+- Create MrpService with runMRP, calculateNetRequirements, generatePlannedOrders methods
+- Build MRP Dashboard showing planned orders, action messages, and exception reports
+- Add GraphQL queries: mrpRun, plannedOrders, actionMessages, materialShortages
+
+**Success Criteria**:
+
+- MRP run completes in <5 minutes for 10,000+ BOM items
+- Material shortage alerts generated 2+ weeks before production need
+- Planned POs auto-generated with correct quantities and due dates
+- Excess inventory identified and flagged for consumption
+- Action messages prioritize critical vendor expedites
+
+**Strategic Impact**:
+Eliminates manual material planning spreadsheets. Enables proactive purchasing instead of reactive firefighting. Reduces working capital tied up in inventory.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329265: Production Scheduling - Finite Capacity Algorithm
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: SCHEDULING GAP - Production planning tables and routing templates exist but no finite capacity scheduling engine. Jobs scheduled manually causing press conflicts, missed deadlines, and inefficient changeovers. Finite capacity scheduler optimizes press assignments, minimizes color changeovers, respects delivery dates. Reduces late deliveries by 60%, improves press utilization by 25%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.265Z
+**RICE Score**: Reach: 9 | Impact: 9 | Confidence: 7 | Effort: 8 | **Total: 7.88**
+
+**Requirements**:
+
+- Design constraint-based scheduling algorithm (press compatibility, crew availability, material readiness)
+- Implement color sequence optimization to minimize changeover time (gang similar colors)
+- Add backward scheduling from delivery date to calculate start times
+- Create drag-and-drop Gantt chart interface for schedule visualization and manual adjustment
+- Implement gang-run detection (combine multiple jobs on single press run)
+- Add what-if scenario planning (test schedule changes before committing)
+- Create SchedulingService with scheduleJobs, optimizeChangeovers, calculateMakeready methods
+- Implement production constraint validation (equipment capacity, labor hours, material availability)
+- Add schedule conflict detection and resolution recommendations
+- Build ProductionScheduleGanttPage with real-time capacity visualization
+- Implement GraphQL mutations: scheduleJob, rescheduleJob, optimizeSchedule, gangRunAnalysis
+
+**Success Criteria**:
+
+- Scheduler completes 100-job optimization in <30 seconds
+- Changeover time reduced by 30% through color sequencing
+- Press utilization increased from 65% to 85%+
+- Schedule adherence improves from 70% to 90%
+- On-time delivery rate increases from 82% to 95%
+
+**Strategic Impact**:
+Core manufacturing intelligence. Transforms scheduling from art to science. Enables competitive lead times while maintaining high utilization.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329266: Consolidate Bin Optimization Services - Eliminate Redundancy
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: TECHNICAL DEBT - 7+ bin optimization service implementations create maintenance nightmare, confusion, and code bloat. Over-engineering at its finest: bin-utilization-optimization.service.ts, -enhanced, -fixed, -hybrid, -data-quality-integration, -health, -health-enhanced. Pick ONE implementation, delete the rest, save future developers hours of "which one do I use?" headaches. Reduces codebase by 40KB+, improves maintainability.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.266Z
+**RICE Score**: Reach: 5 | Impact: 4 | Confidence: 10 | Effort: 2 | **Total: 10.00**
+
+**Requirements**:
+
+- Audit all 7 bin optimization service implementations to identify best version
+- Document decision criteria (performance, features, test coverage, maintainability)
+- Choose canonical implementation (likely bin-utilization-optimization.service.ts or -enhanced)
+- Update all resolvers and modules to reference canonical service
+- Delete 6 redundant service files
+- Update imports across codebase to remove references to deleted services
+- Add documentation: "Why we have ONE bin optimization service (and why we deleted 6 others)"
+- Test bin utilization dashboards still function with single service
+- Add regression tests to prevent future service proliferation
+
+**Success Criteria**:
+
+- Exactly ONE bin optimization service file exists
+- All bin utilization features still functional
+- Zero broken imports or references to deleted services
+- Documentation prevents future over-engineering
+- Code review guidelines updated: "Don't create -v2, -enhanced, -fixed - refactor the original"
+
+**Strategic Impact**:
+Signals commitment to code quality over feature bloat. Reduces cognitive load for developers. Prevents "analysis paralysis" when choosing which service to use.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329267: Fix Duplicate Migration Versions - Flyway Conflicts
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P1
+**Business Value**: DEPLOYMENT BLOCKER - Multiple migrations share same version numbers (V0.0.40, V0.0.41 duplicated 3-4 times each). Flyway will fail on clean database initialization, blocking new environment setup and disaster recovery. Renumber migrations sequentially, test clean database creation, ensure smooth deployment pipeline.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.267Z
+**RICE Score**: Reach: 7 | Impact: 9 | Confidence: 10 | Effort: 1 | **Total: 63.00**
+
+**Requirements**:
+
+- Audit all migration files in migrations/ directory for version conflicts
+- Identify duplicates: V0.0.40 (routing_templates, jobs_standard_costs, performance_monitoring), V0.0.41 (production_analytics, estimating, RLS)
+- Renumber duplicate migrations sequentially (V0.0.40 → V0.0.54, V0.0.55, V0.0.56)
+- Update migration file names to match new version numbers
+- Test clean database creation with `flyway clean && flyway migrate`
+- Verify all tables, views, functions, and indexes created successfully
+- Document migration naming convention to prevent future conflicts
+- Add CI/CD check for duplicate migration versions (automated detection)
+
+**Success Criteria**:
+
+- Zero duplicate migration version numbers
+- Clean database creation succeeds on first attempt
+- All migrations execute in correct dependency order
+- Flyway baseline and migrate commands complete without errors
+- CI/CD pipeline detects duplicate versions before merge
+
+**Strategic Impact**:
+Removes deployment risk. Enables confident disaster recovery and environment provisioning. Quick fix with high impact.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329268: Implement Digital Asset Management - File Versioning & Thumbnails
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: CUSTOMER EXPERIENCE GAP - Artwork files stored in blob storage but no version control, no thumbnails, no search/tagging. Customers and CSRs cannot visually find files, previous versions lost forever, file format confusion. DAM system enables visual asset browsing, automatic thumbnail generation, version history tracking, and metadata search. Reduces "where's that file?" tickets by 70%.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.268Z
+**RICE Score**: Reach: 7 | Impact: 7 | Confidence: 8 | Effort: 5 | **Total: 7.84**
+
+**Requirements**:
+
+- Design asset versioning system with file_versions table (version number, upload timestamp, uploaded_by)
+- Implement automatic thumbnail generation for PDF, JPEG, PNG, TIFF files using Sharp/ImageMagick
+- Add metadata extraction (file dimensions, color space, resolution, page count)
+- Create asset tagging and categorization system (tags, folders, custom fields)
+- Implement full-text search on file names, tags, and customer names
+- Add file format conversion service (TIFF to PDF, RGB to CMYK preview)
+- Create AssetManagementService with uploadAsset, createVersion, generateThumbnail, searchAssets methods
+- Build AssetBrowserPage with grid view, thumbnail preview, and drag-and-drop upload
+- Implement version comparison tool (side-by-side visual diff)
+- Add GraphQL queries: assets, assetVersions, searchAssets; mutations: uploadAsset, tagAsset, createAssetVersion
+
+**Success Criteria**:
+
+- Thumbnails auto-generated within 30 seconds of upload
+- Version history preserved for all customer artwork files
+- Visual asset browser reduces file location time from 5 minutes to 10 seconds
+- Search finds assets by customer name, job number, or custom tags
+- File format conversions automated (no manual Photoshop work)
+
+**Strategic Impact**:
+Professionalizes customer file management. Enables visual proof approval workflow. Reduces CSR time spent hunting for files.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329269: Implement Comprehensive Testing Suite - Unit, Integration, E2E
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P2
+**Business Value**: QUALITY DEBT - Zero unit tests, zero integration tests, zero E2E tests found in codebase. Every deployment is "hope and pray" - no safety net for refactoring, regression bugs frequent, confidence in changes low. Comprehensive test suite enables fearless refactoring, catches bugs before production, documents expected behavior. Reduces production incidents by 60%, improves developer velocity.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.269Z
+**RICE Score**: Reach: 10 | Impact: 7 | Confidence: 8 | Effort: 9 | **Total: 6.22**
+
+**Requirements**:
+
+- Set up Jest testing framework with TypeScript support for backend
+- Create unit tests for all services (EstimatingService, JobCostingService, ForecastingService, QuotePricingService)
+- Target 80%+ code coverage on service layer
+- Implement integration tests for GraphQL resolvers with test database
+- Create E2E tests for critical user flows (create estimate, approve quote, schedule production, approve PO)
+- Set up Cypress or Playwright for frontend E2E testing
+- Add test data factories for consistent test setup
+- Implement CI/CD pipeline integration (tests run on every PR)
+- Create mutation testing to verify test quality (Stryker)
+- Add performance regression tests for slow queries (>1s execution time alerts)
+- Document testing standards and contribution guidelines
+
+**Success Criteria**:
+
+- 80%+ unit test coverage on backend services
+- 100% of GraphQL resolvers have integration tests
+- Top 10 user workflows covered by E2E tests
+- CI/CD pipeline blocks merges if tests fail
+- Test execution time <5 minutes for full suite
+
+**Strategic Impact**:
+Transforms development culture from "hope it works" to "know it works". Enables rapid feature development without regression fear. Professional software engineering practices.
+
+---
+
+### REQ-STRATEGIC-AUTO-1767084329270: Optimize GraphQL Schema Architecture - Split operations.graphql
+
+**Status**: PENDING
+**Owner**: marcus
+**Priority**: P3
+**Business Value**: MAINTAINABILITY ISSUE - operations.graphql is 1,396 lines mixing production planning, preflight, color management, and SPC. Violates single responsibility principle, makes code navigation difficult, slows IDE performance. Split into focused schema files: production-planning.graphql, preflight.graphql, color-management.graphql, spc.graphql. Improves developer experience, reduces merge conflicts.
+**Generated By**: strategic-recommendation-generator
+**Generated At**: 2025-12-30T08:45:29.270Z
+**RICE Score**: Reach: 6 | Impact: 5 | Confidence: 9 | Effort: 3 | **Total: 9.00**
+
+**Requirements**:
+
+- Split operations.graphql into separate schema files:
+  - production-planning.graphql (work orders, scheduling, routing)
+  - preflight.graphql (PDF validation, preflight profiles, reports)
+  - color-management.graphql (color proofs, ICC profiles, press calibration)
+  - spc.graphql (moved from existing spc.graphql or merged if already separate)
+- Update schema imports in GraphQL module configuration
+- Verify schema stitching/merging works correctly
+- Test GraphQL playground shows all types correctly
+- Update documentation with schema organization guidelines
+- Add schema linting rules (max 500 lines per file)
+- Reorganize resolvers to match schema structure (one resolver per schema file)
+
+**Success Criteria**:
+
+- No schema file exceeds 500 lines
+- Each schema file has single, clear purpose
+- GraphQL introspection shows all types correctly
+- Zero breaking changes to existing queries
+- IDE autocomplete performance improved
+
+**Strategic Impact**:
+Developer quality-of-life improvement. Reduces cognitive load when working on specific domains. Sets precedent for organized codebase growth.
+
+---

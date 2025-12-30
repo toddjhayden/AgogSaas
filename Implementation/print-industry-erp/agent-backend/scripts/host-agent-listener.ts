@@ -17,7 +17,7 @@
  *   - Agent files in .claude/agents/
  */
 
-import { connect, NatsConnection, JetStreamClient, StringCodec } from 'nats';
+import { connect, NatsConnection, JetStreamClient, StringCodec, StorageType, RetentionPolicy, DiscardPolicy } from 'nats';
 import { spawn } from 'child_process';
 import * as path from 'path';
 
@@ -52,6 +52,10 @@ class HostAgentListener {
       this.js = this.nc.jetstream();
 
       console.log('[HostListener] ✅ Connected to NATS');
+
+      // Ensure deliverables stream exists (belt and suspenders - orchestrator also creates it)
+      await this.ensureDeliverablesStream();
+
       console.log('[HostListener] Subscribing to orchestration events...');
 
       // Graceful shutdown
@@ -62,8 +66,14 @@ class HostAgentListener {
       console.log('[HostListener] Waiting for workflow stage events...');
       console.log('[HostListener] Max concurrent agents:', this.maxConcurrent);
 
-      // Subscribe to stage started events (this will block forever in message loop)
-      await this.subscribeToStageEvents();
+      // Subscribe to stage started events
+      this.subscribeToStageEvents();
+
+      // Subscribe to value-chain-expert requests (from Docker daemon)
+      this.subscribeToValueChainExpertRequests();
+
+      // Keep alive
+      await this.keepAlive();
 
     } catch (error: any) {
       console.error('[HostListener] Failed to start:', error.message);
@@ -91,28 +101,157 @@ class HostAgentListener {
     // Get consumer
     const consumer = await this.js.consumers.get('agog_orchestration_events', 'host_agent_listener_v4');
 
-    // Consume messages
-    const messages = await consumer.consume();
+    // Consume messages (async - runs in background)
+    (async () => {
+      const messages = await consumer.consume();
 
-    for await (const msg of messages) {
-      if (!this.isRunning) break;
+      for await (const msg of messages) {
+        if (!this.isRunning) break;
 
-      try {
-        const event: StageEvent = JSON.parse(msg.string());
+        try {
+          const event: StageEvent = JSON.parse(msg.string());
 
-        if (event.eventType === 'stage.started') {
-          console.log(`[HostListener] 📨 Received event: ${event.reqNumber} - ${event.stage} (${event.agentId})`);
+          if (event.eventType === 'stage.started') {
+            console.log(`[HostListener] 📨 Received stage event: ${event.reqNumber} - ${event.stage} (${event.agentId})`);
 
-          // Spawn agent (respect concurrency limit)
-          await this.waitForSlot();
-          this.spawnAgent(event);
+            // Spawn agent (respect concurrency limit)
+            await this.waitForSlot();
+            this.spawnAgent(event);
+          }
+
+          msg.ack();
+        } catch (error: any) {
+          console.error('[HostListener] Error processing stage event:', error.message);
+          msg.nak();
         }
-
-        msg.ack();
-      } catch (error: any) {
-        console.error('[HostListener] Error processing event:', error.message);
-        msg.nak();
       }
+    })();
+
+    console.log('[HostListener] ✅ Subscribed to orchestration stage events');
+  }
+
+  /**
+   * Subscribe to value-chain-expert requests from Docker daemon
+   * These are requests to spawn the strategic recommendation generator
+   */
+  private async subscribeToValueChainExpertRequests() {
+    const subject = 'agog.agent.requests.value-chain-expert';
+
+    const sub = this.nc.subscribe(subject);
+    console.log(`[HostListener] ✅ Subscribed to ${subject}`);
+
+    (async () => {
+      for await (const msg of sub) {
+        if (!this.isRunning) break;
+
+        try {
+          const request = JSON.parse(msg.string());
+          console.log(`[HostListener] 📨 Received value-chain-expert request:`, request);
+
+          // Wait for available slot
+          await this.waitForSlot();
+
+          // Spawn the strategic-recommendation-generator agent
+          await this.spawnValueChainExpertAgent(request);
+
+        } catch (error: any) {
+          console.error('[HostListener] Error processing value-chain-expert request:', error.message);
+        }
+      }
+    })();
+  }
+
+  /**
+   * Spawn the strategic-recommendation-generator agent
+   */
+  private async spawnValueChainExpertAgent(request: any) {
+    this.activeAgents++;
+
+    const agentFile = '.claude/agents/strategic-recommendation-generator.md';
+    const reqNumber = `REQ-STRATEGIC-AUTO-${Date.now()}`;
+
+    console.log(`[HostListener] 🚀 Spawning strategic-recommendation-generator (${this.activeAgents}/${this.maxConcurrent} active)`);
+
+    try {
+      const contextInput = `TASK: Strategic Value Chain Evaluation
+
+You are the Value Chain Expert daemon. Analyze the current state of the AGOGSAAS system and generate strategic feature recommendations.
+
+REQUEST INFO:
+- Requested At: ${request.requestedAt}
+- Requested By: ${request.requestedBy}
+
+INSTRUCTIONS:
+1. Review OWNER_REQUESTS.md to understand current priorities
+2. Analyze the codebase for improvement opportunities
+3. Generate RICE-scored recommendations
+4. Add new recommendations to OWNER_REQUESTS.md with status PENDING
+5. Commit your changes
+
+When complete, output:
+\`\`\`json
+{
+  "agent": "strategic-recommendation-generator",
+  "req_number": "${reqNumber}",
+  "status": "COMPLETE",
+  "summary": "Generated N strategic recommendations"
+}
+\`\`\``;
+
+      // Spawn Claude agent
+      const agentProcess = spawn('claude', ['--agent', agentFile, '--model', 'sonnet', '--dangerously-skip-permissions', '--print'], {
+        cwd: path.resolve(__dirname, '..', '..', '..'),
+        shell: true,
+      });
+
+      let stdout = '';
+
+      // Pass context via stdin
+      agentProcess.stdin.write(contextInput);
+      agentProcess.stdin.end();
+
+      // Capture output
+      agentProcess.stdout.on('data', (data) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        console.log(`[value-chain-expert] ${chunk.trim()}`);
+      });
+
+      agentProcess.stderr.on('data', (data) => {
+        console.error(`[value-chain-expert ERROR] ${data.toString().trim()}`);
+      });
+
+      // Handle completion
+      agentProcess.on('close', async (code) => {
+        this.activeAgents--;
+
+        if (code === 0) {
+          console.log(`[HostListener] ✅ strategic-recommendation-generator completed`);
+
+          // Parse completion notice
+          const completionNotice = this.parseCompletionNotice(stdout);
+          if (completionNotice) {
+            // Publish completion to NATS so Docker daemon knows it completed
+            await this.nc.publish('agog.agent.responses.value-chain-expert', sc.encode(JSON.stringify(completionNotice)));
+            console.log(`[HostListener] 📤 Published completion to agog.agent.responses.value-chain-expert`);
+          }
+        } else {
+          console.error(`[HostListener] ❌ strategic-recommendation-generator failed with code ${code}`);
+        }
+      });
+
+    } catch (error: any) {
+      this.activeAgents--;
+      console.error(`[HostListener] Failed to spawn strategic-recommendation-generator:`, error.message);
+    }
+  }
+
+  /**
+   * Keep the process alive
+   */
+  private async keepAlive() {
+    while (this.isRunning) {
+      await new Promise(resolve => setTimeout(resolve, 10000));
     }
   }
 
@@ -290,10 +429,39 @@ ${JSON.stringify(contextData, null, 2)}`;
       jen: 'frontend',
       billy: 'qa',
       priya: 'statistics',
+      berry: 'devops',
       miki: 'devops',
     };
 
     return streamMap[agentId] || agentId;
+  }
+
+  private async ensureDeliverablesStream(): Promise<void> {
+    const jsm = await this.nc.jetstreamManager();
+
+    // Create stream for DevOps agents (berry and miki) - other agents already have streams
+    const streamName = 'agog_features_devops';
+
+    try {
+      await jsm.streams.info(streamName);
+      console.log(`[HostListener] Stream ${streamName} already exists`);
+    } catch (error) {
+      console.log(`[HostListener] Creating stream: ${streamName}`);
+
+      const streamConfig: any = {
+        name: streamName,
+        subjects: ['agog.deliverables.berry.>', 'agog.deliverables.miki.>'],
+        storage: StorageType.File,
+        retention: RetentionPolicy.Limits,
+        max_msgs: 10000,
+        max_bytes: 1024 * 1024 * 1024, // 1GB
+        max_age: 7 * 24 * 60 * 60 * 1_000_000_000, // 7 days (nanoseconds)
+        discard: DiscardPolicy.Old,
+      };
+
+      await jsm.streams.add(streamConfig);
+      console.log(`[HostListener] ✅ Stream ${streamName} created`);
+    }
   }
 
   private async shutdown() {
