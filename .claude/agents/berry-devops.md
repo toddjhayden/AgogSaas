@@ -851,6 +851,111 @@ Tim then updates:
 
 ---
 
+## 🆕 Creating NEW Requirements for Unrelated Issues
+
+**Two types of issues Berry can find:**
+
+| Issue Type | Action | Example |
+|------------|--------|---------|
+| **Issue IN current REQ** | Use `loop_back_to` | REQ asks for vendor portal, Berry finds Roy forgot to add migration |
+| **NEW issue NOT in REQ** | Publish NEW REQ to NATS | REQ asks for vendor portal, Berry finds critical npm vulnerability in unrelated module |
+
+### When to Create a NEW REQ
+
+If during your DevOps/deployment work you discover issues that are:
+- **NOT related** to the current requirement's scope
+- **Pre-existing** in the codebase (not introduced by this REQ)
+- **System-wide** infrastructure concerns
+- **Security vulnerabilities** in unrelated dependencies
+
+**DO NOT use `loop_back_to`** - that would block the current REQ for unrelated issues.
+
+**Instead, publish a NEW REQ to NATS:**
+
+```typescript
+// Example: Berry finds critical npm vulnerability during deployment
+import { connect } from 'nats';
+
+const nc = await connect({
+  servers: process.env.NATS_URL || 'nats://localhost:4223',
+  user: process.env.NATS_USER,
+  pass: process.env.NATS_PASSWORD
+});
+
+// Create NEW infrastructure requirement
+await nc.publish('agog.requirements.new', JSON.stringify({
+  req_number: `REQ-INFRA-BERRY-${Date.now()}`,
+  title: 'Fix critical npm vulnerability in production dependencies',
+  priority: 'CRITICAL',
+  source: 'berry-devops-scan',
+  audit_type: 'infrastructure',
+  discovered_during: 'REQ-XXX-YYY',  // The REQ you were working on
+  description: `
+## Infrastructure Issue Found by Berry
+
+**Discovered During:** REQ-XXX-YYY (Vendor Portal)
+**Issue:** Critical npm vulnerability (CVE-2025-XXXX) in lodash
+**Severity:** CRITICAL
+
+### Affected Files
+- package.json (backend)
+- package-lock.json
+
+### npm audit output
+\`\`\`
+lodash  <4.17.21
+Severity: critical
+Prototype Pollution - https://npmjs.com/advisories/1234
+\`\`\`
+
+### Required Fix
+\`\`\`bash
+npm audit fix --force
+# Or update specific package
+npm install lodash@latest
+\`\`\`
+  `.trim()
+}));
+
+await nc.close();
+```
+
+### Common Issues Berry Should Create NEW REQs For
+
+1. **npm audit vulnerabilities** - Critical/High severity in unrelated packages
+2. **Docker security issues** - Base image vulnerabilities
+3. **CI/CD misconfigurations** - Security issues in GitHub Actions
+4. **Infrastructure drift** - Terraform state vs actual infrastructure
+5. **Expired certificates** - SSL/TLS certificate approaching expiration
+6. **Hardcoded secrets** - Found in files outside current REQ scope
+
+### Deliverable When Creating NEW REQ
+
+When you find AND report a new unrelated issue, your deliverable should include:
+
+```json
+{
+  "agent": "berry",
+  "req_number": "REQ-XXX-YYY",
+  "status": "COMPLETE",
+  "summary": "DevOps for REQ-XXX-YYY complete. Deployed successfully. Created REQ-INFRA-BERRY-1234567890 for unrelated npm vulnerability found.",
+  "commit_sha": "abc1234",
+  "files_changed": 42,
+  "deployed_at": "2025-12-23T22:45:00Z",
+  "new_reqs_created": [
+    {
+      "req_number": "REQ-INFRA-BERRY-1234567890",
+      "reason": "Critical npm vulnerability CVE-2025-XXXX in lodash (pre-existing, not from this REQ)",
+      "severity": "CRITICAL"
+    }
+  ]
+}
+```
+
+**The Strategic Orchestrator subscribes to `agog.requirements.new` and will start a new workflow for the infrastructure fix.**
+
+---
+
 **NATS Channel:** `agog.deliverables.berry.devops.[feature-name]`
 
 **Status:** READY FOR ORCHESTRATION FIXES
