@@ -951,16 +951,182 @@ Coordinate with stage timeout:
 
 
 ================================================================================
+REQ CREATION SOURCES - ALL 4 WAYS REQUIREMENTS ARE CREATED
+================================================================================
+
+*** CRITICAL: Understand WHO can create REQs and HOW ***
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        REQ CREATION ARCHITECTURE                             │
+│                                                                              │
+│  There are FOUR sources of requirements in the AGOG system:                 │
+│                                                                              │
+│  1. OWNER (Human) ──────► OWNER_REQUESTS.md ──────► Strategic Orchestrator  │
+│     - Todd adds requirements manually                    (scans every 60s)  │
+│     - ONLY the owner writes to this file                                    │
+│                                                                              │
+│  2. AGENTS (Sam, Vic, Berry) ──► agog.requirements.new ──► Strategic Orch.  │
+│     - Sam (Senior Auditor) finds audit issues            (subscribes)       │
+│     - Vic (Security) finds security vulnerabilities                         │
+│     - Berry (DevOps) finds infrastructure issues                            │
+│     - Agents publish NEW REQs for issues NOT in current REQ scope           │
+│                                                                              │
+│  3. SYLVIA ──────────────────► agog.requirements.sub.new ──► Strategic Orch.│
+│     - Creates sub-requirements when blocking a workflow   (subscribes)      │
+│     - Sub-REQs address specific issues within parent REQ                    │
+│                                                                              │
+│  4. PROACTIVE DAEMONS ──► agog.recommendations.* ──► RecommendationPublisher│
+│     - Value Chain Expert, Marcus, Sarah publish           │                 │
+│     - RecommendationPublisher writes to OWNER_REQUESTS.md (human approval)  │
+│     - Owner must approve before workflow starts                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+*** SOURCE 1: OWNER_REQUESTS.md (Owner Only) ***
+─────────────────────────────────────────────────
+
+WHO:        Todd (Product Owner) - ONLY human
+WRITES TO:  project-spirit/owner_requests/OWNER_REQUESTS.md
+CONSUMED:   Strategic Orchestrator scans every 60 seconds
+RESULT:     Creates new workflow for each NEW requirement
+
+Flow:
+    Todd writes REQ in OWNER_REQUESTS.md
+           │
+           ▼
+    Strategic Orchestrator scans (every 60s)
+           │
+           ▼
+    Finds NEW status → startWorkflow(reqId)
+           │
+           ▼
+    7-stage pipeline: Cynthia → Sylvia → Roy → Jen → Billy → Priya → Berry
+
+
+*** SOURCE 2: agog.requirements.new (Agent-Created) ***
+────────────────────────────────────────────────────────
+
+WHO:        Sam (Senior Auditor), Vic (Security), Berry (DevOps)
+PUBLISHES:  agog.requirements.new
+CONSUMED:   Strategic Orchestrator subscribes
+RESULT:     Creates new workflow immediately (no owner approval needed)
+
+When to use:
+├── Agent finds issue NOT related to current REQ scope
+├── Pre-existing problems in codebase
+├── System-wide security/infrastructure concerns
+└── DO NOT block current REQ for unrelated issues
+
+Example (Vic finds hardcoded secrets during security scan):
+```typescript
+nc.publish('agog.requirements.new', JSON.stringify({
+  req_number: `REQ-SECURITY-VIC-${Date.now()}`,
+  title: 'Fix hardcoded secrets in 24 files',
+  priority: 'CRITICAL',
+  source: 'vic-security-scan',
+  discovered_during: 'REQ-XXX-YYY'  // Original REQ still completes
+}));
+```
+
+Flow:
+    Agent publishes to agog.requirements.new
+           │
+           ▼
+    Strategic Orchestrator receives (subscribed)
+           │
+           ▼
+    startWorkflow(reqId) immediately
+           │
+           ▼
+    New 7-stage pipeline (separate from original workflow)
+
+
+*** SOURCE 3: agog.requirements.sub.new (Sylvia Sub-Requirements) ***
+──────────────────────────────────────────────────────────────────────
+
+WHO:        Sylvia (Critique) - via handleBlockedCritique()
+PUBLISHES:  agog.requirements.sub.new
+CONSUMED:   Strategic Orchestrator subscribes
+RESULT:     Creates sub-workflows, parent waits for all to complete
+
+When to use:
+├── Sylvia blocks a workflow due to quality/completeness issues
+├── Issues are WITHIN the current REQ scope
+├── Parent REQ becomes BLOCKED until all sub-REQs complete
+└── Max recursion depth: 3 levels
+
+Flow:
+    Sylvia blocks workflow (decision: BLOCK)
+           │
+           ▼
+    handleBlockedCritique() parses issues
+           │
+           ▼
+    Creates sub-requirements → publishes to agog.requirements.sub.new
+           │
+           ▼
+    Parent status: IN_PROGRESS → BLOCKED
+           │
+           ▼
+    Sub-REQs complete → Parent resumes from Stage 2 (Roy)
+
+
+*** SOURCE 4: agog.recommendations.* (Proactive Daemon Recommendations) ***
+───────────────────────────────────────────────────────────────────────────
+
+WHO:        Value Chain Expert, Marcus, Sarah, other proactive daemons
+PUBLISHES:  agog.recommendations.strategic, agog.recommendations.inventory, etc.
+CONSUMED:   RecommendationPublisher service subscribes
+RESULT:     Appends to OWNER_REQUESTS.md (REQUIRES owner approval)
+
+When to use:
+├── Daemons identify opportunities for improvement
+├── Recommendations need human review before action
+├── Strategic suggestions based on metrics/analysis
+└── Owner must manually approve (change NEW status) to start workflow
+
+Flow:
+    Proactive daemon generates recommendation
+           │
+           ▼
+    Publishes to agog.recommendations.{domain}
+           │
+           ▼
+    RecommendationPublisher receives (subscribed)
+           │
+           ▼
+    Appends to OWNER_REQUESTS.md with status: NEW
+           │
+           ▼
+    Owner reviews, approves (no change needed, or modifies)
+           │
+           ▼
+    Strategic Orchestrator picks up on next scan
+
+
+*** DECISION MATRIX: Which Source to Use ***
+─────────────────────────────────────────────
+
+| Scenario | Use | Reason |
+|----------|-----|--------|
+| Issue IN current REQ scope | `loop_back_to` | Return to previous agent |
+| Issue NOT in current REQ (agent) | agog.requirements.new | New workflow, don't block |
+| Sylvia blocks quality issues | agog.requirements.sub.new | Sub-requirements |
+| Strategic recommendation | agog.recommendations.* | Needs owner approval |
+| Human wants new feature | OWNER_REQUESTS.md | Owner writes directly |
+
+
+================================================================================
 CRITICAL ARCHITECTURE PRINCIPLES
 ================================================================================
 
-*** 1. OWNER_REQUESTS.md = OWNER INPUT ONLY ***
-────────────────────────────────────────────────
+*** 1. OWNER_REQUESTS.md = OWNER INPUT + RECOMMENDATIONS ***
+─────────────────────────────────────────────────────────────
 
-├── Contains: ONLY human-created requirements
-├── NOT a work queue
-├── NOT for sub-requirements
-├── NOT for agent-generated tasks
+├── Contains: Human-created requirements + daemon recommendations
+├── Recommendations: Appended by RecommendationPublisher (needs owner approval)
+├── NOT for direct agent-created requirements (use agog.requirements.new)
+├── NOT for sub-requirements (use agog.requirements.sub.new)
 │
 └── Status flow: NEW → IN_PROGRESS → BLOCKED/COMPLETE/FAILED/ERROR/ESCALATED
     └── NATS is source of truth (Gap Fix #13), file updated async
@@ -969,13 +1135,15 @@ CRITICAL ARCHITECTURE PRINCIPLES
 *** 2. NATS = SYSTEM WORK QUEUE & SOURCE OF TRUTH (Gap Fix #13) ***
 ────────────────────────────────────────────────────────────────────
 
-├── All work lives here (owner requirements + sub-requirements)
+├── All work lives here (owner requirements + sub-requirements + agent-created)
 ├── Priority managed in NATS (P0/P1/P2/P3)
 ├── Status tracked in NATS (canonical state)
 ├── Dependencies managed in NATS (parent/child relationships)
 │
 └── Subjects:
-    ├── agog.requirements.sub.new              ← Sub-requirements
+    ├── agog.requirements.new                  ← Agent-created REQs (Sam, Vic, Berry)
+    ├── agog.requirements.sub.new              ← Sub-requirements (Sylvia)
+    ├── agog.recommendations.*                 ← Daemon recommendations → OWNER_REQUESTS.md
     ├── agog.workflows.state.{reqId}           ← Canonical workflow state
     ├── agog.workflows.heartbeat.{reqId}       ← Heartbeat (Gap Fix #5)
     ├── agog.workflows.sub-requirements.{id}   ← Sub-req metadata (Gap Fix #8)
