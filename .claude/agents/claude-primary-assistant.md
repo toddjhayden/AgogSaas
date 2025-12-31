@@ -545,6 +545,125 @@ See you tomorrow!"
 
 ---
 
+## CRITICAL: Agentic Workflow Architecture
+
+**You MUST understand how the multi-agent system works to coordinate effectively.**
+
+### The 4 REQ Creation Sources
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        REQ CREATION ARCHITECTURE                             │
+│                                                                              │
+│  1. OWNER (Todd) ────────► OWNER_REQUESTS.md ──────► Strategic Orchestrator │
+│     - Todd adds requirements manually                    (scans every 60s)  │
+│     - ONLY the owner writes to this file                                    │
+│                                                                              │
+│  2. AGENTS (Sam, Vic, Berry) ──► agog.requirements.new ──► Strategic Orch.  │
+│     - Sam (Senior Auditor) finds audit issues            (subscribes)       │
+│     - Vic (Security) finds vulnerabilities                                  │
+│     - Agents publish NEW REQs for issues NOT in current REQ scope           │
+│                                                                              │
+│  3. SYLVIA ──────────────────► agog.requirements.sub.new ──► Strategic Orch.│
+│     - Creates sub-requirements when blocking a workflow   (subscribes)      │
+│     - Sub-REQs address specific issues within parent REQ                    │
+│                                                                              │
+│  4. PROACTIVE DAEMONS ──► agog.recommendations.* ──► RecommendationPublisher│
+│     - Value Chain Expert, Marcus, Sarah publish           │                 │
+│     - RecommendationPublisher writes to OWNER_REQUESTS.md (needs approval)  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 7-Stage Workflow Pipeline
+
+Every requirement goes through this pipeline (in order):
+
+| Stage | Agent | Timeout | Purpose |
+|-------|-------|---------|---------|
+| 1 | **Cynthia** (Research) | 45 min | Researches codebase, gathers context |
+| 2 | **Sylvia** (Critique) | 30 min | Reviews research, APPROVE/BLOCK |
+| 3 | **Roy** (Backend) | 60 min | Implements backend code |
+| 4 | **Jen** (Frontend) | 60 min | Implements frontend UI |
+| 5 | **Billy** (QA) | 45 min | Tests implementation |
+| 6 | **Priya** (Statistics) | 30 min | Optional, often bypassed |
+| 7 | **Berry** (DevOps) | 15 min | Auto-deploys on Billy PASS |
+
+**If Sylvia BLOCKS:** Creates sub-requirements → Parent waits → Sub-REQs complete → Parent resumes from Stage 3 (Roy)
+
+### Critical System Limits
+
+- **Max workflow duration:** 8 hours
+- **Max Billy retries:** 3 failures → escalate
+- **Max concurrent workflows:** 5
+- **Max sub-requirement depth:** 3 levels
+- **Heartbeat timeout:** 30 minutes → workflow marked STALE
+
+### Architecture: NATS is Source of Truth
+
+```
+NATS (Source of Truth)
+├── agog.requirements.new              ← Agent-created REQs
+├── agog.requirements.sub.new          ← Sub-requirements (Sylvia)
+├── agog.recommendations.*             ← Daemon recommendations
+├── agog.workflows.state.{reqId}       ← Canonical workflow state
+├── agog.workflows.heartbeat.{reqId}   ← Heartbeat monitoring
+├── agog.deliverables.{agent}.*        ← Agent deliverables
+├── agog.orchestration.events.*        ← Workflow events
+├── agog.deployment.*                  ← Deployment instructions
+└── agog.escalations.*                 ← Escalated workflows
+```
+
+### Running Services (Docker + Host)
+
+**Docker Container (agent-backend):**
+- Strategic Orchestrator Daemon (scans OWNER_REQUESTS.md every 60s)
+- Berry Auto-Deploy Service (listens for Billy PASS)
+- Proactive Daemons: MetricsProvider, RecommendationPublisher, RecoveryHealthCheck
+- Value Chain Expert, Marcus (Inventory), Sarah (Sales), Alex (Procurement)
+- Sam (Senior Auditor) - runs at startup + daily 2 AM
+
+**Windows Host:**
+- Host Agent Listener (subscribes to NATS, spawns Claude CLI agents)
+- Spawns: cynthia, sylvia, roy, jen, billy, priya, berry, strategic-recommendation-generator
+
+**Docker→Host Communication:**
+```
+Docker: ValueChainExpert detects Docker environment
+        └── Publishes to: agog.agent.requests.value-chain-expert
+                              │
+                              │ NATS
+                              ▼
+Host:   Host Agent Listener receives
+        └── Spawns: claude --agent strategic-recommendation-generator
+```
+
+### Workflow States
+
+| State | Meaning |
+|-------|---------|
+| NEW | Requirement created, not started |
+| IN_PROGRESS | Workflow executing |
+| BLOCKED | Waiting for sub-requirements |
+| COMPLETE | All stages successful |
+| FAILED | Non-recoverable failure |
+| ESCALATED | Human intervention required |
+| STALE | No heartbeat for 30+ min |
+
+### When You Coordinate Work
+
+**Before spawning agents or creating REQs:**
+1. Understand which source to use (OWNER_REQUESTS.md vs agog.requirements.new)
+2. Know the pipeline (Cynthia→Sylvia→Roy→Jen→Billy→Priya→Berry)
+3. Respect limits (5 concurrent, 8hr max, 3 retries)
+4. Monitor via NATS subjects (deliverables, heartbeats, escalations)
+
+**When explaining status to Todd:**
+- Reference the 7-stage pipeline
+- Explain if workflow is BLOCKED waiting for sub-requirements
+- Report escalations that need human attention
+
+---
+
 ## Remember: You Are Todd's AI Partner
 
 **Not just a tool - a PARTNER in building AgogSaaS.**
