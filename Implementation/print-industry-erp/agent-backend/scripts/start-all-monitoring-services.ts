@@ -13,6 +13,7 @@
  *    - Recovery & Health Check Daemon
  *    - Value Chain Expert Daemon
  *    - Product Owner Daemons (Marcus, Sarah, Alex)
+ *    - Senior Auditor: Sam (startup + daily at 2 AM)
  *
  * All services run concurrently with proper error handling
  */
@@ -27,6 +28,7 @@ import { RecommendationPublisherService } from '../src/proactive/recommendation-
 import { RecoveryHealthCheckDaemon } from '../src/proactive/recovery-health-check.daemon';
 import { ValueChainExpertDaemon } from '../src/proactive/value-chain-expert.daemon';
 import { ProductOwnerDaemon } from '../src/proactive/product-owner.daemon';
+import { SeniorAuditorDaemon } from '../src/proactive/senior-auditor.daemon';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -127,7 +129,7 @@ async function startAllServices() {
     });
     console.log('✅ Value Chain Expert Daemon initialized\n');
 
-    console.log('[9/10] Initializing Product Owner: Marcus (Inventory)...');
+    console.log('[9/12] Initializing Product Owner: Marcus (Inventory)...');
     const marcus = new ProductOwnerDaemon('inventory');
     await marcus.initialize();
     services.push({
@@ -137,7 +139,7 @@ async function startAllServices() {
     });
     console.log('✅ Marcus (Inventory PO) initialized\n');
 
-    console.log('[10/10] Initializing Product Owner: Sarah (Sales)...');
+    console.log('[10/12] Initializing Product Owner: Sarah (Sales)...');
     const sarah = new ProductOwnerDaemon('sales');
     await sarah.initialize();
     services.push({
@@ -146,6 +148,25 @@ async function startAllServices() {
       close: () => sarah.close()
     });
     console.log('✅ Sarah (Sales PO) initialized\n');
+
+    console.log('[11/12] Initializing Product Owner: Alex (Procurement)...');
+    const alex = new ProductOwnerDaemon('procurement');
+    await alex.initialize();
+    services.push({
+      name: 'PO Alex (Procurement)',
+      instance: alex,
+      close: () => alex.close()
+    });
+    console.log('✅ Alex (Procurement PO) initialized\n');
+
+    console.log('[12/12] Initializing Senior Auditor: Sam...');
+    const sam = new SeniorAuditorDaemon();
+    services.push({
+      name: 'Senior Auditor Sam',
+      instance: sam,
+      close: () => sam.close()
+    });
+    console.log('✅ Sam (Senior Auditor) initialized - runs at startup + daily at 2 AM\n');
 
     // Start all daemons concurrently (don't await - they run indefinitely)
     console.log('═══════════════════════════════════════════════════════════════');
@@ -165,6 +186,8 @@ async function startAllServices() {
     await valueChainExpert.startDaemon();
     await marcus.startDaemon();
     await sarah.startDaemon();
+    await alex.startDaemon();
+    await sam.start(); // Runs startup audit NOW, then daily at 2 AM
 
     console.log('═══════════════════════════════════════════════════════════════');
     console.log('✅ FULL AGENTIC SYSTEM Running Successfully!');
@@ -186,6 +209,9 @@ async function startAllServices() {
     console.log('  8. Value Chain Expert - Strategic analysis (runs in 5 min, then every 5h)');
     console.log('  9. Marcus (Inventory PO) - Monitors inventory, generates features every 5h');
     console.log(' 10. Sarah (Sales PO) - Monitors sales, generates features every 5h');
+    console.log(' 11. Alex (Procurement PO) - Monitors procurement, generates features every 5h');
+    console.log(' 12. Sam (Senior Auditor) - System health audits (startup + daily at 2 AM)');
+    console.log('     → Creates agog.requirements.new for system issues');
     console.log('');
     console.log('NATS Subjects:');
     console.log('  • agog.metrics.* - Business metrics');

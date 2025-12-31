@@ -1362,7 +1362,11 @@ DEPLOYED Gap Fixes (ACTUALLY RUNNING - Verified 2025-12-29):
 17. ✅ Workflow completion polling (handled by reconciliation daemon)
 18. ✅ Deliverable validation (schema validation in waitForDeliverable)
 21. ✅ Infinite recursion prevention (max depth: 3 levels)
-22. ✅ Proactive daemons integrated (ValueChainExpert, Marcus, Sarah, etc.) - 2025-12-29
+22. ✅ Proactive daemons integrated - 2025-12-30
+    └── MetricsProvider, RecommendationPublisher, RecoveryHealthCheck
+    └── ValueChainExpert, Marcus (Inventory), Sarah (Sales), Alex (Procurement)
+    └── Sam (Senior Auditor) - runs at startup + daily at 2 AM
+        → Creates agog.requirements.new for system health issues
 23. ✅ Docker/Host communication for agent spawning - 2025-12-29
     └── Docker daemons publish to NATS, Host Listener spawns Claude agents
 
@@ -1373,7 +1377,10 @@ REMAINING GAPS (Not Deployed - Lower Priority):
 19. ⏸️ Git transaction safety (branch creation, rollback)
 20. ⏸️ Migration transactionality (BEGIN/COMMIT/ROLLBACK)
 
+OBSOLETE (Removed):
+- WorkflowRecoveryDaemon - replaced by RecoveryHealthCheckDaemon (runs every 5h)
+
 Status: 18 of 23 gaps DEPLOYED and RUNNING
         All critical workflow stuck states are now covered
-        Proactive work generation now functional
+        Proactive work generation now functional (12 services in Docker)
         Remaining gaps are deployment/infrastructure hardening
