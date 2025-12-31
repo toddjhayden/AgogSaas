@@ -1,6 +1,6 @@
 /**
  * Recommendation Publisher
- * Subscribes to agent recommendations and appends to OWNER_REQUESTS.md
+ * Subscribes to agent recommendations and appends to PENDING_RECOMMENDATIONS.md
  * Closes the loop on autonomous work generation
  */
 
@@ -21,7 +21,7 @@ export interface Recommendation {
 export class RecommendationPublisherService {
   private nc!: NatsConnection;
   private isRunning = false;
-  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md';
+  private pendingRecommendationsPath = process.env.PENDING_RECOMMENDATIONS_PATH || '/app/project-spirit/owner_requests/PENDING_RECOMMENDATIONS.md';
 
   async initialize(): Promise<void> {
     const natsUrl = process.env.NATS_URL || 'nats://localhost:4223';
@@ -84,7 +84,7 @@ export class RecommendationPublisherService {
   }
 
   /**
-   * Process a recommendation and append to OWNER_REQUESTS.md
+   * Process a recommendation and append to PENDING_RECOMMENDATIONS.md
    */
   private async processRecommendation(rec: Recommendation): Promise<void> {
     // Check for duplicates
@@ -96,24 +96,24 @@ export class RecommendationPublisherService {
     // Format recommendation as markdown
     const markdown = this.formatRecommendation(rec);
 
-    // Append to OWNER_REQUESTS.md
-    await this.appendToOwnerRequests(markdown);
+    // Append to PENDING_RECOMMENDATIONS.md
+    await this.appendToPendingRecommendations(markdown);
 
     // Commit to git
     await this.commitRecommendation(rec);
 
-    console.log(`[RecommendationPublisher] ✅ Published ${rec.reqNumber} to OWNER_REQUESTS.md`);
+    console.log(`[RecommendationPublisher] ✅ Published ${rec.reqNumber} to PENDING_RECOMMENDATIONS.md`);
   }
 
   /**
    * Check if recommendation already exists
    */
   private async isDuplicate(reqNumber: string): Promise<boolean> {
-    if (!fs.existsSync(this.ownerRequestsPath)) {
+    if (!fs.existsSync(this.pendingRecommendationsPath)) {
       return false;
     }
 
-    const content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+    const content = fs.readFileSync(this.pendingRecommendationsPath, 'utf-8');
     return content.includes(reqNumber);
   }
 
@@ -143,15 +143,15 @@ ${requirements}
   }
 
   /**
-   * Append to OWNER_REQUESTS.md
+   * Append to PENDING_RECOMMENDATIONS.md
    */
-  private async appendToOwnerRequests(markdown: string): Promise<void> {
-    if (!fs.existsSync(this.ownerRequestsPath)) {
-      console.error(`[RecommendationPublisher] OWNER_REQUESTS.md not found at ${this.ownerRequestsPath}`);
+  private async appendToPendingRecommendations(markdown: string): Promise<void> {
+    if (!fs.existsSync(this.pendingRecommendationsPath)) {
+      console.error(`[RecommendationPublisher] PENDING_RECOMMENDATIONS.md not found at ${this.pendingRecommendationsPath}`);
       return;
     }
 
-    let content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+    let content = fs.readFileSync(this.pendingRecommendationsPath, 'utf-8');
 
     // Insert before "## Completed Requests"
     const marker = '## Completed Requests';
@@ -162,7 +162,7 @@ ${requirements}
       content += '\n' + markdown;
     }
 
-    fs.writeFileSync(this.ownerRequestsPath, content, 'utf-8');
+    fs.writeFileSync(this.pendingRecommendationsPath, content, 'utf-8');
   }
 
   /**
@@ -173,7 +173,7 @@ ${requirements}
       const { execSync } = require('child_process');
       const cwd = process.env.OWNER_REQUESTS_DIR || '/app/project-spirit/owner_requests';
 
-      execSync('git add OWNER_REQUESTS.md', { cwd });
+      execSync('git add PENDING_RECOMMENDATIONS.md', { cwd });
       execSync(`git commit -m "feat: Auto-generated recommendation ${rec.reqNumber} from ${rec.generatedBy}"`, { cwd });
 
       console.log(`[RecommendationPublisher] ✅ Committed ${rec.reqNumber} to git`);

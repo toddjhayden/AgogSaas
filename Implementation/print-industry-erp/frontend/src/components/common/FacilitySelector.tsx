@@ -1,8 +1,7 @@
-import React from 'react';
+﻿import React from 'react';
 import { useAppStore } from '../../store/appStore';
 import { Building2 } from 'lucide-react';
 
-// Mock facilities data - in production, this would come from GraphQL
 const facilities = [
   { id: null, name: 'All Facilities' },
   { id: 'fac-1', name: 'Shanghai Plant' },
@@ -10,19 +9,32 @@ const facilities = [
   { id: 'fac-3', name: 'Beijing Plant' },
 ];
 
-export const FacilitySelector: React.FC = () => {
+interface FacilitySelectorProps {
+  selectedFacility?: string | null;
+  onFacilityChange?: (facility: string | null) => void;
+}
+
+export const FacilitySelector: React.FC<FacilitySelectorProps> = ({
+  selectedFacility: propSelectedFacility,
+  onFacilityChange
+}) => {
   const { preferences, setFacility } = useAppStore();
+  const selectedFacility = propSelectedFacility !== undefined ? propSelectedFacility : preferences.selectedFacility;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value === '' ? null : e.target.value;
-    setFacility(value);
+    if (onFacilityChange) {
+      onFacilityChange(value);
+    } else {
+      setFacility(value);
+    }
   };
 
   return (
     <div className="flex items-center space-x-2">
       <Building2 className="h-4 w-4 text-gray-600" />
       <select
-        value={preferences.selectedFacility || ''}
+        value={selectedFacility || ''}
         onChange={handleChange}
         className="text-sm border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
       >
