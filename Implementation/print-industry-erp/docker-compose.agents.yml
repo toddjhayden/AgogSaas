@@ -69,6 +69,11 @@ services:
       NATS_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD environment variable is required}
       # Agent Memory Database (PostgreSQL + pgvector)
       DATABASE_URL: postgresql://agent_user:agent_dev_password_2024@agent-postgres:5432/agent_memory
+      AGENT_DB_HOST: agent-postgres
+      AGENT_DB_PORT: 5432
+      AGENT_DB_NAME: agent_memory
+      AGENT_DB_USER: agent_user
+      AGENT_DB_PASSWORD: agent_dev_password_2024
       OLLAMA_URL: http://ollama:11434
       # Mount application source code for agents to read/write
       APP_BACKEND_PATH: /workspace/app-backend

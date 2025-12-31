@@ -164,7 +164,7 @@ async function startAllServices() {
     services.push({
       name: 'Senior Auditor Sam',
       instance: sam,
-      close: () => sam.close()
+      close: () => sam.stop()
     });
     console.log('✅ Sam (Senior Auditor) initialized - runs at startup + daily at 2 AM\n');
 
