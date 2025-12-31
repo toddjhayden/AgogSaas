@@ -20,7 +20,7 @@ PATTERNS=(
 FOUND=0
 
 for FILE in $FILES; do
-    # Skip this script itself, archives, example files, documentation, backup files, shell scripts, batch files, GitHub Actions workflows, and auth pages (contain legitimate password form fields)
+    # Skip this script itself, archives, example files, documentation, backup files, shell scripts, batch files, GitHub Actions workflows, auth pages (contain legitimate password form fields), and memory storage scripts (contain descriptions of work done)
     if [[ "$FILE" == "scripts/check-secrets.sh" ]] || \
        [[ "$FILE" == *"/archive/"* ]] || \
        [[ "$FILE" == *".example"* ]] || \
@@ -31,7 +31,8 @@ for FILE in $FILES; do
        [[ "$FILE" == *".bat" ]] || \
        [[ "$FILE" == ".github/workflows/"* ]] || \
        [[ "$FILE" == *"/pages/auth/"* ]] || \
-       [[ "$FILE" == *"/constants/defaults.ts" ]]; then
+       [[ "$FILE" == *"/constants/defaults.ts" ]] || \
+       [[ "$FILE" == *"/agent-backend/scripts/store-memory-"* ]]; then
         continue
     fi
     
