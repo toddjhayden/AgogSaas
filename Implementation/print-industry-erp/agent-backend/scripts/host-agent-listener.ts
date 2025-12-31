@@ -90,6 +90,9 @@ class HostAgentListener {
       // Subscribe to value-chain-expert requests (from Docker daemon)
       this.subscribeToValueChainExpertRequests();
 
+      // Subscribe to Sam audit requests (from Docker daemon)
+      this.subscribeToSamAuditRequests();
+
       // Keep alive
       await this.keepAlive();
 
@@ -284,6 +287,165 @@ IMPORTANT: The "changes" object is REQUIRED - explicitly list what you created o
     } catch (error: any) {
       this.activeAgents--;
       console.error(`[HostListener] Failed to spawn strategic-recommendation-generator:`, error.message);
+    }
+  }
+
+  /**
+   * Subscribe to Sam audit requests from Docker daemon
+   * These are requests to run comprehensive system audits
+   */
+  private async subscribeToSamAuditRequests() {
+    const subject = 'agog.agent.requests.sam-audit';
+
+    const sub = this.nc.subscribe(subject);
+    console.log(`[HostListener] ✅ Subscribed to ${subject}`);
+
+    (async () => {
+      for await (const msg of sub) {
+        if (!this.isRunning) break;
+
+        try {
+          const request = JSON.parse(msg.string());
+          console.log(`[HostListener] 📨 Received sam-audit request:`, request);
+
+          // Wait for available slot
+          await this.waitForSlot();
+
+          // Spawn Sam audit agent
+          await this.spawnSamAuditAgent(request);
+
+        } catch (error: any) {
+          console.error('[HostListener] Error processing sam-audit request:', error.message);
+        }
+      }
+    })();
+  }
+
+  /**
+   * Spawn Sam (Senior Auditor) agent for comprehensive system audits
+   */
+  private async spawnSamAuditAgent(request: any) {
+    this.activeAgents++;
+
+    const agentFile = '.claude/agents/sam-senior-auditor.md';
+    const reqNumber = request.reqNumber || `REQ-AUDIT-${Date.now()}`;
+    const auditType = request.auditType || 'manual';
+
+    console.log(`[HostListener] 🚀 Spawning sam-senior-auditor (${auditType}) (${this.activeAgents}/${this.maxConcurrent} active)`);
+
+    try {
+      const contextInput = `TASK: ${auditType.toUpperCase()} System Audit
+
+You are Sam, the Senior Auditor. Run a comprehensive ${auditType} audit.
+
+Audit Type: ${auditType}
+Request Number: ${reqNumber}
+Timestamp: ${request.timestamp || new Date().toISOString()}
+
+Execute ALL checks from your audit checklist:
+1. Security Audit (secrets scan, npm audit, semgrep, RLS)
+2. i18n Completeness Audit
+3. E2E Smoke Test (all routes, all languages)
+4. Database Stress Test (use k6)
+5. Human Documentation Audit
+6. Database Health Check
+
+Be thorough. Take your time.
+
+When complete, output:
+\`\`\`json
+{
+  "agent": "sam",
+  "req_number": "${reqNumber}",
+  "audit_type": "${auditType}",
+  "status": "COMPLETE",
+  "timestamp": "${new Date().toISOString()}",
+  "duration_minutes": 0,
+  "overall_status": "PASS|WARNING|FAIL",
+  "deployment_blocked": false,
+  "block_reasons": [],
+  "recommendations": [],
+  "changes": {
+    "files_created": [],
+    "files_modified": [],
+    "files_deleted": [],
+    "tables_created": [],
+    "tables_modified": [],
+    "migrations_added": [],
+    "key_changes": ["Completed ${auditType} audit"]
+  }
+}
+\`\`\`
+
+IMPORTANT: The "changes" object is REQUIRED - explicitly list what you created or modified.`;
+
+      // Spawn Claude agent - cwd must be project root (4 levels up from scripts/)
+      const projectRoot = path.resolve(__dirname, '..', '..', '..', '..');
+      const model = 'sonnet'; // Sam needs complex reasoning for audits
+      console.log(`[HostListener] Using model: ${model} for sam`);
+      const agentProcess = spawn('claude', ['--agent', agentFile, '--model', model, '--dangerously-skip-permissions', '--print'], {
+        cwd: projectRoot,
+        shell: true,
+      });
+
+      let stdout = '';
+
+      // Pass context via stdin
+      agentProcess.stdin.write(contextInput);
+      agentProcess.stdin.end();
+
+      // Capture output
+      agentProcess.stdout.on('data', (data) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        console.log(`[sam] ${chunk.trim()}`);
+      });
+
+      agentProcess.stderr.on('data', (data) => {
+        console.error(`[sam ERROR] ${data.toString().trim()}`);
+      });
+
+      // Handle completion
+      agentProcess.on('close', async (code) => {
+        this.activeAgents--;
+
+        if (code === 0) {
+          console.log(`[HostListener] ✅ sam-senior-auditor completed (${auditType})`);
+
+          // Parse completion notice
+          const completionNotice = this.parseCompletionNotice(stdout);
+          if (completionNotice) {
+            // Publish completion to NATS so Docker daemon knows it completed
+            await this.nc.publish('agog.agent.responses.sam-audit', sc.encode(JSON.stringify(completionNotice)));
+            console.log(`[HostListener] 📤 Published completion to agog.agent.responses.sam-audit`);
+          }
+
+          // Store change management record
+          await this.storeChangeManagement('sam', reqNumber, stdout, completionNotice, true);
+        } else {
+          console.error(`[HostListener] ❌ sam-senior-auditor failed with code ${code}`);
+
+          // Publish failure
+          const failureNotice = {
+            agent: 'sam',
+            req_number: reqNumber,
+            audit_type: auditType,
+            status: 'FAILED',
+            overall_status: 'WARNING',
+            deployment_blocked: false,
+            block_reasons: [],
+            recommendations: ['Audit failed - manual review required'],
+          };
+          await this.nc.publish('agog.agent.responses.sam-audit', sc.encode(JSON.stringify(failureNotice)));
+
+          // Store failure record
+          await this.storeChangeManagement('sam', reqNumber, stdout, null, false);
+        }
+      });
+
+    } catch (error: any) {
+      this.activeAgents--;
+      console.error(`[HostListener] Failed to spawn sam-senior-auditor:`, error.message);
     }
   }
 
@@ -503,6 +665,7 @@ ${JSON.stringify(contextData, null, 2)}`;
       liz: '.claude/agents/liz-frontend-tester.md',
       todd: '.claude/agents/todd-performance-tester.md',
       vic: '.claude/agents/vic-security-tester.md',
+      sam: '.claude/agents/sam-senior-auditor.md',
     };
 
     return agentFiles[agentId] || `.claude/agents/${agentId}.md`;
@@ -573,6 +736,7 @@ ${JSON.stringify(contextData, null, 2)}`;
       priya: 'statistics',
       berry: 'devops',
       miki: 'devops',
+      sam: 'audit',
     };
 
     return streamMap[agentId] || agentId;

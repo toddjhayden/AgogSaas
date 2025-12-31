@@ -54,6 +54,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const nats_1 = require("nats");
 const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
+const pg_1 = require("pg");
+const dotenv = __importStar(require("dotenv"));
+// Load .env from project root (contains GITHUB_TOKEN, etc.)
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '..', '.env') });
+// PostgreSQL connection for change management storage
+const pgPool = new pg_1.Pool({
+    host: 'localhost',
+    port: 5434,
+    user: 'agent_user',
+    password: 'agent_dev_password_2024',
+    database: 'agent_memory',
+});
 const sc = (0, nats_1.StringCodec)();
 class HostAgentListener {
     constructor() {
@@ -66,10 +78,14 @@ class HostAgentListener {
         console.log('[HostListener] Connecting to NATS at localhost:4223');
         try {
             // Connect to NATS (exposed from Docker)
+            const natsPassword = process.env.NATS_PASSWORD;
+            if (!natsPassword) {
+                throw new Error('NATS_PASSWORD environment variable is required');
+            }
             this.nc = await (0, nats_1.connect)({
-                servers: 'nats://localhost:4223',
-                user: 'agents',
-                pass: 'WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4'
+                servers: process.env.NATS_URL || 'nats://localhost:4223',
+                user: process.env.NATS_USER || 'agents',
+                pass: natsPassword
             });
             this.js = this.nc.jetstream();
             console.log('[HostListener] ✅ Connected to NATS');
@@ -86,6 +102,8 @@ class HostAgentListener {
             this.subscribeToStageEvents();
             // Subscribe to value-chain-expert requests (from Docker daemon)
             this.subscribeToValueChainExpertRequests();
+            // Subscribe to Sam audit requests (from Docker daemon)
+            this.subscribeToSamAuditRequests();
             // Keep alive
             await this.keepAlive();
         }
@@ -191,12 +209,29 @@ When complete, output:
   "agent": "strategic-recommendation-generator",
   "req_number": "${reqNumber}",
   "status": "COMPLETE",
-  "summary": "Generated N strategic recommendations"
+  "summary": "Generated N strategic recommendations",
+  "changes": {
+    "files_created": [],
+    "files_modified": ["project-spirit/owner_requests/OWNER_REQUESTS.md"],
+    "files_deleted": [],
+    "tables_created": [],
+    "tables_modified": [],
+    "migrations_added": [],
+    "key_changes": [
+      "Added N new strategic recommendations to OWNER_REQUESTS.md"
+    ]
+  }
 }
-\`\`\``;
-            // Spawn Claude agent
-            const agentProcess = (0, child_process_1.spawn)('claude', ['--agent', agentFile, '--model', 'sonnet', '--dangerously-skip-permissions', '--print'], {
-                cwd: path.resolve(__dirname, '..', '..', '..'),
+\`\`\`
+
+IMPORTANT: The "changes" object is REQUIRED - explicitly list what you created or modified.`;
+            // Spawn Claude agent - cwd must be project root (4 levels up from scripts/)
+            // scripts/ -> agent-backend/ -> print-industry-erp/ -> Implementation/ -> agogsaas/
+            const projectRoot = path.resolve(__dirname, '..', '..', '..', '..');
+            const model = this.getModelForAgent('strategic-recommendation-generator');
+            console.log(`[HostListener] Using model: ${model} for strategic-recommendation-generator`);
+            const agentProcess = (0, child_process_1.spawn)('claude', ['--agent', agentFile, '--model', model, '--dangerously-skip-permissions', '--print'], {
+                cwd: projectRoot,
                 shell: true,
             });
             let stdout = '';
@@ -224,15 +259,159 @@ When complete, output:
                         await this.nc.publish('agog.agent.responses.value-chain-expert', sc.encode(JSON.stringify(completionNotice)));
                         console.log(`[HostListener] 📤 Published completion to agog.agent.responses.value-chain-expert`);
                     }
+                    // Store change management record
+                    await this.storeChangeManagement('strategic-recommendation-generator', reqNumber, stdout, completionNotice, true);
                 }
                 else {
                     console.error(`[HostListener] ❌ strategic-recommendation-generator failed with code ${code}`);
+                    // Store failure record
+                    await this.storeChangeManagement('strategic-recommendation-generator', reqNumber, stdout, null, false);
                 }
             });
         }
         catch (error) {
             this.activeAgents--;
             console.error(`[HostListener] Failed to spawn strategic-recommendation-generator:`, error.message);
+        }
+    }
+    /**
+     * Subscribe to Sam audit requests from Docker daemon
+     * These are requests to run comprehensive system audits
+     */
+    async subscribeToSamAuditRequests() {
+        const subject = 'agog.agent.requests.sam-audit';
+        const sub = this.nc.subscribe(subject);
+        console.log(`[HostListener] ✅ Subscribed to ${subject}`);
+        (async () => {
+            for await (const msg of sub) {
+                if (!this.isRunning)
+                    break;
+                try {
+                    const request = JSON.parse(msg.string());
+                    console.log(`[HostListener] 📨 Received sam-audit request:`, request);
+                    // Wait for available slot
+                    await this.waitForSlot();
+                    // Spawn Sam audit agent
+                    await this.spawnSamAuditAgent(request);
+                }
+                catch (error) {
+                    console.error('[HostListener] Error processing sam-audit request:', error.message);
+                }
+            }
+        })();
+    }
+    /**
+     * Spawn Sam (Senior Auditor) agent for comprehensive system audits
+     */
+    async spawnSamAuditAgent(request) {
+        this.activeAgents++;
+        const agentFile = '.claude/agents/sam-senior-auditor.md';
+        const reqNumber = request.reqNumber || `REQ-AUDIT-${Date.now()}`;
+        const auditType = request.auditType || 'manual';
+        console.log(`[HostListener] 🚀 Spawning sam-senior-auditor (${auditType}) (${this.activeAgents}/${this.maxConcurrent} active)`);
+        try {
+            const contextInput = `TASK: ${auditType.toUpperCase()} System Audit
+
+You are Sam, the Senior Auditor. Run a comprehensive ${auditType} audit.
+
+Audit Type: ${auditType}
+Request Number: ${reqNumber}
+Timestamp: ${request.timestamp || new Date().toISOString()}
+
+Execute ALL checks from your audit checklist:
+1. Security Audit (secrets scan, npm audit, semgrep, RLS)
+2. i18n Completeness Audit
+3. E2E Smoke Test (all routes, all languages)
+4. Database Stress Test (use k6)
+5. Human Documentation Audit
+6. Database Health Check
+
+Be thorough. Take your time.
+
+When complete, output:
+\`\`\`json
+{
+  "agent": "sam",
+  "req_number": "${reqNumber}",
+  "audit_type": "${auditType}",
+  "status": "COMPLETE",
+  "timestamp": "${new Date().toISOString()}",
+  "duration_minutes": 0,
+  "overall_status": "PASS|WARNING|FAIL",
+  "deployment_blocked": false,
+  "block_reasons": [],
+  "recommendations": [],
+  "changes": {
+    "files_created": [],
+    "files_modified": [],
+    "files_deleted": [],
+    "tables_created": [],
+    "tables_modified": [],
+    "migrations_added": [],
+    "key_changes": ["Completed ${auditType} audit"]
+  }
+}
+\`\`\`
+
+IMPORTANT: The "changes" object is REQUIRED - explicitly list what you created or modified.`;
+            // Spawn Claude agent - cwd must be project root (4 levels up from scripts/)
+            const projectRoot = path.resolve(__dirname, '..', '..', '..', '..');
+            const model = 'sonnet'; // Sam needs complex reasoning for audits
+            console.log(`[HostListener] Using model: ${model} for sam`);
+            const agentProcess = (0, child_process_1.spawn)('claude', ['--agent', agentFile, '--model', model, '--dangerously-skip-permissions', '--print'], {
+                cwd: projectRoot,
+                shell: true,
+            });
+            let stdout = '';
+            // Pass context via stdin
+            agentProcess.stdin.write(contextInput);
+            agentProcess.stdin.end();
+            // Capture output
+            agentProcess.stdout.on('data', (data) => {
+                const chunk = data.toString();
+                stdout += chunk;
+                console.log(`[sam] ${chunk.trim()}`);
+            });
+            agentProcess.stderr.on('data', (data) => {
+                console.error(`[sam ERROR] ${data.toString().trim()}`);
+            });
+            // Handle completion
+            agentProcess.on('close', async (code) => {
+                this.activeAgents--;
+                if (code === 0) {
+                    console.log(`[HostListener] ✅ sam-senior-auditor completed (${auditType})`);
+                    // Parse completion notice
+                    const completionNotice = this.parseCompletionNotice(stdout);
+                    if (completionNotice) {
+                        // Publish completion to NATS so Docker daemon knows it completed
+                        await this.nc.publish('agog.agent.responses.sam-audit', sc.encode(JSON.stringify(completionNotice)));
+                        console.log(`[HostListener] 📤 Published completion to agog.agent.responses.sam-audit`);
+                    }
+                    // Store change management record
+                    await this.storeChangeManagement('sam', reqNumber, stdout, completionNotice, true);
+                }
+                else {
+                    console.error(`[HostListener] ❌ sam-senior-auditor failed with code ${code}`);
+                    // Publish failure
+                    const failureNotice = {
+                        agent: 'sam',
+                        req_number: reqNumber,
+                        audit_type: auditType,
+                        status: 'FAILED',
+                        overall_status: 'WARNING',
+                        deployment_blocked: false,
+                        block_reasons: [],
+                        recommendations: ['Audit failed - manual review required'],
+                    };
+                    await this.nc.publish('agog.agent.responses.sam-audit', sc.encode(JSON.stringify(failureNotice)));
+                    // Store failure record
+                    await this.storeChangeManagement('sam', reqNumber, stdout, null, false);
+                }
+            });
+        }
+        catch (error) {
+            this.activeAgents--;
+            console.error(`[HostListener] Failed to spawn sam-senior-auditor:`, error.message);
         }
     }
     /**
@@ -248,16 +427,67 @@ When complete, output:
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
+    /**
+     * Get relevant learnings for an agent before they start work
+     */
+    async getLearningsForAgent(agentId) {
+        try {
+            const result = await pgPool.query(`SELECT learning_type, title, description, confidence_score
+         FROM agent_learnings
+         WHERE agent_id = $1 AND confidence_score >= 0.5
+         ORDER BY confidence_score DESC, times_applied DESC
+         LIMIT 5`, [agentId]);
+            if (result.rows.length > 0) {
+                console.log(`[HostListener] 📚 Found ${result.rows.length} learnings for ${agentId}`);
+            }
+            return result.rows;
+        }
+        catch (error) {
+            console.error(`[HostListener] Failed to get learnings:`, error.message);
+            return [];
+        }
+    }
+    /**
+     * Get previous decisions for a request (useful for retries)
+     */
+    async getPreviousDecisions(reqNumber) {
+        try {
+            const result = await pgPool.query(`SELECT agent, decision, reasoning, created_at
+         FROM strategic_decisions
+         WHERE req_number = $1
+         ORDER BY created_at DESC
+         LIMIT 3`, [reqNumber]);
+            if (result.rows.length > 0) {
+                console.log(`[HostListener] 📋 Found ${result.rows.length} previous decisions for ${reqNumber}`);
+            }
+            return result.rows;
+        }
+        catch (error) {
+            console.error(`[HostListener] Failed to get decisions:`, error.message);
+            return [];
+        }
+    }
     async spawnAgent(event) {
         this.activeAgents++;
         const { reqNumber, agentId, contextData } = event;
         const agentFile = this.getAgentFilePath(agentId);
         console.log(`[HostListener] 🚀 Spawning ${agentId} for ${reqNumber} (${this.activeAgents}/${this.maxConcurrent} active)`);
+        // Query relevant learnings for this agent BEFORE starting
+        const learnings = await this.getLearningsForAgent(agentId);
+        const previousDecisions = await this.getPreviousDecisions(reqNumber);
         try {
             // Build prompt with NATS publishing instructions
             const stream = this.getDeliverableStream(agentId);
+            // Format learnings for the agent
+            const learningsSection = learnings.length > 0
+                ? `\n\nLEARNINGS FROM PAST WORK (apply these lessons):\n${learnings.map((l, i) => `${i + 1}. [${l.learning_type}] ${l.title}: ${l.description}`).join('\n')}\n`
+                : '';
+            // Format previous decisions if this is a retry
+            const decisionsSection = previousDecisions.length > 0
+                ? `\n\nPREVIOUS DECISIONS ON THIS REQUEST:\n${previousDecisions.map(d => `- ${d.agent} decided ${d.decision}: ${d.reasoning?.substring(0, 200) || 'No reason given'}`).join('\n')}\n`
+                : '';
             const contextInput = `TASK: ${reqNumber} - ${contextData.featureTitle || 'Feature Request'}
-
+${learningsSection}${decisionsSection}
 DELIVERABLE INSTRUCTIONS:
 1. Complete your work according to your agent definition
 2. When COMPLETE, output a JSON completion notice in this EXACT format:
@@ -268,17 +498,36 @@ DELIVERABLE INSTRUCTIONS:
   "req_number": "${reqNumber}",
   "status": "COMPLETE",
   "deliverable": "nats://agog.deliverables.${agentId}.${stream}.${reqNumber}",
-  "summary": "Brief summary of what you completed"
+  "summary": "Brief summary of what you completed",
+  "changes": {
+    "files_created": ["path/to/new/file.ts"],
+    "files_modified": ["path/to/existing/file.ts"],
+    "files_deleted": [],
+    "tables_created": ["table_name"],
+    "tables_modified": [],
+    "migrations_added": ["V1.2.3__description.sql"],
+    "key_changes": [
+      "Added X feature to Y component",
+      "Fixed Z bug in W service"
+    ]
+  }
 }
 \`\`\`
 
-IMPORTANT: The JSON must be wrapped in a markdown code block with \`\`\`json tags so the listener can parse it.
+IMPORTANT:
+- The JSON must be wrapped in a markdown code block with \`\`\`json tags
+- The "changes" object is REQUIRED - explicitly list what you created, modified, or deleted
+- If no changes in a category, use empty array []
 
 CONTEXT:
 ${JSON.stringify(contextData, null, 2)}`;
-            // Spawn Claude agent
-            const agentProcess = (0, child_process_1.spawn)('claude', ['--agent', agentFile, '--model', 'sonnet', '--dangerously-skip-permissions', '--print'], {
-                cwd: path.resolve(__dirname, '..', '..', '..'),
+            // Spawn Claude agent - cwd must be project root (4 levels up from scripts/)
+            // scripts/ -> agent-backend/ -> print-industry-erp/ -> Implementation/ -> agogsaas/
+            const projectRoot = path.resolve(__dirname, '..', '..', '..', '..');
+            const model = this.getModelForAgent(agentId);
+            console.log(`[HostListener] Using model: ${model} for ${agentId}`);
+            const agentProcess = (0, child_process_1.spawn)('claude', ['--agent', agentFile, '--model', model, '--dangerously-skip-permissions', '--print'], {
+                cwd: projectRoot,
                 shell: true,
             });
             let stdout = '';
@@ -307,16 +556,24 @@ ${JSON.stringify(contextData, null, 2)}`;
                     if (completionNotice) {
                         // Publish to NATS deliverable stream
                         await this.publishDeliverable(agentId, reqNumber, completionNotice);
+                        // Cache deliverable in PostgreSQL for quick lookup
+                        await this.cacheDeliverable(agentId, reqNumber, completionNotice);
                     }
                     else {
                         console.error(`[HostListener] ⚠️  ${agentId} did not return valid completion notice`);
                     }
+                    // Store change management record (full stdout with change details)
+                    await this.storeChangeManagement(agentId, reqNumber, stdout, completionNotice, true);
+                    // Extract and store learnings from agent output
+                    await this.extractLearningsFromOutput(agentId, reqNumber, stdout, completionNotice);
                 }
                 else {
                     console.error(`[HostListener] ❌ ${agentId} failed with code ${code}`);
                     console.error(`[HostListener] stderr:`, stderr);
                     // Publish failure event
                     await this.publishFailure(agentId, reqNumber, stderr || 'Agent process exited with non-zero code');
+                    // Store failure record
+                    await this.storeChangeManagement(agentId, reqNumber, stdout + '\n\nSTDERR:\n' + stderr, null, false);
                 }
             });
         }
@@ -336,6 +593,12 @@ ${JSON.stringify(contextData, null, 2)}`;
             billy: '.claude/agents/billy-qa.md',
             priya: '.claude/agents/priya-statistics.md',
             miki: '.claude/agents/miki-devops.md',
+            berry: '.claude/agents/berry-devops.md',
+            tim: '.claude/agents/tim-documentation.md',
+            liz: '.claude/agents/liz-frontend-tester.md',
+            todd: '.claude/agents/todd-performance-tester.md',
+            vic: '.claude/agents/vic-security-tester.md',
+            sam: '.claude/agents/sam-senior-auditor.md',
         };
         return agentFiles[agentId] || `.claude/agents/${agentId}.md`;
     }
@@ -398,8 +661,189 @@ ${JSON.stringify(contextData, null, 2)}`;
             priya: 'statistics',
             berry: 'devops',
             miki: 'devops',
+            sam: 'audit',
         };
         return streamMap[agentId] || agentId;
+    }
+    /**
+     * Get the Claude model to use for an agent
+     * Haiku: cheaper/faster for simpler tasks (daemons, docs, stats, devops)
+     * Sonnet: more capable for complex reasoning (backend, frontend, research, critique, QA)
+     */
+    getModelForAgent(agentId) {
+        const haikuAgents = new Set([
+            'tim', // Documentation - straightforward doc updates
+            'priya', // Statistics - data aggregation and reporting
+            'berry', // DevOps - scripted deployment tasks
+            'miki', // DevOps - scripted deployment tasks
+            'strategic-recommendation-generator', // Proactive daemon - templated recommendations
+        ]);
+        return haikuAgents.has(agentId) ? 'haiku' : 'sonnet';
+    }
+    /**
+     * Store change management record to persistent memory database
+     * Uses agent-provided changes (agents know what they changed)
+     */
+    async storeChangeManagement(agentId, reqNumber, stdout, completionNotice, success) {
+        try {
+            const memoryType = success ? 'agent_change' : 'agent_failure';
+            const changes = completionNotice?.changes || {};
+            // Format agent-provided changes for human readability
+            const changeDetails = this.formatAgentChanges(changes);
+            const content = `AGENT CHANGE RECORD: ${agentId} - ${reqNumber}
+
+STATUS: ${success ? 'SUCCESS' : 'FAILURE'}
+TIMESTAMP: ${new Date().toISOString()}
+
+SUMMARY:
+${completionNotice?.summary || 'No summary provided'}
+
+CHANGES (agent-identified):
+${changeDetails}
+
+FULL OUTPUT (truncated to 50KB):
+${stdout.substring(0, 50000)}`;
+            const metadata = JSON.stringify({
+                agent: agentId,
+                req_number: reqNumber,
+                status: success ? 'completed' : 'failed',
+                timestamp: new Date().toISOString(),
+                summary: completionNotice?.summary || null,
+                deliverable: completionNotice?.deliverable || null,
+                // Use agent-provided changes directly
+                files_created: changes.files_created || [],
+                files_modified: changes.files_modified || [],
+                files_deleted: changes.files_deleted || [],
+                tables_created: changes.tables_created || [],
+                tables_modified: changes.tables_modified || [],
+                migrations_added: changes.migrations_added || [],
+                key_changes: changes.key_changes || [],
+            });
+            await pgPool.query(`INSERT INTO memories (agent_id, memory_type, content, metadata)
+         VALUES ($1, $2, $3, $4::jsonb)`, [agentId, memoryType, content, metadata]);
+            console.log(`[HostListener] 💾 Stored change management record for ${agentId}/${reqNumber}`);
+            // Log key changes for visibility
+            if (changes.key_changes?.length > 0) {
+                console.log(`[HostListener] 📝 Key changes: ${changes.key_changes.join(', ')}`);
+            }
+        }
+        catch (error) {
+            console.error(`[HostListener] ⚠️ Failed to store change management:`, error.message);
+            // Don't fail the workflow if storage fails - log and continue
+        }
+    }
+    /**
+     * Cache deliverable in PostgreSQL for quick lookup
+     */
+    async cacheDeliverable(agentId, reqNumber, deliverable) {
+        try {
+            const stageMap = {
+                cynthia: 0, sylvia: 1, roy: 2, jen: 3, billy: 4, liz: 5, todd: 6, vic: 7, priya: 8, berry: 9, miki: 9, tim: 10
+            };
+            const stage = stageMap[agentId] ?? 0;
+            await pgPool.query(`INSERT INTO nats_deliverable_cache (req_number, agent, stage, deliverable)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (req_number, agent, stage)
+         DO UPDATE SET deliverable = $4, created_at = NOW()`, [reqNumber, agentId, stage, JSON.stringify(deliverable)]);
+            console.log(`[HostListener] 💾 Cached deliverable: ${reqNumber} from ${agentId}`);
+        }
+        catch (error) {
+            console.error(`[HostListener] Failed to cache deliverable:`, error.message);
+        }
+    }
+    /**
+     * Extract learnings from agent output (patterns, gotchas, best practices)
+     */
+    async extractLearningsFromOutput(agentId, reqNumber, stdout, completionNotice) {
+        try {
+            const learnings = [];
+            // Extract patterns from key_changes
+            if (completionNotice?.changes?.key_changes) {
+                for (const change of completionNotice.changes.key_changes.slice(0, 3)) {
+                    if (change.toLowerCase().includes('fix') || change.toLowerCase().includes('bug')) {
+                        learnings.push({
+                            type: 'gotcha',
+                            title: `Bug Fix Pattern: ${change.substring(0, 50)}`,
+                            description: change
+                        });
+                    }
+                    else if (change.toLowerCase().includes('optimize') || change.toLowerCase().includes('performance')) {
+                        learnings.push({
+                            type: 'optimization',
+                            title: `Optimization: ${change.substring(0, 50)}`,
+                            description: change
+                        });
+                    }
+                    else if (change.toLowerCase().includes('add') || change.toLowerCase().includes('implement')) {
+                        learnings.push({
+                            type: 'pattern',
+                            title: `Implementation: ${change.substring(0, 50)}`,
+                            description: change
+                        });
+                    }
+                }
+            }
+            // Extract learnings from stdout patterns
+            const lessonPatterns = [
+                { regex: /LESSON[:\s]+([^\n]+)/gi, type: 'best_practice' },
+                { regex: /WARNING[:\s]+([^\n]+)/gi, type: 'gotcha' },
+                { regex: /TIP[:\s]+([^\n]+)/gi, type: 'best_practice' },
+                { regex: /NOTE[:\s]+([^\n]+)/gi, type: 'pattern' },
+            ];
+            for (const { regex, type } of lessonPatterns) {
+                let match;
+                while ((match = regex.exec(stdout)) !== null && learnings.length < 5) {
+                    learnings.push({
+                        type,
+                        title: `${type}: ${match[1].substring(0, 50)}`,
+                        description: match[1]
+                    });
+                }
+            }
+            // Store learnings in database
+            for (const learning of learnings) {
+                await pgPool.query(`INSERT INTO agent_learnings
+            (agent_id, learning_type, title, description, example_context, confidence_score)
+           VALUES ($1, $2, $3, $4, $5, $6)`, [agentId, learning.type, learning.title, learning.description, `From ${reqNumber}`, 0.6]);
+            }
+            if (learnings.length > 0) {
+                console.log(`[HostListener] 📚 Extracted ${learnings.length} learnings from ${agentId}/${reqNumber}`);
+            }
+        }
+        catch (error) {
+            console.error(`[HostListener] Failed to extract learnings:`, error.message);
+        }
+    }
+    /**
+     * Format agent-provided changes for human-readable output
+     */
+    formatAgentChanges(changes) {
+        if (!changes || Object.keys(changes).length === 0) {
+            return 'No changes reported by agent';
+        }
+        const sections = [];
+        if (changes.files_created?.length > 0) {
+            sections.push(`Files Created:\n  - ${changes.files_created.join('\n  - ')}`);
+        }
+        if (changes.files_modified?.length > 0) {
+            sections.push(`Files Modified:\n  - ${changes.files_modified.join('\n  - ')}`);
+        }
+        if (changes.files_deleted?.length > 0) {
+            sections.push(`Files Deleted:\n  - ${changes.files_deleted.join('\n  - ')}`);
+        }
+        if (changes.tables_created?.length > 0) {
+            sections.push(`Tables Created:\n  - ${changes.tables_created.join('\n  - ')}`);
+        }
+        if (changes.tables_modified?.length > 0) {
+            sections.push(`Tables Modified:\n  - ${changes.tables_modified.join('\n  - ')}`);
+        }
+        if (changes.migrations_added?.length > 0) {
+            sections.push(`Migrations Added:\n  - ${changes.migrations_added.join('\n  - ')}`);
+        }
+        if (changes.key_changes?.length > 0) {
+            sections.push(`Key Changes:\n  - ${changes.key_changes.join('\n  - ')}`);
+        }
+        return sections.length > 0 ? sections.join('\n\n') : 'No specific changes listed';
     }
     async ensureDeliverablesStream() {
         const jsm = await this.nc.jetstreamManager();
@@ -438,6 +882,9 @@ ${JSON.stringify(contextData, null, 2)}`;
         if (this.activeAgents > 0) {
             console.log(`[HostListener] ⚠️  Forcing shutdown with ${this.activeAgents} agents still active`);
         }
+        // Close PostgreSQL pool
+        await pgPool.end();
+        console.log('[HostListener] ✅ PostgreSQL pool closed');
         await this.nc.drain();
         console.log('[HostListener] ✅ Shutdown complete');
         process.exit(0);

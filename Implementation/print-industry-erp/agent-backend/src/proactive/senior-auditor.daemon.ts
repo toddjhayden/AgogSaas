@@ -7,15 +7,13 @@
  * - On-demand via NATS trigger
  *
  * NOT part of the normal REQ workflow.
- * Very long timeout (2 hours) for thorough audits.
+ * Publishes audit requests to NATS for Host Listener to spawn Claude.
  */
 
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { connect, NatsConnection, StringCodec } from 'nats';
-import { spawn } from 'child_process';
-import * as path from 'path';
+import { connect, NatsConnection, StringCodec, Subscription } from 'nats';
 import { Pool } from 'pg';
 
 const sc = StringCodec();
@@ -28,8 +26,9 @@ const CONFIG = {
   auditTimeout: 2 * 60 * 60 * 1000, // 2 hours in milliseconds
   dailyRunHour: 2, // 2:00 AM
   triggerSubject: 'agog.audit.sam.run',
+  requestSubject: 'agog.agent.requests.sam-audit', // Request to Host Listener
+  responseSubject: 'agog.agent.responses.sam-audit', // Response from Host Listener
   resultSubject: 'agog.audit.sam.result',
-  agentFile: '.claude/agents/sam-senior-auditor.md',
 };
 
 interface AuditResult {
@@ -48,6 +47,8 @@ class SeniorAuditorDaemon {
   private db: Pool | null = null;
   private isRunning = false;
   private dailyTimer: NodeJS.Timeout | null = null;
+  private responseSubscription: Subscription | null = null;
+  private pendingAudits: Map<string, { auditType: string; startTime: number; resolve: (result: AuditResult) => void }> = new Map();
 
   async start(): Promise<void> {
     console.log('[Sam] Senior Auditor Daemon starting...');
@@ -66,7 +67,7 @@ class SeniorAuditorDaemon {
     // Ensure audit table exists
     await this.ensureAuditTable();
 
-    // Connect to NATS (REQUIRED - Sam creates REQs via NATS)
+    // Connect to NATS (REQUIRED - Sam publishes to NATS for Host Listener)
     this.nc = await connect({
       servers: CONFIG.natsUrl,
       user: CONFIG.natsUser,
@@ -85,6 +86,15 @@ class SeniorAuditorDaemon {
         }
       })();
       console.log(`[Sam] Listening for manual triggers on ${CONFIG.triggerSubject}`);
+
+      // Subscribe to audit responses from Host Listener
+      this.responseSubscription = this.nc.subscribe(CONFIG.responseSubject);
+      (async () => {
+        for await (const msg of this.responseSubscription!) {
+          await this.handleAuditResponse(msg);
+        }
+      })();
+      console.log(`[Sam] Listening for audit responses on ${CONFIG.responseSubject}`);
     }
 
     // Schedule daily run
@@ -124,68 +134,51 @@ class SeniorAuditorDaemon {
 
     this.isRunning = true;
     const startTime = Date.now();
+    const reqNumber = `REQ-AUDIT-${Date.now()}`;
 
     console.log(`[Sam] Starting ${auditType} audit at ${new Date().toISOString()}`);
 
     try {
-      // Get project root (4 levels up from this file's location)
-      const projectRoot = path.resolve(__dirname, '..', '..', '..', '..', '..');
-      const agentPath = path.join(projectRoot, CONFIG.agentFile);
+      // Publish audit request to NATS for Host Listener to spawn Claude
+      const auditRequest = {
+        reqNumber,
+        auditType,
+        timestamp: new Date().toISOString(),
+        requestedBy: 'sam-daemon',
+      };
 
-      // Note: Agent file existence is checked by Claude Code itself
+      console.log(`[Sam] Publishing audit request to ${CONFIG.requestSubject}`);
+      this.nc!.publish(CONFIG.requestSubject, sc.encode(JSON.stringify(auditRequest)));
 
-      // Build the prompt for Sam
-      const prompt = `
-You are Sam, the Senior Auditor. Run a comprehensive ${auditType} audit.
+      // Wait for response with timeout
+      const result = await this.waitForAuditResponse(reqNumber, auditType, startTime);
 
-Audit Type: ${auditType}
-Timestamp: ${new Date().toISOString()}
-Project Root: ${projectRoot}
-
-Execute ALL checks from your audit checklist:
-1. Security Audit (secrets scan, npm audit, semgrep, RLS)
-2. i18n Completeness Audit
-3. E2E Smoke Test (all routes, all languages)
-4. Database Stress Test (use k6)
-5. Human Documentation Audit
-6. Database Health Check
-
-Be thorough. Take your time. This is a ${CONFIG.auditTimeout / 1000 / 60} minute timeout.
-
-Output your findings as the JSON health report format specified in your prompt.
-`;
-
-      // Spawn Claude Code to run Sam
-      const result = await this.spawnAuditAgent(prompt, projectRoot);
-
-      // Parse and publish result
+      // Calculate duration
       const endTime = Date.now();
       const durationMinutes = Math.round((endTime - startTime) / 1000 / 60);
+      result.duration_minutes = durationMinutes;
 
       console.log(`[Sam] ${auditType} audit completed in ${durationMinutes} minutes`);
 
-      // Try to parse JSON result from output
-      const auditResult = this.parseAuditResult(result, auditType, durationMinutes);
-
-      // Save audit summary to database (NOT a file)
-      await this.saveAuditToDatabase(auditResult);
+      // Save audit summary to database
+      await this.saveAuditToDatabase(result);
 
       // Create REQs for any issues found
-      if (auditResult.recommendations && auditResult.recommendations.length > 0) {
-        await this.createRequirementsForIssues(auditResult);
+      if (result.recommendations && result.recommendations.length > 0) {
+        await this.createRequirementsForIssues(result);
       }
 
-      // Publish to NATS
+      // Publish final result to NATS
       if (this.nc) {
-        this.nc.publish(CONFIG.resultSubject, sc.encode(JSON.stringify(auditResult)));
+        this.nc.publish(CONFIG.resultSubject, sc.encode(JSON.stringify(result)));
         console.log(`[Sam] Result published to ${CONFIG.resultSubject}`);
       }
 
       // Log summary
-      console.log(`[Sam] Overall Status: ${auditResult.overall_status}`);
-      if (auditResult.deployment_blocked) {
-        console.error('[Sam] ⚠️ DEPLOYMENT BLOCKED');
-        auditResult.block_reasons.forEach((r) => console.error(`  - ${r}`));
+      console.log(`[Sam] Overall Status: ${result.overall_status}`);
+      if (result.deployment_blocked) {
+        console.error('[Sam] DEPLOYMENT BLOCKED');
+        result.block_reasons.forEach((r) => console.error(`  - ${r}`));
       }
     } catch (error) {
       console.error(`[Sam] Audit failed:`, error);
@@ -194,76 +187,65 @@ Output your findings as the JSON health report format specified in your prompt.
     }
   }
 
-  private async spawnAuditAgent(prompt: string, cwd: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const args = [
-        '--print',
-        '--dangerously-skip-permissions',
-        prompt,
-      ];
+  private waitForAuditResponse(
+    reqNumber: string,
+    auditType: string,
+    startTime: number
+  ): Promise<AuditResult> {
+    return new Promise((resolve) => {
+      // Store pending audit info
+      this.pendingAudits.set(reqNumber, { auditType, startTime, resolve });
 
-      console.log(`[Sam] Spawning Claude Code in ${cwd}`);
+      // Set timeout for audit completion
+      setTimeout(() => {
+        if (this.pendingAudits.has(reqNumber)) {
+          console.warn(`[Sam] Audit ${reqNumber} timed out after ${CONFIG.auditTimeout / 1000 / 60} minutes`);
+          this.pendingAudits.delete(reqNumber);
 
-      const proc = spawn('claude', args, {
-        cwd,
-        shell: true,
-        timeout: CONFIG.auditTimeout,
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      proc.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      proc.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0) {
-          resolve(stdout);
-        } else {
-          console.error(`[Sam] Agent exited with code ${code}`);
-          console.error(`[Sam] stderr: ${stderr}`);
-          resolve(stdout || stderr); // Return what we have
+          // Return a default timeout result
+          resolve({
+            agent: 'sam',
+            audit_type: auditType as 'startup' | 'daily' | 'manual',
+            timestamp: new Date().toISOString(),
+            duration_minutes: Math.round((Date.now() - startTime) / 1000 / 60),
+            overall_status: 'WARNING',
+            deployment_blocked: false,
+            block_reasons: [],
+            recommendations: ['Audit timed out - manual review required'],
+          });
         }
-      });
-
-      proc.on('error', (error) => {
-        reject(error);
-      });
+      }, CONFIG.auditTimeout);
     });
   }
 
-  private parseAuditResult(
-    output: string,
-    auditType: 'startup' | 'daily' | 'manual',
-    durationMinutes: number
-  ): AuditResult {
-    // Try to find JSON in the output
-    const jsonMatch = output.match(/\{[\s\S]*"agent":\s*"sam"[\s\S]*\}/);
+  private async handleAuditResponse(msg: any): Promise<void> {
+    try {
+      const response = JSON.parse(sc.decode(msg.data));
+      console.log(`[Sam] Received audit response for ${response.req_number}`);
 
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch {
-        console.warn('[Sam] Failed to parse JSON from output');
+      const pending = this.pendingAudits.get(response.req_number);
+      if (pending) {
+        this.pendingAudits.delete(response.req_number);
+
+        // Convert response to AuditResult format
+        const result: AuditResult = {
+          agent: 'sam',
+          audit_type: pending.auditType as 'startup' | 'daily' | 'manual',
+          timestamp: response.timestamp || new Date().toISOString(),
+          duration_minutes: Math.round((Date.now() - pending.startTime) / 1000 / 60),
+          overall_status: response.overall_status || 'WARNING',
+          deployment_blocked: response.deployment_blocked || false,
+          block_reasons: response.block_reasons || [],
+          recommendations: response.recommendations || [],
+        };
+
+        pending.resolve(result);
+      } else {
+        console.warn(`[Sam] Received response for unknown audit: ${response.req_number}`);
       }
+    } catch (error) {
+      console.error('[Sam] Failed to parse audit response:', error);
     }
-
-    // Return a default result if parsing failed
-    return {
-      agent: 'sam',
-      audit_type: auditType,
-      timestamp: new Date().toISOString(),
-      duration_minutes: durationMinutes,
-      overall_status: 'WARNING',
-      deployment_blocked: false,
-      block_reasons: [],
-      recommendations: ['Audit output could not be parsed - manual review required'],
-    };
   }
 
   private async ensureAuditTable(): Promise<void> {
@@ -313,8 +295,8 @@ Output your findings as the JSON health report format specified in your prompt.
   }
 
   private async createRequirementsForIssues(result: AuditResult): Promise<void> {
-    if (!this.db) {
-      console.error('[Sam] No database connection, cannot create requirements');
+    if (!this.nc) {
+      console.error('[Sam] No NATS connection, cannot create requirements');
       return;
     }
 
@@ -378,6 +360,10 @@ This requirement was automatically created by Sam during a system-wide audit.
 
     if (this.dailyTimer) {
       clearTimeout(this.dailyTimer);
+    }
+
+    if (this.responseSubscription) {
+      this.responseSubscription.unsubscribe();
     }
 
     if (this.db) {
