@@ -574,7 +574,7 @@ See you tomorrow!"
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 7-Stage Workflow Pipeline
+### 11-Stage Workflow Pipeline
 
 Every requirement goes through this pipeline (in order):
 
@@ -584,9 +584,13 @@ Every requirement goes through this pipeline (in order):
 | 2 | **Sylvia** (Critique) | 30 min | Reviews research, APPROVE/BLOCK |
 | 3 | **Roy** (Backend) | 60 min | Implements backend code |
 | 4 | **Jen** (Frontend) | 60 min | Implements frontend UI |
-| 5 | **Billy** (QA) | 45 min | Tests implementation |
-| 6 | **Priya** (Statistics) | 30 min | Optional, often bypassed |
-| 7 | **Berry** (DevOps) | 15 min | Auto-deploys on Billy PASS |
+| 5 | **Billy** (Backend QA) | 45 min | Tests backend implementation |
+| 6 | **Liz** (Frontend QA) | 45 min | Tests frontend implementation |
+| 7 | **Todd** (Performance) | 60 min | Load/performance testing (conditional) |
+| 8 | **Vic** (Security) | 60 min | Security scanning (conditional) |
+| 9 | **Priya** (Statistics) | 90 min | Statistical analysis (1.5 hours) |
+| 10 | **Berry** (DevOps) | 15 min | Auto-deploys on test pass |
+| 11 | **Tim** (Documentation) | 30 min | Updates docs (non-blocking) |
 
 **If Sylvia BLOCKS:** Creates sub-requirements → Parent waits → Sub-REQs complete → Parent resumes from Stage 3 (Roy)
 
@@ -624,7 +628,7 @@ NATS (Source of Truth)
 
 **Windows Host:**
 - Host Agent Listener (subscribes to NATS, spawns Claude CLI agents)
-- Spawns: cynthia, sylvia, roy, jen, billy, priya, berry, strategic-recommendation-generator
+- Spawns: cynthia, sylvia, roy, jen, billy, liz, todd, vic, priya, berry, tim
 
 **Docker→Host Communication:**
 ```
@@ -653,12 +657,12 @@ Host:   Host Agent Listener receives
 
 **Before spawning agents or creating REQs:**
 1. Understand which source to use (OWNER_REQUESTS.md vs agog.requirements.new)
-2. Know the pipeline (Cynthia→Sylvia→Roy→Jen→Billy→Priya→Berry)
+2. Know the pipeline (Cynthia→Sylvia→Roy→Jen→Billy→Liz→Todd→Vic→Priya→Berry→Tim)
 3. Respect limits (5 concurrent, 8hr max, 3 retries)
 4. Monitor via NATS subjects (deliverables, heartbeats, escalations)
 
 **When explaining status to Todd:**
-- Reference the 7-stage pipeline
+- Reference the 11-stage pipeline
 - Explain if workflow is BLOCKED waiting for sub-requirements
 - Report escalations that need human attention
 

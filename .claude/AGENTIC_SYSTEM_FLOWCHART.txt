@@ -2,7 +2,7 @@
                         AGOG AGENTIC SYSTEM FLOWCHART
                      Complete Multi-Agent Workflow System
                   ALL STATES, ERROR PATHS & RECOVERY MECHANISMS
-           (Updated with DEPLOYED Gap Fixes - Last Updated: 2025-12-29)
+           (Updated with DEPLOYED Gap Fixes - Last Updated: 2025-12-31)
 ================================================================================
 
 SYSTEM ARCHITECTURE OVERVIEW
@@ -34,14 +34,18 @@ agogsaas/
 │       └── frontend/                      ← APPLICATION (React UI)
 │
 ├── .claude/
-│   ├── agents/                            ← AGENT DEFINITIONS
+│   ├── agents/                            ← AGENT DEFINITIONS (11 STAGES)
 │   │   ├── cynthia-research.md            ← Stage 1: Research
 │   │   ├── sylvia-critique.md             ← Stage 2: Critique
 │   │   ├── roy-backend.md                 ← Stage 3: Backend
 │   │   ├── jen-frontend.md                ← Stage 4: Frontend
-│   │   ├── billy-qa.md                    ← Stage 5: QA Testing
-│   │   ├── priya-statistics.md            ← Stage 6: Statistics (bypassed)
-│   │   └── berry-devops.md                ← Stage 7: DevOps
+│   │   ├── billy-qa.md                    ← Stage 5: Backend QA
+│   │   ├── liz-frontend-tester.md         ← Stage 6: Frontend QA
+│   │   ├── todd-performance-tester.md     ← Stage 7: Performance (conditional)
+│   │   ├── vic-security-tester.md         ← Stage 8: Security (conditional)
+│   │   ├── priya-statistics.md            ← Stage 9: Statistics (90 min)
+│   │   ├── berry-devops.md                ← Stage 10: DevOps
+│   │   └── tim-documentation.md           ← Stage 11: Documentation
 │   │
 │   ├── escalations/                       ← ESCALATED WORKFLOWS (Gap Fix #6)
 │   │   └── {reqId}.json                   ← Escalation details
@@ -112,18 +116,25 @@ STALE           → No heartbeat, likely stuck (Gap Fix #5)
 
 
 ================================================================================
-AGENT TIMEOUT SETTINGS (Gap Fix #1)
+AGENT TIMEOUT SETTINGS (Gap Fix #1) - Updated 2025-12-31
 ================================================================================
 
 *** ALL TIMEOUTS REDUCED FOR AGENT SPEED (Not human speed) ***
+*** 11-STAGE WORKFLOW (expanded from original 7) ***
 
-Cynthia (Research):        45 minutes
-Sylvia (Critique):         30 minutes
-Roy (Backend):             60 minutes (1 hour)
-Jen (Frontend):            60 minutes (1 hour)
-Billy (QA Testing):        45 minutes
-Priya (Statistics):        30 minutes (optional, usually bypassed)
-Berry (Deployment):        15 minutes
+Stage  Agent                    Timeout    Notes
+─────  ─────────────────────    ───────    ─────────────────────────────────
+  1    Cynthia (Research)       45 min     Researches codebase, gathers context
+  2    Sylvia (Critique)        30 min     Reviews research, APPROVE/BLOCK
+  3    Roy (Backend)            60 min     Implements backend code
+  4    Jen (Frontend)           60 min     Implements frontend UI
+  5    Billy (Backend QA)       45 min     Tests backend implementation
+  6    Liz (Frontend QA)        45 min     Tests frontend implementation
+  7    Todd (Performance)       60 min     Load/performance testing (conditional)
+  8    Vic (Security)           60 min     Security scanning (conditional)
+  9    Priya (Statistics)       90 min     Statistical analysis (1.5 hours)
+ 10    Berry (DevOps)           15 min     Auto-deploys on test pass
+ 11    Tim (Documentation)      30 min     Updates docs (non-blocking)
 
 *** WORKFLOW MAXIMUM DURATION (Gap Fix #3): 8 hours total ***
 *** HEARTBEAT TIMEOUT (Gap Fix #5): 30 minutes ***
