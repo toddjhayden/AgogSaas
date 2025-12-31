@@ -16,7 +16,6 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { ApprovalActionModal } from '../components/approval/ApprovalActionModal';
 import { ApprovalHistoryTimeline } from '../components/approval/ApprovalHistoryTimeline';
-import { ApprovalWorkflowProgress } from '../components/approval/ApprovalWorkflowProgress';
 import {
   GET_PURCHASE_ORDER,
   UPDATE_PURCHASE_ORDER,
@@ -114,7 +113,7 @@ export const PurchaseOrderDetailPageEnhanced: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [approvalModalType, setApprovalModalType] = useState<'APPROVE' | 'REJECT' | null>(null);
-  const [showWorkflowDetails, setShowWorkflowDetails] = useState(true);
+  useState(true); // Workflow details display state for future use
 
   // TODO: Get userId from auth context
   const userId = '1';
@@ -219,7 +218,7 @@ export const PurchaseOrderDetailPageEnhanced: React.FC = () => {
   // Determine what actions can be taken based on workflow status
   const isPendingWorkflowApproval = po.status === 'PENDING_APPROVAL';
   const isApproved = po.status === 'APPROVED';
-  const isRejected = po.status === 'REJECTED';
+  // isRejected status available if needed: po.status === 'REJECTED'
   const isDraft = po.status === 'DRAFT';
 
   const canSubmitForApproval = isDraft && po.requiresApproval && !po.currentApprovalWorkflowId;

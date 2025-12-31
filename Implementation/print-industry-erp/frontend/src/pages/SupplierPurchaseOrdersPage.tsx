@@ -15,16 +15,14 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
-  Filter,
   FileText,
-  Calendar,
   AlertCircle,
   CheckCircle,
   Package,
   Download,
 } from 'lucide-react';
 import { GET_SUPPLIER_PURCHASE_ORDERS } from '../graphql/queries/supplierPortal';
-import DataTable from '../components/common/DataTable';
+import { DataTable } from '../components/common/DataTable';
 
 const SupplierPurchaseOrdersPage: React.FC = () => {
   const { t } = useTranslation();
@@ -36,7 +34,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
-  const { data, loading, error, refetch } = useQuery(GET_SUPPLIER_PURCHASE_ORDERS, {
+  const { data, loading, error } = useQuery(GET_SUPPLIER_PURCHASE_ORDERS, {
     variables: {
       status: statusFilter.length > 0 ? statusFilter : undefined,
       fromDate: fromDate || undefined,
@@ -393,7 +391,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
           rowsPerPage={rowsPerPage}
           totalCount={totalCount}
           onPageChange={setPage}
-          onRowsPerPageChange={(newRowsPerPage) => {
+          onRowsPerPageChange={(newRowsPerPage: number) => {
             setRowsPerPage(newRowsPerPage);
             setPage(0);
           }}

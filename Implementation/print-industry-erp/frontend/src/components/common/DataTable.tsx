@@ -13,12 +13,52 @@ import {
 import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Search } from 'lucide-react';
 import clsx from 'clsx';
 
-interface DataTableProps<T> {
+export interface DataTableProps<T> {
   data: T[];
-  columns: ColumnDef<T, any>[];
+  columns: ColumnDef<T, any>[] | SimpleColumn<T>[];
   searchable?: boolean;
   exportable?: boolean;
   pageSize?: number;
+  loading?: boolean;
+  emptyMessage?: string;
+  searchPlaceholder?: string;
+  enableSorting?: boolean;
+  enableFiltering?: boolean;
+  // Pagination props for external control
+  page?: number;
+  rowsPerPage?: number;
+  totalCount?: number;
+  onPageChange?: (page: number) => void;
+  onRowsPerPageChange?: (rowsPerPage: number) => void;
+}
+
+// Simplified column definition for backwards compatibility
+interface SimpleColumn<T> {
+  key?: string;
+  header?: string;
+  accessor?: string | ((row: T) => any);
+  render?: (value: any, row?: T) => any;
+  className?: string;
+  sortable?: boolean;
+}
+
+// Convert simple columns to ColumnDef format
+function convertColumns<T>(columns: ColumnDef<T, any>[] | SimpleColumn<T>[]): ColumnDef<T, any>[] {
+  return columns.map((col: any) => {
+    if (col.accessorKey || col.accessorFn) {
+      // Already a ColumnDef
+      return col;
+    }
+    // Convert SimpleColumn
+    const accessorKey = col.key || col.accessor;
+    return {
+      id: col.key || col.accessor || col.header,
+      accessorKey: typeof accessorKey === 'string' ? accessorKey : undefined,
+      accessorFn: typeof col.accessor === 'function' ? col.accessor : undefined,
+      header: col.header,
+      cell: col.render ? (info: any) => col.render(info.getValue(), info.row.original) : undefined,
+    } as ColumnDef<T, any>;
+  });
 }
 
 export function DataTable<T>({
@@ -27,14 +67,27 @@ export function DataTable<T>({
   searchable = true,
   exportable = true,
   pageSize = 10,
+  loading: _loading = false, // Reserved for loading state
+  emptyMessage: _emptyMessage = 'No data available', // Reserved for empty state
+  searchPlaceholder: _searchPlaceholder = 'Search...', // Reserved for search placeholder
+  enableSorting: _enableSorting = true, // Reserved for sorting config
+  enableFiltering: _enableFiltering = true, // Reserved for filtering config
+  page: _page, // External pagination control
+  rowsPerPage: _rowsPerPage, // External pagination control
+  totalCount: _totalCount, // External pagination control
+  onPageChange: _onPageChange, // External pagination callback
+  onRowsPerPageChange: _onRowsPerPageChange, // External pagination callback
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
 
+  // Convert columns to ColumnDef format if needed
+  const normalizedColumns = convertColumns<T>(columns);
+
   const table = useReactTable({
     data,
-    columns,
+    columns: normalizedColumns,
     state: {
       sorting,
       columnFilters,

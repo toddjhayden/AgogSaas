@@ -15,7 +15,7 @@
  * - Effective date range controls
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
 import { Settings, Save, Plus, Edit2, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
@@ -58,7 +58,7 @@ interface WeightInputs {
 }
 
 export const VendorScorecardConfigPage: React.FC = () => {
-  const { t } = useTranslation();
+  useTranslation(); // Hook required for context but t not used directly yet
   const tenantId = 'tenant-default-001'; // TODO: Get from auth context
 
   const [isEditing, setIsEditing] = useState(false);

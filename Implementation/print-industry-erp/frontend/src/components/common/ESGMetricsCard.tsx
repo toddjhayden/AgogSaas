@@ -97,7 +97,7 @@ const formatNumber = (value: number | undefined) => {
  */
 export const ESGMetricsCard: React.FC<ESGMetricsCardProps> = ({
   metrics,
-  showDetails = true,
+  showDetails: _showDetails = true,
   className
 }) => {
   if (!metrics) {
@@ -239,7 +239,7 @@ export const ESGMetricsCard: React.FC<ESGMetricsCardProps> = ({
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-gray-900">{new Date(metrics.nextAuditDueDate).toLocaleDateString()}</p>
                   {new Date(metrics.nextAuditDueDate) < new Date() && (
-                    <AlertTriangle className="h-4 w-4 text-red-600" title="Audit overdue" />
+                    <span title="Audit overdue"><AlertTriangle className="h-4 w-4 text-red-600" /></span>
                   )}
                 </div>
               </div>

@@ -9,24 +9,31 @@ const facilities = [
   { id: 'fac-3', name: 'Beijing Plant' },
 ];
 
-interface FacilitySelectorProps {
+export interface FacilitySelectorProps {
   selectedFacility?: string | null;
   onFacilityChange?: (facility: string | null) => void;
+  // Aliases for convenience
+  value?: string | null;
+  onChange?: (facility: string | null) => void;
 }
 
 export const FacilitySelector: React.FC<FacilitySelectorProps> = ({
   selectedFacility: propSelectedFacility,
-  onFacilityChange
+  onFacilityChange,
+  value,
+  onChange,
 }) => {
+  // Support both prop names
   const { preferences, setFacility } = useAppStore();
-  const selectedFacility = propSelectedFacility !== undefined ? propSelectedFacility : preferences.selectedFacility;
+  const effectiveSelectedFacility = value !== undefined ? value : (propSelectedFacility !== undefined ? propSelectedFacility : preferences.selectedFacility);
+  const effectiveOnChange = onChange || onFacilityChange;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value === '' ? null : e.target.value;
-    if (onFacilityChange) {
-      onFacilityChange(value);
+    const newValue = e.target.value === '' ? null : e.target.value;
+    if (effectiveOnChange) {
+      effectiveOnChange(newValue);
     } else {
-      setFacility(value);
+      setFacility(newValue);
     }
   };
 
@@ -34,7 +41,7 @@ export const FacilitySelector: React.FC<FacilitySelectorProps> = ({
     <div className="flex items-center space-x-2">
       <Building2 className="h-4 w-4 text-gray-600" />
       <select
-        value={selectedFacility || ''}
+        value={effectiveSelectedFacility || ''}
         onChange={handleChange}
         className="text-sm border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
       >

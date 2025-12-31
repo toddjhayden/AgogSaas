@@ -13,7 +13,6 @@ import {
   TrendingUp,
   AlertTriangle,
   Info,
-  Calendar,
   Activity,
   Target,
 } from 'lucide-react';
@@ -26,6 +25,7 @@ import {
   GET_SPC_CONTROL_LIMITS,
   GET_SPC_PROCESS_CAPABILITY,
 } from '../graphql/queries/spc';
+import { DEFAULTS } from '../constants/defaults';
 
 interface ControlChartDataPoint {
   id: string;
@@ -67,7 +67,7 @@ interface ProcessCapability {
 export const SPCControlChartPage: React.FC = () => {
   const { t } = useTranslation();
   const { parameterCode } = useParams<{ parameterCode: string }>();
-  const { currentTenant, currentFacility } = useAppStore();
+  const selectedFacility = useAppStore((state) => state.preferences.selectedFacility);
   const [dateRange] = useState({
     startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     endDate: new Date().toISOString(),
@@ -78,8 +78,8 @@ export const SPCControlChartPage: React.FC = () => {
   }>(GET_SPC_CONTROL_CHART_DATA, {
     variables: {
       filter: {
-        tenantId: currentTenant?.id || 'default-tenant',
-        facilityId: currentFacility?.id,
+        tenantId: selectedFacility || DEFAULTS.TENANT_ID,
+        facilityId: selectedFacility,
         parameterCode,
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
@@ -87,17 +87,17 @@ export const SPCControlChartPage: React.FC = () => {
         limit: 500,
       },
     },
-    skip: !currentTenant || !parameterCode,
+    skip: !selectedFacility || !parameterCode,
   });
 
   const { data: limitsData, loading: limitsLoading } = useQuery<{
     spcControlLimits: ControlLimits;
   }>(GET_SPC_CONTROL_LIMITS, {
     variables: {
-      tenantId: currentTenant?.id || 'default-tenant',
+      tenantId: selectedFacility || DEFAULTS.TENANT_ID,
       parameterCode,
     },
-    skip: !currentTenant || !parameterCode,
+    skip: !selectedFacility || !parameterCode,
   });
 
   const { data: capabilityData, loading: capabilityLoading } = useQuery<{
@@ -105,14 +105,14 @@ export const SPCControlChartPage: React.FC = () => {
   }>(GET_SPC_PROCESS_CAPABILITY, {
     variables: {
       input: {
-        tenantId: currentTenant?.id || 'default-tenant',
-        facilityId: currentFacility?.id,
+        tenantId: selectedFacility || DEFAULTS.TENANT_ID,
+        facilityId: selectedFacility,
         parameterCode,
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
       },
     },
-    skip: !currentTenant || !parameterCode,
+    skip: !selectedFacility || !parameterCode,
   });
 
   const dataPoints = chartData?.spcControlChartData || [];

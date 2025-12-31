@@ -17,7 +17,7 @@ import {
   Chip,
   Alert,
 } from '@mui/material';
-import { Save, Plus, Trash2, RefreshCw, FileText } from 'lucide-react';
+import { Save, Plus, Trash2, FileText } from 'lucide-react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -278,10 +278,10 @@ export const QuoteCollaborationPage: React.FC = () => {
         await refetch();
         setShowConflictModal(false);
         setConflicts([]);
-        toast.info(t('collaboration.dataRefreshed'));
+        toast(t('collaboration.dataRefreshed'));
       } else if (resolution === 'use_mine') {
         // Force update (would need backend support)
-        toast.warning(t('collaboration.forceUpdateNotSupported'));
+        toast(t('collaboration.forceUpdateNotSupported'));
         setShowConflictModal(false);
       } else {
         // Use theirs - discard local changes
@@ -289,7 +289,7 @@ export const QuoteCollaborationPage: React.FC = () => {
         setLocalChanges({});
         setShowConflictModal(false);
         setConflicts([]);
-        toast.info(t('collaboration.changesDiscarded'));
+        toast(t('collaboration.changesDiscarded'));
       }
     },
     [refetch, t]

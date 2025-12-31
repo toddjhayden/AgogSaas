@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import clsx from 'clsx';
 
 export interface CategoryScore {
@@ -44,12 +44,6 @@ export const WeightedScoreBreakdown: React.FC<WeightedScoreBreakdownProps> = ({
   height = 300,
   className
 }) => {
-  const chartData = scores.map((s) => ({
-    ...s,
-    displayName: `${s.category} (${s.weight}%)`,
-    fill: s.color || DEFAULT_COLORS[s.category as keyof typeof DEFAULT_COLORS] || '#6b7280'
-  }));
-
   return (
     <div className={clsx('card', className)}>
       <div className="flex items-center justify-between mb-6">

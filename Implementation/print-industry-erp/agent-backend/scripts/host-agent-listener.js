@@ -50,12 +50,16 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const nats_1 = require("nats");
 const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
 const pg_1 = require("pg");
 const dotenv = __importStar(require("dotenv"));
+const axios_1 = __importDefault(require("axios"));
 // Load .env from project root (contains GITHUB_TOKEN, etc.)
 dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '..', '.env') });
 // PostgreSQL connection for change management storage
@@ -66,6 +70,31 @@ const pgPool = new pg_1.Pool({
     password: 'agent_dev_password_2024',
     database: 'agent_memory',
 });
+// Ollama URL for embeddings (host machine port mapping)
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+/**
+ * Generate embedding for semantic search using Ollama
+ * Uses nomic-embed-text model (768 dimensions)
+ */
+async function generateEmbedding(text) {
+    try {
+        // nomic-embed-text has 2048 token limit (~1500 chars safely)
+        const truncatedText = text.substring(0, 1500);
+        const response = await axios_1.default.post(`${OLLAMA_URL}/api/embeddings`, {
+            model: 'nomic-embed-text',
+            prompt: truncatedText,
+        }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 30000,
+        });
+        return response.data.embedding;
+    }
+    catch (error) {
+        console.warn(`[HostListener] Failed to generate embedding: ${error.message}`);
+        // Return zero vector as fallback (will still be searchable via metadata)
+        return Array(768).fill(0);
+    }
+}
 const sc = (0, nats_1.StringCodec)();
 class HostAgentListener {
     constructor() {
@@ -719,9 +748,11 @@ ${stdout.substring(0, 50000)}`;
                 migrations_added: changes.migrations_added || [],
                 key_changes: changes.key_changes || [],
             });
-            await pgPool.query(`INSERT INTO memories (agent_id, memory_type, content, metadata)
-         VALUES ($1, $2, $3, $4::jsonb)`, [agentId, memoryType, content, metadata]);
-            console.log(`[HostListener] 💾 Stored change management record for ${agentId}/${reqNumber}`);
+            // Generate embedding for semantic search
+            const embedding = await generateEmbedding(content);
+            await pgPool.query(`INSERT INTO memories (agent_id, memory_type, content, embedding, metadata)
+         VALUES ($1, $2, $3, $4::vector, $5::jsonb)`, [agentId, memoryType, content, JSON.stringify(embedding), metadata]);
+            console.log(`[HostListener] 💾 Stored change management record for ${agentId}/${reqNumber} (with embedding)`);
             // Log key changes for visibility
             if (changes.key_changes?.length > 0) {
                 console.log(`[HostListener] 📝 Key changes: ${changes.key_changes.join(', ')}`);

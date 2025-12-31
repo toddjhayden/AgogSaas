@@ -12,7 +12,6 @@ import { CreditCard, Building2, History, Plus, Trash2, RefreshCw } from 'lucide-
 import { toast } from 'react-hot-toast';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { PaymentMethodSelector } from '../components/payments/PaymentMethodSelector';
 import { StripeCardPaymentForm } from '../components/payments/StripeCardPaymentForm';
 import { ACHPaymentForm } from '../components/payments/ACHPaymentForm';
 import { PaymentTransactionHistory } from '../components/payments/PaymentTransactionHistory';
@@ -29,11 +28,11 @@ type PaymentType = 'card' | 'ach';
 export const PaymentManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const [currentView, setCurrentView] = useState<PaymentView>('overview');
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>();
+  const [_selectedPaymentMethodId, _setSelectedPaymentMethodId] = useState<string>();
   const [paymentType, setPaymentType] = useState<PaymentType>('card');
 
   // TODO: Get from auth context
-  const tenantId = useAppStore((state) => state.tenantId) || '1';
+  const tenantId = useAppStore((state) => state.preferences?.selectedFacility) || '1';
   const customerId = '1'; // TODO: Get from user context or invoice selection
 
   // Demo invoice data - in production, this would come from invoice selection
@@ -77,7 +76,7 @@ export const PaymentManagementPage: React.FC = () => {
     },
   });
 
-  const handlePaymentSuccess = (result: any) => {
+  const handlePaymentSuccess = (_result: any) => {
     toast.success(t('payments.paymentSuccessful'));
     setCurrentView('overview');
     refetchTransactions();

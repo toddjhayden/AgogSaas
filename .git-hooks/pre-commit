@@ -28,7 +28,7 @@ echo "✅ Type checking passed"
 # Step 4: Unit tests
 echo "Step 4/4: Unit tests..."
 cd Implementation/print-industry-erp/backend && npm test --silent 2>/dev/null || echo "⚠️  Backend tests skipped"
-cd ../frontend && npm run test --silent 2>/dev/null || echo "⚠️  Frontend tests skipped"
+cd ../frontend && npm run test -- --run --passWithNoTests 2>/dev/null || echo "⚠️  Frontend tests skipped"
 cd ../../..
 echo "✅ Tests passed"
 

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Chart } from '../components/common/Chart';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
-import { useFacilityStore } from '../store/appStore';
+import { useAppStore } from '../store/appStore';
 import {
   GET_PL_SUMMARY,
   GET_AR_AGING,
@@ -22,7 +22,7 @@ import {
 
 export const FinanceDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const selectedFacility = useFacilityStore((state) => state.selectedFacility);
+  const selectedFacility = useAppStore((state) => state.preferences.selectedFacility);
 
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
@@ -31,7 +31,7 @@ export const FinanceDashboard: React.FC = () => {
 
   const { data: plData, loading: plLoading, error: plError } = useQuery(GET_PL_SUMMARY, {
     variables: {
-      facilityId: selectedFacility?.id,
+      facilityId: selectedFacility,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
       currency: 'USD'
@@ -41,7 +41,7 @@ export const FinanceDashboard: React.FC = () => {
 
   const { data: arData, loading: arLoading } = useQuery(GET_AR_AGING, {
     variables: {
-      facilityId: selectedFacility?.id,
+      facilityId: selectedFacility,
       asOfDate: dateRange.endDate
     },
     skip: !selectedFacility
@@ -49,7 +49,7 @@ export const FinanceDashboard: React.FC = () => {
 
   const { data: apData, loading: apLoading } = useQuery(GET_AP_AGING, {
     variables: {
-      facilityId: selectedFacility?.id,
+      facilityId: selectedFacility,
       asOfDate: dateRange.endDate
     },
     skip: !selectedFacility
@@ -57,7 +57,7 @@ export const FinanceDashboard: React.FC = () => {
 
   const { data: cashFlowData, loading: cashFlowLoading } = useQuery(GET_CASH_FLOW_FORECAST, {
     variables: {
-      facilityId: selectedFacility?.id,
+      facilityId: selectedFacility,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate
     },

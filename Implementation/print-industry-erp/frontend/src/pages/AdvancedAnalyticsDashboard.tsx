@@ -6,9 +6,6 @@ import {
   Users,
   Package,
   Activity,
-  AlertCircle,
-  ChevronDown,
-  Calendar,
 } from 'lucide-react';
 import {
   GET_VENDOR_PRODUCTION_IMPACT,
@@ -31,7 +28,7 @@ type AnalysisView = 'vendor-production' | 'customer-profitability' | 'order-cycl
 export const AdvancedAnalyticsDashboard: React.FC = () => {
   const { t } = useTranslation();
   const [selectedView, setSelectedView] = useState<AnalysisView>('vendor-production');
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, _setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     endDate: new Date().toISOString(),
   });

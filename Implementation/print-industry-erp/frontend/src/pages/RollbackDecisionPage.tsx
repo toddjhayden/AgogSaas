@@ -29,15 +29,11 @@ import {
   FormControl,
   InputLabel,
   Select,
-  LinearProgress,
 } from '@mui/material';
 import {
   Undo as RollbackIcon,
   Refresh as RefreshIcon,
   Visibility as ViewIcon,
-  Warning as WarningIcon,
-  CheckCircle as HealthyIcon,
-  Error as ErrorIcon,
   Timeline as MetricsIcon,
 } from '@mui/icons-material';
 import {
@@ -101,7 +97,6 @@ const RollbackDecisionPage: React.FC = () => {
 
   const {
     data: criteriaData,
-    loading: criteriaLoading,
   } = useQuery(GET_ROLLBACK_DECISION_CRITERIA, {
     variables: {
       tenantId,

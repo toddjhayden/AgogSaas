@@ -20,7 +20,7 @@ export const RegisterPage: React.FC = () => {
   });
 
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmPassword, _setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -128,7 +128,10 @@ export const RegisterPage: React.FC = () => {
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: undefined }));
+    setErrors((prev) => {
+      const { [field]: _, ...rest } = prev;
+      return rest;
+    });
   };
 
   const strength = passwordStrength(formData.password);

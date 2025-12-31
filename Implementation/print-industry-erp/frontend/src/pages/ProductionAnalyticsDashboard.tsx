@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Play,
   Pause,
-  Calendar,
 } from 'lucide-react';
 import { KPICard } from '../components/common/KPICard';
 import { Chart } from '../components/common/Chart';
@@ -298,21 +297,21 @@ export const ProductionAnalyticsDashboard: React.FC = () => {
         <KPICard
           title={t('production.activeRuns')}
           value={summary?.activeRuns?.toString() || '0'}
-          trend={null}
+          trend={undefined}
           icon={Activity}
           color="blue"
         />
         <KPICard
           title={t('production.scheduledRuns')}
           value={summary?.scheduledRuns?.toString() || '0'}
-          trend={null}
+          trend={undefined}
           icon={Clock}
           color="yellow"
         />
         <KPICard
           title={t('production.completedToday')}
           value={summary?.completedRunsToday?.toString() || '0'}
-          trend={null}
+          trend={undefined}
           icon={CheckCircle}
           color="green"
         />
@@ -320,7 +319,7 @@ export const ProductionAnalyticsDashboard: React.FC = () => {
           title={t('production.averageOEE')}
           value={summary?.currentOEE?.toFixed(1) || '0'}
           suffix="%"
-          trend={null}
+          trend={undefined}
           icon={TrendingUp}
           color={
             (summary?.currentOEE || 0) >= 85

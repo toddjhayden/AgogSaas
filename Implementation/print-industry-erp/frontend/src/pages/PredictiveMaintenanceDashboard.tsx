@@ -44,14 +44,12 @@ import { toast } from 'react-hot-toast';
 
 export const PredictiveMaintenanceDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const [selectedFacility, setSelectedFacility] = useState<string>('');
-  const [timeRange, setTimeRange] = useState<string>('LAST_30_DAYS');
+  const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
+  const [timeRange] = useState<string>('LAST_30_DAYS');
 
   // Queries
   const {
     data: dashboardData,
-    loading: dashboardLoading,
-    refetch: refetchDashboard,
   } = useQuery(GET_PREDICTIVE_MAINTENANCE_DASHBOARD, {
     variables: { facilityId: selectedFacility || undefined, timeRange },
     pollInterval: 30000, // Refresh every 30 seconds

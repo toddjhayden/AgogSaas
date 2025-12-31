@@ -12,7 +12,6 @@ import {
   PhoneCall,
   Mail,
   CheckCircle,
-  Clock,
   AlertCircle,
   BarChart3,
   PieChart,
@@ -20,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { Chart } from '../components/common/Chart';
-import { useAuthStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import {
   GET_PIPELINE_SUMMARY,
   GET_OPPORTUNITIES_REQUIRING_ACTION,
@@ -80,9 +79,9 @@ interface ActivitySummary {
 export const CRMDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore((state: { user: any }) => state.user);
 
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, _setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });

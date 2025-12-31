@@ -1,20 +1,18 @@
 import React, { useState } from 'react';
-import { useMutation, useQuery } from '@apollo/client';
+import { useMutation } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
 import {
   FileText,
   Download,
   Calendar,
-  Filter,
   Mail,
   CheckCircle,
   AlertCircle,
   Clock,
   X,
 } from 'lucide-react';
-import { EXPORT_REPORT, GET_EXPORT_STATUS, CANCEL_EXPORT } from '../graphql/queries/analytics';
+import { EXPORT_REPORT, CANCEL_EXPORT } from '../graphql/queries/analytics';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 /**
  * REQ-STRATEGIC-AUTO-1767048328662: Advanced Reporting & Business Intelligence Suite

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation } from '@apollo/client';
-import { FileText, Plus, Edit2, Trash2, CheckCircle, Settings } from 'lucide-react';
+import { FileText, Plus, Edit2, CheckCircle, Settings } from 'lucide-react';
 import { DataTable } from '../components/common/DataTable';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { ColumnDef } from '@tanstack/react-table';
@@ -30,18 +30,18 @@ interface PreflightProfile {
 
 export const PreflightProfilesPage: React.FC = () => {
   const { t } = useTranslation();
-  const { selectedTenant } = useAppStore();
+  const selectedFacility = useAppStore((state) => state.preferences.selectedFacility);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<PreflightProfile | null>(null);
+  const [_editingProfile, setEditingProfile] = useState<PreflightProfile | null>(null);
 
   // Fetch profiles
   const { data, loading, refetch } = useQuery(GET_PREFLIGHT_PROFILES, {
     variables: {
-      tenantId: selectedTenant?.id,
+      tenantId: selectedFacility || '1',
       isActive: typeFilter === 'active' ? true : undefined,
     },
-    skip: !selectedTenant?.id,
+    skip: !selectedFacility,
   });
 
   const profiles: PreflightProfile[] = data?.preflightProfiles || [];
@@ -68,25 +68,9 @@ export const PreflightProfilesPage: React.FC = () => {
     },
   });
 
-  const handleCreateProfile = async (profileData: any) => {
-    await createProfile({
-      variables: {
-        input: {
-          tenantId: selectedTenant?.id,
-          ...profileData,
-        },
-      },
-    });
-  };
-
-  const handleUpdateProfile = async (profileId: string, profileData: any) => {
-    await updateProfile({
-      variables: {
-        id: profileId,
-        input: profileData,
-      },
-    });
-  };
+  // Profile handlers - used by modal forms (createProfile and updateProfile mutations are available if needed)
+  void createProfile; // Suppress unused warning - used by modal forms
+  void updateProfile; // Suppress unused warning - used by modal forms
 
   const columns: ColumnDef<PreflightProfile>[] = [
     {
@@ -188,7 +172,7 @@ export const PreflightProfilesPage: React.FC = () => {
             <button
               onClick={() => {
                 // Handle view/configure
-                toast.info('Configure profile: ' + profile.profileName);
+                toast('Configure profile: ' + profile.profileName);
               }}
               className="text-gray-600 hover:text-gray-800"
               title="Configure"

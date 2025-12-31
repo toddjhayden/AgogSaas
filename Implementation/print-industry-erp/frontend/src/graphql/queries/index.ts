@@ -48,3 +48,4 @@ export * from './marketplace';
 export * from './codeQuality';
 export * from './supplierPortal';
 export * from './quoteCollaboration';
+export * from './salesQuoteAutomation';

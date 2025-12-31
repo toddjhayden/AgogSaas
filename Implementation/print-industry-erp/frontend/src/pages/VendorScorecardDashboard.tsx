@@ -8,8 +8,6 @@ import {
   Minus,
   Package,
   CheckCircle,
-  DollarSign,
-  MessageCircle,
   Award,
   Calendar,
 } from 'lucide-react';
@@ -17,10 +15,7 @@ import { Chart } from '../components/common/Chart';
 import { DataTable } from '../components/common/DataTable';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { ColumnDef } from '@tanstack/react-table';
-import {
-  GET_VENDOR_SCORECARD,
-  GET_VENDORS,
-} from '../graphql/queries/vendorScorecard';
+import { GET_VENDOR_SCORECARD } from '../graphql/queries/vendorScorecard';
 import { GET_VENDORS as GET_VENDORS_FROM_PO } from '../graphql/queries/purchaseOrders';
 
 // TypeScript interfaces for data structures

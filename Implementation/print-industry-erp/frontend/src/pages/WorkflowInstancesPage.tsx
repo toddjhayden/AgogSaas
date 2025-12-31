@@ -28,19 +28,17 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
 } from '@mui/material';
 import {
   Visibility as ViewIcon,
   Cancel as CancelIcon,
-  PlayArrow as StartIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { GET_WORKFLOW_INSTANCES } from '../graphql/queries/workflow';
-import { CANCEL_WORKFLOW, START_WORKFLOW } from '../graphql/mutations/workflow';
-import { useStore } from '../store/appStore';
+import { CANCEL_WORKFLOW } from '../graphql/mutations/workflow';
+import { useAppStore } from '../store/appStore';
 
 interface WorkflowInstance {
   id: string;
@@ -69,7 +67,7 @@ interface WorkflowInstance {
 const WorkflowInstancesPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { selectedFacilityId } = useStore();
+  useAppStore(); // For facility context
 
   // State
   const [statusFilter, setStatusFilter] = useState<string>('');

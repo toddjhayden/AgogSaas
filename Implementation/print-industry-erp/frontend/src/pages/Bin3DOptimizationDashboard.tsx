@@ -81,7 +81,7 @@ const getErgonomicZoneDescription = (zone: string) => {
 
 export const Bin3DOptimizationDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const [selectedFacility, setSelectedFacility] = useState<string>('');
+  const [selectedFacility, _setSelectedFacility] = useState<string>('');
 
   const {
     data: ergonomicData,

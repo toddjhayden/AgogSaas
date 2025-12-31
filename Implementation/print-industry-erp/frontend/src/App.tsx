@@ -28,7 +28,6 @@ import { KPIExplorer } from './pages/KPIExplorer';
 import { MonitoringDashboard } from './pages/MonitoringDashboard';
 import { OrchestratorDashboard } from './pages/OrchestratorDashboard';
 import { PurchaseOrdersPage } from './pages/PurchaseOrdersPage';
-import { PurchaseOrderDetailPage } from './pages/PurchaseOrderDetailPage';
 import { PurchaseOrderDetailPageEnhanced } from './pages/PurchaseOrderDetailPageEnhanced';
 import { CreatePurchaseOrderPage } from './pages/CreatePurchaseOrderPage';
 import { MyApprovalsPage } from './pages/MyApprovalsPage';

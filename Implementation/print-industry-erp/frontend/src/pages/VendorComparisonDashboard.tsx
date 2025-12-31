@@ -8,7 +8,6 @@ import {
   TrendingDown,
   Users,
   BarChart3,
-  AlertCircle,
 } from 'lucide-react';
 import { Chart } from '../components/common/Chart';
 import { DataTable } from '../components/common/DataTable';

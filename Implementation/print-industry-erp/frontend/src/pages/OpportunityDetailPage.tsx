@@ -5,20 +5,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
   Target,
-  DollarSign,
-  Calendar,
-  Users,
   TrendingUp,
   Edit,
   Trash2,
   Plus,
   Activity,
-  FileText,
-  Clock,
   CheckCircle,
   Tag,
-  User,
-  Building,
   AlertCircle,
   ChevronRight,
   PhoneCall,
@@ -27,13 +20,12 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
-import { useAuthStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import {
   GET_OPPORTUNITY,
   GET_OPPORTUNITY_STAGE_HISTORY,
   GET_ACTIVITIES_BY_OPPORTUNITY,
   GET_NOTES_BY_OPPORTUNITY,
-  UPDATE_OPPORTUNITY,
   DELETE_OPPORTUNITY,
   CREATE_ACTIVITY,
   CREATE_NOTE,
@@ -111,7 +103,7 @@ export const OpportunityDetailPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore((state: { user: any }) => state.user);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'history'>('overview');
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -133,7 +125,7 @@ export const OpportunityDetailPage: React.FC = () => {
   });
 
   // Query opportunity details
-  const { data: opportunityData, loading: opportunityLoading, refetch: refetchOpportunity } = useQuery(GET_OPPORTUNITY, {
+  const { data: opportunityData, loading: opportunityLoading, refetch: _refetchOpportunity } = useQuery(GET_OPPORTUNITY, {
     variables: { id },
     skip: !id
   });
@@ -196,7 +188,7 @@ export const OpportunityDetailPage: React.FC = () => {
     }
   });
 
-  const [deleteNote] = useMutation(DELETE_NOTE, {
+  const [_deleteNote] = useMutation(DELETE_NOTE, {
     onCompleted: () => {
       refetchNotes();
     }

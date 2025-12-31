@@ -97,7 +97,7 @@ const getTrendIcon = (direction: string) => {
 
 export const BinFragmentationDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const [selectedFacility, setSelectedFacility] = useState<string>('');
+  const [selectedFacility, _setSelectedFacility] = useState<string>('');
 
   const {
     data: fragmentationData,

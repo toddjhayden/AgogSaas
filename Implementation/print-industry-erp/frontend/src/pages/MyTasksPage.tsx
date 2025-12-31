@@ -48,7 +48,7 @@ import {
   DELEGATE_TASK,
   COMPLETE_USER_TASK,
 } from '../graphql/mutations/workflow';
-import { useStore } from '../store/appStore';
+import { useAppStore } from '../store/appStore';
 
 interface UserTask {
   taskId: string;
@@ -71,7 +71,7 @@ interface UserTask {
 const MyTasksPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { selectedFacilityId } = useStore();
+  useAppStore(); // Facility context
 
   // State
   const [urgencyFilter, setUrgencyFilter] = useState<string>('');
@@ -171,7 +171,7 @@ const MyTasksPage: React.FC = () => {
           await delegateTask({
             variables: {
               taskId: selectedTask.taskId,
-              delegateToUserId,
+              delegateToUserId: delegateUserId,
             },
           });
           break;
@@ -200,14 +200,14 @@ const MyTasksPage: React.FC = () => {
     }
   };
 
-  const getUrgencyIcon = (level: string) => {
+  const getUrgencyIcon = (level: string): React.ReactElement | undefined => {
     switch (level) {
       case 'URGENT':
         return <ErrorIcon fontSize="small" />;
       case 'WARNING':
         return <WarningIcon fontSize="small" />;
       default:
-        return null;
+        return undefined;
     }
   };
 

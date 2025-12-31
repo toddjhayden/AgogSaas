@@ -18,27 +18,20 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   LinearProgress,
   Tabs,
   Tab,
   IconButton,
   Tooltip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   TextField,
   Button,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import WarningIcon from '@mui/icons-material/Warning';
 import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
 import CodeIcon from '@mui/icons-material/Code';
-import BugReportIcon from '@mui/icons-material/BugReport';
 import { Chart } from '../components/common/Chart';
 import {
   GET_QUALITY_METRICS_TRENDS,
@@ -82,7 +75,7 @@ export const CodeQualityDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedReqNumber, setSelectedReqNumber] = useState('');
-  const [timePeriod, setTimePeriod] = useState('monthly');
+  const [_timePeriod, _setTimePeriod] = useState('monthly');
 
   // Queries
   const {
@@ -126,8 +119,8 @@ export const CodeQualityDashboard = () => {
   });
 
   const {
-    data: latestMetricsData,
-    loading: latestMetricsLoading,
+    data: _latestMetricsData,
+    loading: _latestMetricsLoading,
     refetch: refetchLatestMetrics,
   } = useQuery(GET_LATEST_QUALITY_METRICS, {
     variables: { reqNumber: selectedReqNumber },
@@ -179,10 +172,6 @@ export const CodeQualityDashboard = () => {
     0
   );
 
-  const avgComplexity = recentTrends.length > 0
-    ? recentTrends.reduce((sum: number, t: any) => sum + (t.maxComplexity || 0), 0) / recentTrends.length
-    : 0;
-
   const avgPipelineTime = pipelineMetrics.length > 0
     ? pipelineMetrics.reduce((sum: number, p: any) => sum + (p.totalDurationSeconds || 0), 0) /
       pipelineMetrics.length / 60 // Convert to minutes
@@ -198,21 +187,6 @@ export const CodeQualityDashboard = () => {
         return 'error';
       case 'pending':
         return 'warning';
-      default:
-        return 'default';
-    }
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity?.toUpperCase()) {
-      case 'CRITICAL':
-        return 'error';
-      case 'HIGH':
-        return 'error';
-      case 'MEDIUM':
-        return 'warning';
-      case 'LOW':
-        return 'info';
       default:
         return 'default';
     }

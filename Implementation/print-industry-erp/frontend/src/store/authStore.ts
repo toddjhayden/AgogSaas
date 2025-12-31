@@ -187,7 +187,7 @@ export const useAuthStore = create<AuthState>()(
 
       // Refresh access token
       refreshAccessToken: async () => {
-        const { refreshToken, isRefreshing } = get();
+        const { refreshToken } = get();
 
         if (!refreshToken) {
           get().clearAuth();

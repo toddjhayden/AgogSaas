@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { ColumnDef } from '@tanstack/react-table';
 import { useAppStore } from '../store/appStore';
 import {
-  DollarSign,
   TrendingUp,
   TrendingDown,
   AlertTriangle,

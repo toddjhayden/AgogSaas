@@ -9,7 +9,6 @@ import {
   Clock,
   Upload,
   Settings,
-  TrendingUp,
 } from 'lucide-react';
 import { DataTable } from '../components/common/DataTable';
 import { Chart } from '../components/common/Chart';
@@ -69,34 +68,34 @@ interface ErrorFrequency {
 
 export const PreflightDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const { selectedTenant, selectedFacility } = useAppStore();
+  const selectedFacility = useAppStore((state) => state.preferences.selectedFacility);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Fetch preflight reports
   const { data: reportsData, loading: reportsLoading } = useQuery(GET_PREFLIGHT_REPORTS, {
     variables: {
-      tenantId: selectedTenant?.id,
+      tenantId: selectedFacility || '1',
       limit: 50,
       offset: 0,
     },
-    skip: !selectedTenant?.id,
+    skip: !selectedFacility,
   });
 
   // Fetch statistics
   const { data: statsData } = useQuery(GET_PREFLIGHT_STATISTICS, {
     variables: {
-      tenantId: selectedTenant?.id,
+      tenantId: selectedFacility || '1',
     },
-    skip: !selectedTenant?.id,
+    skip: !selectedFacility,
   });
 
   // Fetch error frequency
   const { data: errorFreqData } = useQuery(GET_PREFLIGHT_ERROR_FREQUENCY, {
     variables: {
-      tenantId: selectedTenant?.id,
+      tenantId: selectedFacility || '1',
       limit: 10,
     },
-    skip: !selectedTenant?.id,
+    skip: !selectedFacility,
   });
 
   const reports: PreflightReport[] = reportsData?.preflightReports || [];

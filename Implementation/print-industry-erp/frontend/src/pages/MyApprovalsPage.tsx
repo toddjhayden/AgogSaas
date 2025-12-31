@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Filter, Calendar, User, MessageSquare, UserX } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Filter, Calendar, User, MessageSquare } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '../components/common/DataTable';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -45,21 +45,6 @@ interface PendingApproval {
   updatedAt?: string;
 }
 
-const statusColors: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-800',
-  PENDING_APPROVAL: 'bg-yellow-100 text-yellow-800',
-  APPROVED: 'bg-green-100 text-green-800',
-  REJECTED: 'bg-red-100 text-red-800',
-  ISSUED: 'bg-blue-100 text-blue-800',
-  CANCELLED: 'bg-gray-100 text-gray-600',
-};
-
-const urgencyColors: Record<string, string> = {
-  URGENT: 'border-l-4 border-red-500',
-  WARNING: 'border-l-4 border-yellow-500',
-  NORMAL: 'border-l-4 border-blue-500',
-};
-
 export const MyApprovalsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -74,8 +59,7 @@ export const MyApprovalsPage: React.FC = () => {
   const [selectedPO, setSelectedPO] = useState<PendingApproval | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [changeRequest, setChangeRequest] = useState('');
-  const [approvalComments, setApprovalComments] = useState('');
-  const [delegateUserId, setDelegateUserId] = useState('');
+    const [delegateUserId, setDelegateUserId] = useState('');
 
   const { data, loading, error, refetch } = useQuery(GET_MY_PENDING_APPROVALS, {
     variables: {
@@ -157,11 +141,6 @@ export const MyApprovalsPage: React.FC = () => {
   const handleRequestChanges = (po: PendingApproval) => {
     setSelectedPO(po);
     setShowChangesModal(true);
-  };
-
-  const handleDelegate = (po: PendingApproval) => {
-    setSelectedPO(po);
-    setShowDelegateModal(true);
   };
 
   const confirmReject = async () => {
@@ -340,8 +319,7 @@ export const MyApprovalsPage: React.FC = () => {
 
   const urgentCount = pendingApprovals.filter((po) => po.urgencyLevel === 'URGENT').length;
   const warningCount = pendingApprovals.filter((po) => po.urgencyLevel === 'WARNING').length;
-  const overdueCount = pendingApprovals.filter((po) => po.isOverdue).length;
-  const totalValue = pendingApprovals.reduce((sum, po) => sum + po.totalAmount, 0);
+    const totalValue = pendingApprovals.reduce((sum, po) => sum + po.totalAmount, 0);
 
   return (
     <div className="space-y-6">

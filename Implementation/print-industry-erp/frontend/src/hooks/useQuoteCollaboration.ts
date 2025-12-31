@@ -56,8 +56,8 @@ export const useQuoteCollaboration = ({
   const [leaveSession] = useMutation(LEAVE_QUOTE_SESSION);
   const [updateHeartbeat] = useMutation(UPDATE_SESSION_HEARTBEAT);
 
-  // Subscriptions
-  const { data: presenceData } = useSubscription(PRESENCE_UPDATED_SUBSCRIPTION, {
+  // Subscriptions - data is consumed via onData callbacks
+  useSubscription(PRESENCE_UPDATED_SUBSCRIPTION, {
     variables: { quoteId },
     skip: !quoteId,
     onData: ({ data }) => {
@@ -69,7 +69,7 @@ export const useQuoteCollaboration = ({
     },
   });
 
-  const { data: quoteChangedData } = useSubscription(QUOTE_CHANGED_SUBSCRIPTION, {
+  useSubscription(QUOTE_CHANGED_SUBSCRIPTION, {
     variables: { quoteId },
     skip: !quoteId,
     onData: ({ data }) => {
@@ -79,7 +79,7 @@ export const useQuoteCollaboration = ({
     },
   });
 
-  const { data: quoteLineChangedData } = useSubscription(QUOTE_LINE_CHANGED_SUBSCRIPTION, {
+  useSubscription(QUOTE_LINE_CHANGED_SUBSCRIPTION, {
     variables: { quoteId },
     skip: !quoteId,
     onData: ({ data }) => {

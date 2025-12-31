@@ -16,7 +16,6 @@ import { DataTable } from '../components/common/DataTable';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { ColumnDef } from '@tanstack/react-table';
 import clsx from 'clsx';
-import { useAppStore } from '../store/appStore';
 import toast from 'react-hot-toast';
 import {
   GET_COLOR_PROOFS,
@@ -45,9 +44,8 @@ interface ColorProof {
 
 export const ColorProofManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { selectedTenant } = useAppStore();
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [selectedJobId, _setSelectedJobId] = useState<string>('');
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
@@ -89,7 +87,7 @@ export const ColorProofManagementPage: React.FC = () => {
     },
   });
 
-  const [generateProof] = useMutation(GENERATE_COLOR_PROOF, {
+  const [_generateProof] = useMutation(GENERATE_COLOR_PROOF, {
     onCompleted: () => {
       toast.success(t('colorProof.generated', 'Color proof generation started'));
       setShowGenerateModal(false);
@@ -247,7 +245,7 @@ export const ColorProofManagementPage: React.FC = () => {
         return (
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => toast.info('View proof: ' + proof.id)}
+              onClick={() => toast('View proof: ' + proof.id)}
               className="text-primary-600 hover:text-primary-800"
               title="View"
             >
@@ -278,7 +276,7 @@ export const ColorProofManagementPage: React.FC = () => {
               </>
             )}
             <button
-              onClick={() => toast.info('Download proof: ' + proof.id)}
+              onClick={() => toast('Download proof: ' + proof.id)}
               className="text-gray-600 hover:text-gray-800"
               title="Download"
             >

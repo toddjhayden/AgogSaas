@@ -15,23 +15,41 @@ export interface KPIData {
   formula?: string;
 }
 
-interface KPICardProps {
-  kpi: KPIData;
+export interface KPICardProps {
+  kpi?: KPIData;
+  // Direct props as alternative to kpi object
+  id?: string;
+  name?: string;
+  title?: string; // Alias for name
+  currentValue?: number;
+  value?: string | number; // Alias for currentValue
+  targetValue?: number;
+  unit?: string;
+  suffix?: string; // Alias for unit
+  trend?: 'up' | 'down' | 'stable';
+  trendPercent?: number;
+  sparklineData?: number[];
+  formula?: string;
   size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
+  icon?: React.ComponentType<{ className?: string }>;
+  color?: string;
 }
 
-export const KPICard: React.FC<KPICardProps> = ({ kpi, size = 'md', onClick }) => {
-  const {
-    name,
-    currentValue,
-    targetValue,
-    unit,
-    trend,
-    trendPercent,
-    sparklineData,
-    formula,
-  } = kpi;
+export const KPICard: React.FC<KPICardProps> = (props) => {
+  const { kpi, size = 'md', onClick, icon: _IconComponent, color: _color } = props;
+  // Note: icon and color props are reserved for future use
+
+  // Support both kpi object and direct props (including aliases)
+  const name = kpi?.name ?? props.name ?? props.title ?? '';
+  const rawValue = kpi?.currentValue ?? props.currentValue ?? props.value ?? 0;
+  const currentValue = typeof rawValue === 'string' ? parseFloat(rawValue) || 0 : rawValue;
+  const targetValue = kpi?.targetValue ?? props.targetValue ?? currentValue; // Default to currentValue if not provided
+  const unit = kpi?.unit ?? props.unit ?? props.suffix ?? '';
+  const trend = kpi?.trend ?? props.trend ?? 'stable';
+  const trendPercent = kpi?.trendPercent ?? props.trendPercent ?? 0;
+  const sparklineData = kpi?.sparklineData ?? props.sparklineData;
+  const formula = kpi?.formula ?? props.formula;
 
   // Calculate performance percentage
   const performancePercent = (currentValue / targetValue) * 100;

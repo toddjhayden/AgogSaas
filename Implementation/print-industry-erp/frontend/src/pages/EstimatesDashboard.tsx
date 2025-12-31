@@ -8,8 +8,6 @@ import {
   FileText,
   Plus,
   RefreshCw,
-  CheckCircle,
-  XCircle,
   Clock,
   TrendingUp,
   DollarSign

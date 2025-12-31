@@ -54,12 +54,9 @@ import {
 } from '@mui/icons-material';
 import {
   GET_SECURITY_OVERVIEW,
-  GET_SECURITY_AUDIT_EVENTS,
   GET_SUSPICIOUS_IPS,
   GET_SECURITY_INCIDENTS,
   GET_THREAT_PATTERNS,
-  GET_SECURITY_METRICS_TIME_SERIES,
-  GET_GEOGRAPHIC_ACCESS_MAP,
 } from '../graphql/queries/securityAudit';
 
 interface SecurityOverviewData {
@@ -118,7 +115,7 @@ const SecurityAuditDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
 
   // Fetch security overview
-  const { data, loading, error, refetch } = useQuery<SecurityOverviewData>(
+  const { data, loading, error } = useQuery<SecurityOverviewData>(
     GET_SECURITY_OVERVIEW,
     {
       variables: { timeRange },
@@ -142,7 +139,7 @@ const SecurityAuditDashboard: React.FC = () => {
   });
 
   // Fetch threat patterns
-  const { data: threatPatternsData } = useQuery(GET_THREAT_PATTERNS, {
+  useQuery(GET_THREAT_PATTERNS, {
     variables: { enabled: true },
   });
 
@@ -409,7 +406,7 @@ const SecurityAuditDashboard: React.FC = () => {
 
       {/* Tabs for detailed views */}
       <Paper sx={{ mb: 3 }}>
-        <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
+        <Tabs value={activeTab} onChange={(_e, v) => setActiveTab(v)}>
           <Tab label={t('security.tabs.topThreats')} />
           <Tab label={t('security.tabs.suspiciousIPs')} />
           <Tab label={t('security.tabs.incidents')} />

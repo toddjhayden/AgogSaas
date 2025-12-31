@@ -7,12 +7,8 @@ import {
   Users,
   Package,
   FileText,
-  Download,
-  Calendar,
-  Filter,
 } from 'lucide-react';
 import { GET_EXECUTIVE_KPI_SUMMARY } from '../graphql/queries/analytics';
-import { Chart } from '../components/common/Chart';
 import { KPICard } from '../components/common/KPICard';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -90,19 +86,6 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
       </div>
     );
   }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  const formatPercent = (value: number) => {
-    return `${value.toFixed(1)}%`;
-  };
 
   const getTrendIcon = (trend: string) => {
     return trend === 'up' ? 'up' : trend === 'down' ? 'down' : 'stable';

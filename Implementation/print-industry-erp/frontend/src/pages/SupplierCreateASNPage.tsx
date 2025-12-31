@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle } from 'lucide-react';
 import {
   GET_SUPPLIER_PURCHASE_ORDER,
   CREATE_ADVANCED_SHIP_NOTICE,

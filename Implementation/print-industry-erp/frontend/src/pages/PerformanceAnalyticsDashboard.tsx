@@ -7,14 +7,12 @@ import {
   AlertTriangle,
   Database,
   Cpu,
-  MemoryStick,
   Clock,
   TrendingUp,
   TrendingDown,
   Minus,
   RefreshCw,
   AlertCircle,
-  CheckCircle,
 } from 'lucide-react';
 import { Chart } from '../components/common/Chart';
 import { DataTable } from '../components/common/DataTable';
@@ -129,7 +127,7 @@ export const PerformanceAnalyticsDashboard: React.FC = () => {
   // State management
   const [timeRange, setTimeRange] = useState<string>('LAST_HOUR');
   const [slowQueryThreshold, setSlowQueryThreshold] = useState<number>(1000);
-  const [selectedEndpoint, setSelectedEndpoint] = useState<string | null>(null);
+  const [selectedEndpoint, _setSelectedEndpoint] = useState<string | null>(null);
 
   // ============================================================================
   // GraphQL Queries
@@ -150,7 +148,7 @@ export const PerformanceAnalyticsDashboard: React.FC = () => {
 
   const {
     data: slowQueriesData,
-    loading: slowQueriesLoading,
+    loading: _slowQueriesLoading,
   } = useQuery<{ slowQueries: SlowQuery[] }>(GET_SLOW_QUERIES, {
     variables: {
       facilityId,
@@ -163,7 +161,7 @@ export const PerformanceAnalyticsDashboard: React.FC = () => {
 
   const {
     data: endpointMetricsData,
-    loading: endpointMetricsLoading,
+    loading: _endpointMetricsLoading,
   } = useQuery<{ endpointMetrics: EndpointMetric[] }>(GET_ENDPOINT_METRICS, {
     variables: {
       endpoint: selectedEndpoint,
@@ -174,7 +172,7 @@ export const PerformanceAnalyticsDashboard: React.FC = () => {
 
   const {
     data: resourceUtilizationData,
-    loading: resourceUtilizationLoading,
+    loading: _resourceUtilizationLoading,
   } = useQuery<{ resourceUtilization: ResourceMetric[] }>(GET_RESOURCE_UTILIZATION, {
     variables: {
       facilityId,
@@ -186,7 +184,7 @@ export const PerformanceAnalyticsDashboard: React.FC = () => {
 
   const {
     data: databasePoolData,
-    loading: databasePoolLoading,
+    loading: _databasePoolLoading,
   } = useQuery<{ databasePoolMetrics: DatabasePoolMetrics }>(GET_DATABASE_POOL_METRICS, {
     variables: {
       timeRange,
@@ -239,13 +237,7 @@ export const PerformanceAnalyticsDashboard: React.FC = () => {
     }
   };
 
-  const formatBytes = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  // ============================================================================
+    // ============================================================================
   // Table Columns
   // ============================================================================
 

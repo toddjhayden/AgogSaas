@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Package,
   Truck,
@@ -35,7 +35,6 @@ const statusColors: Record<string, string> = {
 export const ShipmentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [showManifestConfirm, setShowManifestConfirm] = useState(false);
 
   const tenantId = '1';
@@ -114,7 +113,7 @@ export const ShipmentDetailPage: React.FC = () => {
         items={[
           { label: t('nav.wms'), path: '/wms' },
           { label: t('nav.shipments'), path: '/wms/shipments' },
-          { label: shipment.shipmentNumber },
+          { label: shipment.shipmentNumber, path: `/wms/shipments/${id}` },
         ]}
       />
 

@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { DataTable } from '../components/common/DataTable';
-import { useFacilityStore, useAuthStore } from '../store/appStore';
+import { useAppStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import { GET_INVOICES, VOID_INVOICE } from '../graphql/queries/finance';
 
 interface Invoice {
@@ -47,8 +48,8 @@ interface Invoice {
 export const InvoiceManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const selectedFacility = useFacilityStore((state) => state.selectedFacility);
-  const user = useAuthStore((state) => state.user);
+  useAppStore(); // Facility context
+  const user = useAuthStore((state: { user: any }) => state.user);
 
   const [filters, setFilters] = useState({
     invoiceType: '',
@@ -297,8 +298,8 @@ export const InvoiceManagementPage: React.FC = () => {
     <div className="container mx-auto p-6">
       <Breadcrumb
         items={[
-          { label: t('Finance'), href: '/finance' },
-          { label: t('Invoice Management'), href: '/finance/invoices' }
+          { label: t('Finance'), path: '/finance' },
+          { label: t('Invoice Management'), path: '/finance/invoices' }
         ]}
       />
 

@@ -24,6 +24,7 @@ import {
   ACKNOWLEDGE_SPC_ALERT,
   RESOLVE_SPC_ALERT,
 } from '../graphql/queries/spc';
+import { DEFAULTS } from '../constants/defaults';
 
 interface SPCAlert {
   id: string;
@@ -49,7 +50,8 @@ interface SPCAlert {
 
 export const SPCAlertManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { currentTenant, currentFacility, currentUser } = useAppStore();
+  const selectedFacility = useAppStore((state) => state.preferences.selectedFacility);
+  const currentUser = { id: DEFAULTS.USER_ID }; // TODO: Replace with actual user from auth context
   const [filterStatus, setFilterStatus] = useState<string>('OPEN');
   const [selectedAlert, setSelectedAlert] = useState<SPCAlert | null>(null);
   const [showResolveModal, setShowResolveModal] = useState(false);
@@ -61,13 +63,13 @@ export const SPCAlertManagementPage: React.FC = () => {
   }>(GET_SPC_ALERTS, {
     variables: {
       filter: {
-        tenantId: currentTenant?.id || 'default-tenant',
-        facilityId: currentFacility?.id,
+        tenantId: selectedFacility || DEFAULTS.TENANT_ID,
+        facilityId: selectedFacility,
         status: filterStatus === 'ALL' ? undefined : filterStatus,
         limit: 100,
       },
     },
-    skip: !currentTenant,
+    skip: !selectedFacility,
   });
 
   const [acknowledgeAlert] = useMutation(ACKNOWLEDGE_SPC_ALERT, {

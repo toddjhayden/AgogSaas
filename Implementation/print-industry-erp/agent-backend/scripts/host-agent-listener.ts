@@ -22,6 +22,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
+import axios from 'axios';
 
 // Load .env from project root (contains GITHUB_TOKEN, etc.)
 dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '..', '.env') });
@@ -34,6 +35,36 @@ const pgPool = new Pool({
   password: 'agent_dev_password_2024',
   database: 'agent_memory',
 });
+
+// Ollama URL for embeddings (host machine port mapping)
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+
+/**
+ * Generate embedding for semantic search using Ollama
+ * Uses nomic-embed-text model (768 dimensions)
+ */
+async function generateEmbedding(text: string): Promise<number[]> {
+  try {
+    // nomic-embed-text has 2048 token limit (~1500 chars safely)
+    const truncatedText = text.substring(0, 1500);
+    const response = await axios.post(
+      `${OLLAMA_URL}/api/embeddings`,
+      {
+        model: 'nomic-embed-text',
+        prompt: truncatedText,
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000,
+      }
+    );
+    return response.data.embedding;
+  } catch (error: any) {
+    console.warn(`[HostListener] Failed to generate embedding: ${error.message}`);
+    // Return zero vector as fallback (will still be searchable via metadata)
+    return Array(768).fill(0);
+  }
+}
 
 const sc = StringCodec();
 
@@ -808,13 +839,16 @@ ${stdout.substring(0, 50000)}`;
         key_changes: changes.key_changes || [],
       });
 
+      // Generate embedding for semantic search
+      const embedding = await generateEmbedding(content);
+
       await pgPool.query(
-        `INSERT INTO memories (agent_id, memory_type, content, metadata)
-         VALUES ($1, $2, $3, $4::jsonb)`,
-        [agentId, memoryType, content, metadata]
+        `INSERT INTO memories (agent_id, memory_type, content, embedding, metadata)
+         VALUES ($1, $2, $3, $4::vector, $5::jsonb)`,
+        [agentId, memoryType, content, JSON.stringify(embedding), metadata]
       );
 
-      console.log(`[HostListener] 💾 Stored change management record for ${agentId}/${reqNumber}`);
+      console.log(`[HostListener] 💾 Stored change management record for ${agentId}/${reqNumber} (with embedding)`);
 
       // Log key changes for visibility
       if (changes.key_changes?.length > 0) {

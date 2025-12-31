@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
 import {
@@ -35,11 +35,8 @@ import {
   Cancel as RejectIcon,
   SwapHoriz as DelegateIcon,
   Edit as ChangeRequestIcon,
-  Visibility as ViewIcon,
   Refresh as RefreshIcon,
   HealthAndSafety as HealthCheckIcon,
-  PlayArrow as ExecuteIcon,
-  Undo as RollbackIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -125,8 +122,8 @@ const DeploymentApprovalPage: React.FC = () => {
   const [delegateApproval] = useMutation(DELEGATE_DEPLOYMENT_APPROVAL);
   const [requestChanges] = useMutation(REQUEST_DEPLOYMENT_CHANGES);
   const [runHealthCheck] = useMutation(RUN_DEPLOYMENT_HEALTH_CHECK);
-  const [executeDeployment] = useMutation(EXECUTE_DEPLOYMENT);
-  const [rollbackDeployment] = useMutation(ROLLBACK_DEPLOYMENT);
+  const [_executeDeployment] = useMutation(EXECUTE_DEPLOYMENT);
+  const [_rollbackDeployment] = useMutation(ROLLBACK_DEPLOYMENT);
 
   // Manual refresh
   const handleRefresh = () => {

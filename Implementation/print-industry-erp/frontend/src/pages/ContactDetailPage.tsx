@@ -15,8 +15,6 @@ import {
   Trash2,
   Plus,
   Activity,
-  FileText,
-  Clock,
   CheckCircle,
   Tag,
   Globe,
@@ -27,12 +25,11 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
-import { useAuthStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import {
   GET_CONTACT,
   GET_ACTIVITIES_BY_CONTACT,
   GET_NOTES_BY_CONTACT,
-  UPDATE_CONTACT,
   DELETE_CONTACT,
   CREATE_ACTIVITY,
   CREATE_NOTE,
@@ -106,7 +103,7 @@ export const ContactDetailPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore((state: { user: any }) => state.user);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes'>('overview');
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -128,7 +125,7 @@ export const ContactDetailPage: React.FC = () => {
   });
 
   // Query contact details
-  const { data: contactData, loading: contactLoading, refetch: refetchContact } = useQuery(GET_CONTACT, {
+  const { data: contactData, loading: contactLoading, refetch: _refetchContact } = useQuery(GET_CONTACT, {
     variables: { id },
     skip: !id
   });

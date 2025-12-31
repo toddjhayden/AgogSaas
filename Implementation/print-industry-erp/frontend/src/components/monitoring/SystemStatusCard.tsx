@@ -53,13 +53,13 @@ export const SystemStatusCard = ({ lastRefresh }: SystemStatusCardProps) => {
     }
   };
 
-  const getHealthColor = (status: string): 'success' | 'error' | 'warning' | 'default' => {
+  const getHealthColor = (status: string): 'success' | 'error' | 'warning' | 'info' => {
     switch (status) {
       case 'OPERATIONAL': return 'success';
       case 'DOWN': return 'error';
       case 'DEGRADED':
       case 'UNKNOWN': return 'warning';
-      default: return 'default';
+      default: return 'info';
     }
   };
 

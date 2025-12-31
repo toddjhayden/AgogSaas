@@ -1,5 +1,5 @@
 // REQ-DEVOPS-EDGE-MONITORING-1767150339448: Edge Computer Monitoring Dashboard
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import {
   Card,
   CardContent,

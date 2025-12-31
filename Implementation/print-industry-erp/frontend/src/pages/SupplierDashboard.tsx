@@ -14,8 +14,6 @@ import { useQuery } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  TrendingUp,
-  TrendingDown,
   AlertCircle,
   Package,
   FileText,
@@ -24,7 +22,6 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { GET_SUPPLIER_DASHBOARD } from '../graphql/queries/supplierPortal';
-import Chart from '../components/common/Chart';
 
 const SupplierDashboard: React.FC = () => {
   const { t } = useTranslation();

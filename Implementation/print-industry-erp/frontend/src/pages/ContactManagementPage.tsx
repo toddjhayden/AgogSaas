@@ -4,14 +4,11 @@ import { useQuery, useMutation } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
-  Users,
   Plus,
   Search,
   Filter,
   Mail,
   Phone,
-  Building,
-  MapPin,
   Calendar,
   Star,
   Edit,
@@ -22,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { DataTable } from '../components/common/DataTable';
-import { useAuthStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import {
   GET_CONTACTS_BY_OWNER,
   SEARCH_CONTACTS,
@@ -57,8 +54,8 @@ interface Contact {
 
 export const ContactManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
+  useNavigate(); // Navigation hook available
+  const user = useAuthStore((state: { user: any }) => state.user);
 
   const [filters, setFilters] = useState({
     searchTerm: '',
@@ -90,7 +87,7 @@ export const ContactManagementPage: React.FC = () => {
   });
 
   // Search contacts query (triggered separately)
-  const { data: searchData, refetch: searchContacts } = useQuery(SEARCH_CONTACTS, {
+  const { data: searchData, refetch: _searchContacts } = useQuery(SEARCH_CONTACTS, {
     variables: { searchTerm: filters.searchTerm },
     skip: !filters.searchTerm || filters.searchTerm.length < 2
   });
@@ -309,10 +306,10 @@ export const ContactManagementPage: React.FC = () => {
             <XCircle className="w-4 h-4 text-gray-400" />
           )}
           {contact.doNotContact && (
-            <AlertCircle className="w-4 h-4 text-red-600" title={t('Do Not Contact')} />
+            <span title={t('Do Not Contact')}><AlertCircle className="w-4 h-4 text-red-600" /></span>
           )}
           {contact.emailOptOut && (
-            <Mail className="w-4 h-4 text-orange-600" title={t('Email Opt-out')} />
+            <span title={t('Email Opt-out')}><Mail className="w-4 h-4 text-orange-600" /></span>
           )}
         </div>
       )

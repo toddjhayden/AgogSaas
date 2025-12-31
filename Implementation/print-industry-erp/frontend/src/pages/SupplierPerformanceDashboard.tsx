@@ -6,12 +6,12 @@
 import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, TrendingDown, Minus, Award, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Award } from 'lucide-react';
 import {
   GET_SUPPLIER_PERFORMANCE,
   GET_SUPPLIER_PERFORMANCE_TRENDS,
 } from '../graphql/queries/supplierPortal';
-import Chart from '../components/common/Chart';
+import { Chart } from '../components/common/Chart';
 
 const SupplierPerformanceDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -26,7 +26,7 @@ const SupplierPerformanceDashboard: React.FC = () => {
     }
   );
 
-  const { data: trendsData, loading: loadingTrends } = useQuery(
+  const { data: trendsData } = useQuery(
     GET_SUPPLIER_PERFORMANCE_TRENDS,
     {
       variables: { months: 12 },

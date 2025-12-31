@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation } from '@apollo/client';
 import {
-  FileCheck,
   AlertTriangle,
   XCircle,
   CheckCircle,
@@ -41,7 +40,7 @@ export const PreflightReportDetailPage: React.FC = () => {
   });
 
   // Fetch issues
-  const { data: issuesData, loading: issuesLoading } = useQuery(GET_PREFLIGHT_ISSUES, {
+  const { data: issuesData } = useQuery(GET_PREFLIGHT_ISSUES, {
     variables: { reportId: id },
     skip: !id,
   });
@@ -97,7 +96,7 @@ export const PreflightReportDetailPage: React.FC = () => {
 
   const errors = issues.filter((i: any) => i.issueType === 'ERROR');
   const warnings = issues.filter((i: any) => i.issueType === 'WARNING');
-  const info = issues.filter((i: any) => i.issueType === 'INFO');
+  // Info issues could be displayed if needed: issues.filter((i: any) => i.issueType === 'INFO')
 
   if (reportLoading) {
     return (

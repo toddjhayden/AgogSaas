@@ -11,12 +11,10 @@ import { useQuery } from '@apollo/client';
 import {
   Activity,
   AlertTriangle,
-  CheckCircle,
   TrendingUp,
   BarChart3,
   AlertCircle,
   Target,
-  XCircle,
 } from 'lucide-react';
 import { Chart } from '../components/common/Chart';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
@@ -24,6 +22,7 @@ import { DataTable } from '../components/common/DataTable';
 import { FacilitySelector } from '../components/common/FacilitySelector';
 import { useAppStore } from '../store/appStore';
 import { GET_SPC_DASHBOARD_SUMMARY, GET_SPC_ALERTS } from '../graphql/queries/spc';
+import { DEFAULTS } from '../constants/defaults';
 
 interface AlertsByRuleType {
   ruleType: string;
@@ -67,7 +66,7 @@ interface SPCAlert {
 
 export const SPCDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const { currentTenant, currentFacility } = useAppStore();
+  const selectedFacility = useAppStore((state) => state.preferences.selectedFacility);
   const [dateRange] = useState({
     startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
@@ -77,11 +76,11 @@ export const SPCDashboard: React.FC = () => {
     spcDashboardSummary: SPCDashboardSummary;
   }>(GET_SPC_DASHBOARD_SUMMARY, {
     variables: {
-      tenantId: currentTenant?.id || 'default-tenant',
-      facilityId: currentFacility?.id || 'default-facility',
+      tenantId: selectedFacility || DEFAULTS.TENANT_ID,
+      facilityId: selectedFacility || 'default-facility',
       dateRange,
     },
-    skip: !currentTenant || !currentFacility,
+    skip: !selectedFacility,
   });
 
   const { data: alertsData, loading: alertsLoading } = useQuery<{
@@ -89,13 +88,13 @@ export const SPCDashboard: React.FC = () => {
   }>(GET_SPC_ALERTS, {
     variables: {
       filter: {
-        tenantId: currentTenant?.id || 'default-tenant',
-        facilityId: currentFacility?.id,
+        tenantId: selectedFacility || DEFAULTS.TENANT_ID,
+        facilityId: selectedFacility,
         status: 'OPEN',
         limit: 10,
       },
     },
-    skip: !currentTenant,
+    skip: !selectedFacility,
   });
 
   const summary = summaryData?.spcDashboardSummary;

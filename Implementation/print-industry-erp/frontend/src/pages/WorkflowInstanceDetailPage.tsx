@@ -13,13 +13,6 @@ import {
   Grid,
   Button,
   Paper,
-  Timeline,
-  TimelineItem,
-  TimelineSeparator,
-  TimelineConnector,
-  TimelineContent,
-  TimelineDot,
-  TimelineOppositeContent,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -30,6 +23,15 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
+import {
+  Timeline,
+  TimelineItem,
+  TimelineSeparator,
+  TimelineConnector,
+  TimelineContent,
+  TimelineDot,
+  TimelineOppositeContent,
+} from '@mui/lab';
 import {
   CheckCircle as CompletedIcon,
   Error as FailedIcon,
@@ -274,7 +276,7 @@ const WorkflowInstanceDetailPage: React.FC = () => {
               <Timeline>
                 {instance.nodes.map((node, index) => (
                   <TimelineItem key={node.id}>
-                    <TimelineOppositeContent color="text.secondary" sx={{ maxWidth: '30%' }}>
+                    <TimelineOppositeContent sx={{ maxWidth: '30%', color: 'text.secondary' }}>
                       {node.startedAt && format(new Date(node.startedAt), 'MMM dd, HH:mm')}
                       {node.completedAt && (
                         <>

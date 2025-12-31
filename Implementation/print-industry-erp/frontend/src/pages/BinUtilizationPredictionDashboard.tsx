@@ -38,18 +38,6 @@ import { useTranslation } from 'react-i18next';
  */
 
 // TypeScript interfaces
-interface UtilizationPrediction {
-  predictionId: string;
-  facilityId: string;
-  predictionDate: string;
-  predictionHorizonDays: number;
-  predictedAvgUtilization: number;
-  predictedLocationsOptimal: number;
-  confidenceLevel: number;
-  modelVersion: string;
-  createdAt: string;
-}
-
 interface PredictionTrend {
   date: string;
   actual7DayUtilization?: number;
@@ -74,8 +62,8 @@ interface SeasonalAdjustment {
 }
 
 const BinUtilizationPredictionDashboard: React.FC = () => {
-  const { t } = useTranslation();
-  const [selectedFacility, setSelectedFacility] = useState<string>('');
+  useTranslation(); // i18n hook for future use
+  const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
   const [selectedHorizon, setSelectedHorizon] = useState<number>(30);
 
   // Calculate date range for trends (last 90 days)

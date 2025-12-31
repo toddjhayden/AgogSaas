@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import {
   Activity,
   AlertCircle,
   CheckCircle,
-  Edit,
-  Play,
   Save,
   Settings,
   Sliders,
   Target,
   TrendingUp,
-  Zap,
   BarChart3,
   Users,
   Clock,
@@ -26,10 +23,8 @@ import {
   GET_OPTIMIZATION_WEIGHT_CONFIGS,
   GET_ACTIVE_OPTIMIZATION_WEIGHTS,
   GET_WEIGHT_PERFORMANCE_COMPARISON,
-  GET_PARETO_FRONTIER,
   SAVE_OPTIMIZATION_WEIGHTS,
   ACTIVATE_OPTIMIZATION_WEIGHTS,
-  START_OPTIMIZATION_AB_TEST,
 } from '../graphql/queries/binUtilization';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
@@ -82,10 +77,10 @@ interface PerformanceComparison {
 }
 
 const BinOptimizationConfigPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
   const [selectedFacility, setSelectedFacility] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<Partial<WeightConfig> | null>(null);
+  const [_editingConfig, setEditingConfig] = useState<Partial<WeightConfig> | null>(null);
 
   // Weight state for new/edit configuration
   const [weights, setWeights] = useState({
@@ -148,16 +143,6 @@ const BinOptimizationConfigPage: React.FC = () => {
     },
     onError: (error) => {
       toast.error(`Failed to activate configuration: ${error.message}`);
-    },
-  });
-
-  // Mutation: Start A/B Test
-  const [startABTest, { loading: startingTest }] = useMutation(START_OPTIMIZATION_AB_TEST, {
-    onCompleted: () => {
-      toast.success('A/B test started successfully');
-    },
-    onError: (error) => {
-      toast.error(`Failed to start A/B test: ${error.message}`);
     },
   });
 
@@ -378,7 +363,7 @@ const BinOptimizationConfigPage: React.FC = () => {
         </div>
         <FacilitySelector
           selectedFacility={selectedFacility}
-          onFacilityChange={setSelectedFacility}
+          onFacilityChange={(facility) => setSelectedFacility(facility ?? '')}
         />
       </div>
 
@@ -677,7 +662,6 @@ const BinOptimizationConfigPage: React.FC = () => {
               <DataTable
                 columns={configColumns}
                 data={configs}
-                enableSorting
               />
             ) : (
               <div className="flex items-center justify-center h-64 text-gray-500">
@@ -697,14 +681,9 @@ const BinOptimizationConfigPage: React.FC = () => {
                 type="bar"
                 data={performanceChartData}
                 height={300}
-                xAxisKey="config"
-                yAxisLabel="Performance (%)"
-                series={[
-                  { dataKey: 'Space Util (%)', color: '#3b82f6', name: 'Space Utilization' },
-                  { dataKey: 'Accept Rate (%)', color: '#10b981', name: 'Acceptance Rate' },
-                  { dataKey: 'Ergonomic (%)', color: '#ec4899', name: 'Ergonomic Compliance' },
-                  { dataKey: 'Satisfaction', color: '#f59e0b', name: 'Overall Satisfaction' },
-                ]}
+                xKey="config"
+                yKey={['Space Util (%)', 'Accept Rate (%)', 'Ergonomic (%)', 'Satisfaction']}
+                colors={['#3b82f6', '#10b981', '#ec4899', '#f59e0b']}
               />
             </div>
           )}

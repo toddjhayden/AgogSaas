@@ -9,10 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
-  Download,
-  Package,
   MapPin,
-  FileText,
   AlertCircle,
 } from 'lucide-react';
 import { GET_SUPPLIER_PURCHASE_ORDER } from '../graphql/queries/supplierPortal';

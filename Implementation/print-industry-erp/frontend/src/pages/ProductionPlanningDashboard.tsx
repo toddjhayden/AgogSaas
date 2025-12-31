@@ -258,28 +258,28 @@ export const ProductionPlanningDashboard: React.FC = () => {
         <KPICard
           title={t('production.totalOrders')}
           value={kpis.total.toString()}
-          trend={null}
+          trend={undefined}
           icon={Calendar}
           color="blue"
         />
         <KPICard
           title={t('production.inProgress')}
           value={kpis.inProgress.toString()}
-          trend={null}
+          trend={undefined}
           icon={TrendingUp}
           color="green"
         />
         <KPICard
           title={t('production.lateOrders')}
           value={kpis.lateOrders.toString()}
-          trend={null}
+          trend={undefined}
           icon={AlertCircle}
           color={kpis.lateOrders > 0 ? 'red' : 'gray'}
         />
         <KPICard
           title={t('production.completionRate')}
           value={`${kpis.completionRate.toFixed(1)}%`}
-          trend={null}
+          trend={undefined}
           icon={TrendingUp}
           color="green"
         />

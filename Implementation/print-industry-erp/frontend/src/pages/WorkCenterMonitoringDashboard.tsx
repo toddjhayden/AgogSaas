@@ -183,35 +183,35 @@ export const WorkCenterMonitoringDashboard: React.FC = () => {
         <KPICard
           title={t('production.totalWorkCenters')}
           value={kpis.total.toString()}
-          trend={null}
+          trend={undefined}
           icon={Settings}
           color="blue"
         />
         <KPICard
           title={t('production.available')}
           value={kpis.available.toString()}
-          trend={null}
+          trend={undefined}
           icon={CheckCircle}
           color="green"
         />
         <KPICard
           title={t('production.inUse')}
           value={kpis.inUse.toString()}
-          trend={null}
+          trend={undefined}
           icon={Activity}
           color="blue"
         />
         <KPICard
           title={t('production.down')}
           value={kpis.down.toString()}
-          trend={null}
+          trend={undefined}
           icon={AlertCircle}
           color={kpis.down > 0 ? 'red' : 'gray'}
         />
         <KPICard
           title={t('production.utilization')}
           value={`${kpis.utilizationRate.toFixed(1)}%`}
-          trend={null}
+          trend={undefined}
           icon={TrendingUp}
           color="green"
         />

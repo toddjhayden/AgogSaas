@@ -6,21 +6,16 @@ import { toast } from 'react-hot-toast';
 import {
   Target,
   Plus,
-  Filter,
   DollarSign,
   Calendar,
-  Users,
   TrendingUp,
-  CheckCircle,
-  XCircle,
   Clock,
   Edit,
   Trash2,
-  ChevronRight,
   BarChart3
 } from 'lucide-react';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
-import { useAuthStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import {
   GET_PIPELINE_STAGES,
   GET_PIPELINE_SUMMARY,
@@ -69,7 +64,7 @@ interface PipelineSummary {
 export const PipelineManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore((state: { user: any }) => state.user);
 
   const [filters, setFilters] = useState({
     status: 'ACTIVE',
@@ -79,7 +74,7 @@ export const PipelineManagementPage: React.FC = () => {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
-  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedStage, _setSelectedStage] = useState<string>('');
 
   const [formData, setFormData] = useState({
     opportunityName: '',
@@ -94,13 +89,13 @@ export const PipelineManagementPage: React.FC = () => {
   const { data: stagesData, loading: stagesLoading } = useQuery(GET_PIPELINE_STAGES);
 
   // Query pipeline summary
-  const { data: summaryData, loading: summaryLoading } = useQuery(GET_PIPELINE_SUMMARY, {
+  const { data: summaryData, loading: _summaryLoading } = useQuery(GET_PIPELINE_SUMMARY, {
     variables: { ownerUserId: user?.id },
     skip: !user?.id
   });
 
   // Query opportunities
-  const { data: opportunitiesData, loading: opportunitiesLoading, refetch } = useQuery(GET_OPPORTUNITIES_BY_OWNER, {
+  const { data: opportunitiesData, loading: _opportunitiesLoading, refetch } = useQuery(GET_OPPORTUNITIES_BY_OWNER, {
     variables: {
       ownerUserId: user?.id,
       status: filters.status

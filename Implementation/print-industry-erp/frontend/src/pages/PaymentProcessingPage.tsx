@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 import {
   CreditCard,
@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { DataTable } from '../components/common/DataTable';
-import { useFacilityStore, useAuthStore } from '../store/appStore';
+import { useAppStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import { GET_PAYMENTS } from '../graphql/queries/finance';
 
 interface Payment {
@@ -40,8 +41,8 @@ interface Payment {
 export const PaymentProcessingPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const selectedFacility = useFacilityStore((state) => state.selectedFacility);
-  const user = useAuthStore((state) => state.user);
+  useAppStore(); // Facility context
+  const user = useAuthStore((state: { user: any }) => state.user);
 
   const [filters, setFilters] = useState({
     paymentType: '',
@@ -53,7 +54,7 @@ export const PaymentProcessingPage: React.FC = () => {
 
   const [showFilters, setShowFilters] = useState(false);
 
-  const { data, loading, error, refetch } = useQuery(GET_PAYMENTS, {
+  const { data, loading, error, refetch: _refetch } = useQuery(GET_PAYMENTS, {
     variables: {
       tenantId: user?.tenantId,
       paymentType: filters.paymentType || undefined,
@@ -232,8 +233,8 @@ export const PaymentProcessingPage: React.FC = () => {
     <div className="container mx-auto p-6">
       <Breadcrumb
         items={[
-          { label: t('Finance'), href: '/finance' },
-          { label: t('Payment Processing'), href: '/finance/payments' }
+          { label: t('Finance'), path: '/finance' },
+          { label: t('Payment Processing'), path: '/finance/payments' }
         ]}
       />
 

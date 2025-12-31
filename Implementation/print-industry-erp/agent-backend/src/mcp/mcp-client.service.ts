@@ -153,7 +153,7 @@ export class MCPMemoryClient {
         `${this.ollamaUrl}/api/embeddings`,
         {
           model: 'nomic-embed-text',
-          prompt: text.substring(0, 8000), // Limit to 8K tokens
+          prompt: text.substring(0, 1500), // nomic-embed-text has 2048 token limit (~1500 chars safely)
         },
         {
           headers: {
