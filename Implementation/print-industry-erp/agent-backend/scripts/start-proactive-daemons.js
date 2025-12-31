@@ -3,12 +3,48 @@
  * Start Proactive Daemons
  * Launches all autonomous work generation services
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
+const dotenv = __importStar(require("dotenv"));
+dotenv.config();
 const metrics_provider_service_1 = require("../src/proactive/metrics-provider.service");
 const recommendation_publisher_service_1 = require("../src/proactive/recommendation-publisher.service");
 const recovery_health_check_daemon_1 = require("../src/proactive/recovery-health-check.daemon");
 const value_chain_expert_daemon_1 = require("../src/proactive/value-chain-expert.daemon");
 const product_owner_daemon_1 = require("../src/proactive/product-owner.daemon");
+const senior_auditor_daemon_1 = require("../src/proactive/senior-auditor.daemon");
 async function main() {
     console.log('🤖 Starting Proactive Daemons...\n');
     try {
@@ -49,22 +85,28 @@ async function main() {
         await sarah.startDaemon();
         console.log('✅ Sarah monitoring sales domain\n');
         // 7. Start Product Owner: Alex (Procurement)
-        console.log('[7/6] Starting Product Owner: Alex (Procurement)...');
+        console.log('[7/8] Starting Product Owner: Alex (Procurement)...');
         const alex = new product_owner_daemon_1.ProductOwnerDaemon('procurement');
         await alex.initialize();
         await alex.startDaemon();
         console.log('✅ Alex monitoring procurement domain\n');
+        // 8. Start Senior Auditor: Sam (System Health)
+        console.log('[8/8] Starting Senior Auditor: Sam...');
+        const sam = new senior_auditor_daemon_1.SeniorAuditorDaemon();
+        await sam.start(); // Sam runs startup audit immediately, then daily at 2 AM
+        console.log('✅ Sam running (startup audit NOW, then daily at 2 AM)\n');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('✅ All Proactive Daemons Running!');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         console.log('Services:');
         console.log('  • Metrics Provider: Publishing every 5 minutes');
         console.log('  • Recommendation Publisher: Listening for recommendations');
-        console.log('  • Recovery & Health Check: Runs NOW, then every 5 hours (recovers stuck workflows, restarts services)');
-        console.log('  • Value Chain Expert: Runs in 5 minutes, then every 5 hours (SPAWNS REAL CLAUDE AGENT)');
-        console.log('  • Marcus (PO): Monitoring inventory metrics every 5 hours (ALIGNED)');
-        console.log('  • Sarah (PO): Monitoring sales metrics every 5 hours (ALIGNED)');
-        console.log('  • Alex (PO): Monitoring procurement metrics every 5 hours (ALIGNED)\n');
+        console.log('  • Recovery & Health Check: Runs NOW, then every 5 hours');
+        console.log('  • Value Chain Expert: Runs in 5 minutes, then every 5 hours');
+        console.log('  • Marcus (PO): Monitoring inventory metrics every 5 hours');
+        console.log('  • Sarah (PO): Monitoring sales metrics every 5 hours');
+        console.log('  • Alex (PO): Monitoring procurement metrics every 5 hours');
+        console.log('  • Sam (Auditor): Runs NOW, then daily at 2 AM (2hr timeout, creates REQs for issues)\n');
         console.log('NATS Subjects:');
         console.log('  • agog.metrics.* - Business metrics published here');
         console.log('  • agog.recommendations.* - Feature recommendations published here');
@@ -80,6 +122,7 @@ async function main() {
             await marcus.close();
             await sarah.close();
             await alex.close();
+            await sam.stop();
             console.log('✅ All daemons stopped');
             process.exit(0);
         });

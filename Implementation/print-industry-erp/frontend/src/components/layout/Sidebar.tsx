@@ -47,6 +47,10 @@ import {
   Target as TargetIcon,
   Truck,
   ClipboardList,
+  Server,
+  Rocket,
+  Undo2,
+  ShieldAlert,
 } from 'lucide-react';
 
 const navItems = [
@@ -99,6 +103,14 @@ const navItems = [
   { path: '/supplier', icon: Truck, label: 'nav.supplierPortal' },
   { path: '/supplier/purchase-orders', icon: ClipboardList, label: 'nav.supplierPurchaseOrders' },
   { path: '/supplier/performance', icon: Award, label: 'nav.supplierPerformance' },
+  // DevOps/Edge - REQ-DEVOPS-EDGE-PROVISION-1767150339448
+  { path: '/devops/edge-provisioning', icon: Server, label: 'nav.edgeProvisioning' },
+  // DevOps Deployment Approvals - REQ-DEVOPS-DEPLOY-APPROVAL-1767150339448
+  { path: '/devops/deployment-approvals', icon: Rocket, label: 'nav.deploymentApprovals' },
+  // DevOps Rollback Decision - REQ-DEVOPS-ROLLBACK-1767150339448
+  { path: '/devops/rollback-decision', icon: Undo2, label: 'nav.rollbackDecision' },
+  // Security Audit Dashboard - REQ-DEVOPS-SECURITY-1767150339448
+  { path: '/security/audit', icon: ShieldAlert, label: 'nav.securityAudit' },
 ];
 
 export const Sidebar: React.FC = () => {

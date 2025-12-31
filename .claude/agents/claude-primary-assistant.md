@@ -594,6 +594,28 @@ Every requirement goes through this pipeline (in order):
 
 **If Sylvia BLOCKS:** Creates sub-requirements → Parent waits → Sub-REQs complete → Parent resumes from Stage 3 (Roy)
 
+### Agent Model Assignments
+
+**Source:** `agent-backend/scripts/host-agent-listener.ts:750-759`
+
+Agents are assigned models based on task complexity:
+
+| Model | Agents | Rationale |
+|-------|--------|-----------|
+| **HAIKU** | Berry, Tim, Priya, Miki, strategic-recommendation-generator | Cheaper/faster - scripted tasks, docs, stats, templated work |
+| **SONNET** | Cynthia, Sylvia, Roy, Jen, Billy, Liz, Todd, Vic, Sam, Chuck | Complex reasoning - research, code, critique, QA, security |
+
+**Quick Reference:**
+```
+HAIKU:  Berry (DevOps), Tim (Docs), Priya (Stats), Miki (DevOps), Daemons
+SONNET: Everyone else (Cynthia, Sylvia, Roy, Jen, Billy, Liz, Todd, Vic, Sam, Chuck)
+```
+
+**Logic (line 759):**
+```typescript
+return haikuAgents.has(agentId) ? 'haiku' : 'sonnet';
+```
+
 ### Critical System Limits
 
 - **Max workflow duration:** 8 hours

@@ -136,3 +136,36 @@ export const GET_DATABASE_POOL_METRICS = gql`
     }
   }
 `;
+
+export const GET_DATABASE_STATS = gql`
+  query GetDatabaseStats {
+    databaseStats {
+      connectionStats {
+        total
+        active
+        idle
+        waiting
+        maxConnections
+      }
+      queryStats {
+        totalQueries
+        avgQueryTimeMs
+        slowQueries
+        cacheHitRatio
+      }
+      tableStats {
+        totalTables
+        totalRows
+        totalSizeMB
+        indexSizeMB
+      }
+      performanceStats {
+        transactionsPerSecond
+        blocksRead
+        blocksHit
+        tuplesReturned
+        tuplesFetched
+      }
+    }
+  }
+`;

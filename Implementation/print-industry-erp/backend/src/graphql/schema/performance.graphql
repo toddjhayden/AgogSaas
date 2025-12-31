@@ -47,6 +47,11 @@ type Query {
   databasePoolMetrics(
     timeRange: TimeRange!
   ): DatabasePoolMetrics!
+
+  """
+  Get real-time database statistics
+  """
+  databaseStats: DatabaseStats!
 }
 
 type PerformanceOverview {
@@ -190,6 +195,43 @@ enum Severity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+type DatabaseStats {
+  connectionStats: ConnectionStats!
+  queryStats: QueryStats!
+  tableStats: TableStats!
+  performanceStats: PerformanceStats!
+}
+
+type ConnectionStats {
+  total: Int!
+  active: Int!
+  idle: Int!
+  waiting: Int!
+  maxConnections: Int!
+}
+
+type QueryStats {
+  totalQueries: Int!
+  avgQueryTimeMs: Float!
+  slowQueries: Int!
+  cacheHitRatio: Float!
+}
+
+type TableStats {
+  totalTables: Int!
+  totalRows: Int!
+  totalSizeMB: Float!
+  indexSizeMB: Float!
+}
+
+type PerformanceStats {
+  transactionsPerSecond: Float!
+  blocksRead: Int!
+  blocksHit: Int!
+  tuplesReturned: Int!
+  tuplesFetched: Int!
 }
 
 scalar DateTime

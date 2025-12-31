@@ -49,7 +49,11 @@
     "pipeline": "Sales Pipeline",
     "supplierPortal": "Supplier Portal",
     "supplierPurchaseOrders": "Supplier POs",
-    "supplierPerformance": "Supplier Performance"
+    "supplierPerformance": "Supplier Performance",
+    "edgeProvisioning": "Edge Computer Provisioning",
+    "deploymentApprovals": "Deployment Approvals",
+    "rollbackDecision": "Rollback Decision",
+    "securityAudit": "Security Audit"
   },
   "crm": {
     "dashboard": "CRM Dashboard",
@@ -907,7 +911,24 @@
     "last6Hours": "Last 6 Hours",
     "last24Hours": "Last 24 Hours",
     "last7Days": "Last 7 Days",
-    "last30Days": "Last 30 Days"
+    "last30Days": "Last 30 Days",
+    "databaseStatistics": "Database Statistics",
+    "realTimeMetrics": "Real-time PostgreSQL Metrics",
+    "connectionStatistics": "Connection Statistics",
+    "queryStatistics": "Query Statistics",
+    "storageStatistics": "Storage Statistics",
+    "performanceIndicators": "Performance Indicators",
+    "cacheHitRatio": "Cache Hit Ratio",
+    "totalQueries": "Total Queries",
+    "totalTables": "Total Tables",
+    "totalRows": "Total Rows",
+    "databaseSize": "Database Size",
+    "indexSize": "Index Size",
+    "transactionsPerSecond": "Transactions/Second",
+    "blockCacheEfficiency": "Block Cache Efficiency",
+    "tuplesReturned": "Tuples Returned",
+    "databaseHealthy": "Database Healthy",
+    "allMetricsWithinNormalRange": "All metrics within normal range"
   },
   "production": {
     "planningDashboard": "Production Planning Dashboard",
@@ -1892,6 +1913,159 @@
       "apply": "Apply Resolution",
       "cancel": "Cancel",
       "noValue": "(no value)"
+    }
+  },
+  "deployment": {
+    "approvals": {
+      "title": "Deployment Approvals",
+      "noPending": "No pending deployment approvals",
+      "overdue": "OVERDUE",
+      "noSla": "No SLA",
+      "autoRefreshOn": "Auto-Refresh: ON",
+      "autoRefreshOff": "Auto-Refresh: OFF",
+      "stats": {
+        "totalPending": "Total Pending",
+        "critical": "Critical",
+        "overdue": "Overdue",
+        "approvedToday": "Approved (24h)"
+      },
+      "filters": {
+        "environment": "Environment",
+        "urgency": "Urgency",
+        "status": "Status"
+      },
+      "table": {
+        "urgency": "Urgency",
+        "deployment": "Deployment",
+        "environment": "Environment",
+        "version": "Version",
+        "step": "Approval Step",
+        "deployedBy": "Deployed By",
+        "slaRemaining": "SLA Remaining",
+        "actions": "Actions"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "delegate": "Delegate",
+        "requestChanges": "Request Changes",
+        "healthCheck": "Health Check"
+      },
+      "dialogs": {
+        "approve": {
+          "title": "Approve Deployment",
+          "message": "Are you sure you want to approve deployment {{deployment}}?",
+          "comments": "Comments (Optional)",
+          "commentsPlaceholder": "Add approval comments..."
+        },
+        "reject": {
+          "title": "Reject Deployment",
+          "message": "Are you sure you want to reject deployment {{deployment}}?",
+          "reason": "Rejection Reason (Required)",
+          "reasonPlaceholder": "Please provide a reason for rejection..."
+        },
+        "delegate": {
+          "title": "Delegate Approval",
+          "userId": "Delegate To (User ID)",
+          "comments": "Comments (Optional)"
+        },
+        "requestChanges": {
+          "title": "Request Changes",
+          "request": "Change Request (Required)",
+          "requestPlaceholder": "Describe the changes needed..."
+        }
+      },
+      "error": {
+        "loadFailed": "Failed to load deployment approvals"
+      }
+    },
+    "security": {
+      "title": "Security Audit Dashboard",
+      "timeRange": "Time Range",
+      "timeRange.lastHour": "Last Hour",
+      "timeRange.last6Hours": "Last 6 Hours",
+      "timeRange.last24Hours": "Last 24 Hours",
+      "timeRange.last7Days": "Last 7 Days",
+      "timeRange.last30Days": "Last 30 Days",
+      "overview": {
+        "securityScore": "Security Score",
+        "criticalEvents": "Critical Events",
+        "highRisk": "High Risk",
+        "suspiciousActivity": "Suspicious Activity",
+        "blocked": "Blocked",
+        "activeIncidents": "Active Incidents",
+        "investigating": "Under Investigation"
+      },
+      "authentication": {
+        "title": "Authentication Metrics",
+        "loginAttempts": "Login Attempts",
+        "failedLogins": "Failed Logins",
+        "successRate": "Success Rate"
+      },
+      "access": {
+        "title": "Access Control",
+        "permissionDenials": "Permission Denials",
+        "zoneAccess": "Zone Access Events",
+        "unauthorized": "Unauthorized Attempts"
+      },
+      "data": {
+        "title": "Data Security",
+        "exports": "Data Exports",
+        "modifications": "Data Modifications",
+        "configChanges": "Config Changes"
+      },
+      "tabs": {
+        "topThreats": "Top Threats",
+        "suspiciousIPs": "Suspicious IPs",
+        "incidents": "Active Incidents",
+        "geographic": "Geographic Access"
+      },
+      "threats": {
+        "title": "Top Security Threats",
+        "pattern": "Threat Pattern",
+        "severity": "Severity",
+        "occurrences": "Occurrences",
+        "lastOccurrence": "Last Seen",
+        "noThreats": "No active threats detected"
+      },
+      "suspiciousIPs": {
+        "title": "Suspicious IP Addresses",
+        "ipAddress": "IP Address",
+        "eventCount": "Total Events",
+        "failedLogins": "Failed Logins",
+        "riskScore": "Risk Score",
+        "countries": "Countries",
+        "status": "Status",
+        "blocked": "Blocked",
+        "monitoring": "Monitoring",
+        "noSuspiciousIPs": "No suspicious IPs detected"
+      },
+      "incidents": {
+        "title": "Active Security Incidents",
+        "number": "Incident #",
+        "title": "Title",
+        "severity": "Severity",
+        "status": "Status",
+        "detected": "Detected At",
+        "assignedTo": "Assigned To",
+        "actions": "Actions",
+        "view": "View Details",
+        "noActiveIncidents": "No active security incidents"
+      },
+      "geographic": {
+        "title": "Geographic Access Distribution",
+        "accessCount": "Access Count",
+        "ofTotal": "of total",
+        "noData": "No geographic data available"
+      },
+      "compliance": {
+        "title": "Compliance Status",
+        "score": "Compliance Score",
+        "nonCompliant": "Non-Compliant Controls"
+      },
+      "error": {
+        "loadFailed": "Failed to load security audit data"
+      }
     }
   }
 }

@@ -19,6 +19,7 @@ import {
 import { Chart } from '../components/common/Chart';
 import { DataTable } from '../components/common/DataTable';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
+import { DatabaseStatsCard } from '../components/monitoring/DatabaseStatsCard';
 import { useAppStore } from '../store/appStore';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -551,6 +552,9 @@ export const PerformanceAnalyticsDashboard: React.FC = () => {
           />
         </div>
       )}
+
+      {/* Database Statistics Card */}
+      <DatabaseStatsCard />
 
       {/* Performance Bottlenecks */}
       {overview && overview.topBottlenecks.length > 0 && (

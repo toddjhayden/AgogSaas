@@ -1236,8 +1236,102 @@ export class FinalModulesResolver {
     return this.mapCustomerRejectionRow(result.rows[0]);
   }
 
-  // Continue in next part due to length...
-  // (HR, IoT, Security, Marketplace, Imposition mutations + row mappers)
+  // =====================================================
+  // IOT MUTATIONS
+  // =====================================================
+
+  @Mutation('createIotDevice')
+  async createIotDevice(
+    @Args('tenantId') tenantId: string,
+    @Args('facilityId') facilityId: string,
+    @Args('deviceCode') deviceCode: string,
+    @Args('deviceName') deviceName: string,
+    @Args('deviceType') deviceType: string | null,
+    @Args('workCenterId') workCenterId: string | null,
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `INSERT INTO iot_devices (
+        tenant_id, facility_id, device_code, device_name, device_type,
+        work_center_id, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, true)
+      RETURNING *`,
+      [tenantId, facilityId, deviceCode, deviceName, deviceType, workCenterId]
+    );
+
+    return this.mapIotDeviceRow(result.rows[0]);
+  }
+
+  @Mutation('updateIotDevice')
+  async updateIotDevice(
+    @Args('id') id: string,
+    @Args('deviceName') deviceName: string | null,
+    @Args('isActive') isActive: boolean | null,
+    @Context() context: any
+  ) {
+    const updates: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (deviceName) {
+      updates.push(`device_name = $${paramIndex++}`);
+      params.push(deviceName);
+    }
+
+    if (isActive !== null) {
+      updates.push(`is_active = $${paramIndex++}`);
+      params.push(isActive);
+    }
+
+    updates.push(`updated_at = NOW()`);
+
+    params.push(id);
+
+    const result = await this.db.query(
+      `UPDATE iot_devices SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      params
+    );
+
+    return this.mapIotDeviceRow(result.rows[0]);
+  }
+
+  @Mutation('createSensorReading')
+  async createSensorReading(
+    @Args('tenantId') tenantId: string,
+    @Args('iotDeviceId') iotDeviceId: string,
+    @Args('sensorType') sensorType: string | null,
+    @Args('readingValue') readingValue: number | null,
+    @Args('unitOfMeasure') unitOfMeasure: string | null,
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `INSERT INTO sensor_readings (
+        tenant_id, iot_device_id, reading_timestamp, sensor_type,
+        reading_value, unit_of_measure
+      ) VALUES ($1, $2, NOW(), $3, $4, $5)
+      RETURNING *`,
+      [tenantId, iotDeviceId, sensorType, readingValue, unitOfMeasure]
+    );
+
+    return this.mapSensorReadingRow(result.rows[0]);
+  }
+
+  @Mutation('acknowledgeEquipmentEvent')
+  async acknowledgeEquipmentEvent(
+    @Args('id') id: string,
+    @Args('acknowledgedByUserId') acknowledgedByUserId: string,
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `UPDATE equipment_events
+       SET acknowledged = true, acknowledged_by_user_id = $1, acknowledged_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [acknowledgedByUserId, id]
+    );
+
+    return this.mapEquipmentEventRow(result.rows[0]);
+  }
 
   // =====================================================
   // ROW MAPPERS (snake_case → camelCase)

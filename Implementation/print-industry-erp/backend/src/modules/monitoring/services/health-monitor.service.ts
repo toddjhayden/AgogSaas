@@ -1,3 +1,4 @@
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import axios from 'axios';
 import { Pool } from 'pg';
 
@@ -19,8 +20,10 @@ export interface SystemHealth {
   timestamp: Date;
 }
 
-export class HealthMonitorService {
+@Injectable()
+export class HealthMonitorService implements OnModuleInit, OnModuleDestroy {
   private pool: Pool;
+  private monitoringInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     // Use DATABASE_URL connection string (set by docker-compose)
@@ -31,6 +34,19 @@ export class HealthMonitorService {
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
     });
+  }
+
+  async onModuleInit() {
+    console.log('[HealthMonitor] Service initialized');
+    // Start monitoring with configurable interval (default: 30 seconds)
+    const intervalMs = parseInt(process.env.HEALTH_CHECK_INTERVAL_MS || '30000', 10);
+    await this.startMonitoring(intervalMs);
+  }
+
+  async onModuleDestroy() {
+    console.log('[HealthMonitor] Service shutting down');
+    this.stopMonitoring();
+    await this.close();
   }
 
   async checkSystemHealth(): Promise<SystemHealth> {
@@ -60,9 +76,10 @@ export class HealthMonitorService {
 
   private async checkBackend(): Promise<ComponentHealth> {
     const startTime = Date.now();
+    const timeout = parseInt(process.env.HEALTH_CHECK_BACKEND_TIMEOUT_MS || '5000', 10);
     try {
       const response = await axios.get('http://localhost:4000/health', {
-        timeout: 5000,
+        timeout,
       });
       const responseTime = Date.now() - startTime;
       return {
@@ -84,10 +101,11 @@ export class HealthMonitorService {
 
   private async checkFrontend(): Promise<ComponentHealth> {
     const startTime = Date.now();
+    const timeout = parseInt(process.env.HEALTH_CHECK_FRONTEND_TIMEOUT_MS || '5000', 10);
     try {
       // Check frontend at correct port (3000)
       const response = await axios.get('http://localhost:3000/', {
-        timeout: 5000,
+        timeout,
       });
       const responseTime = Date.now() - startTime;
       return {
@@ -230,7 +248,7 @@ export class HealthMonitorService {
   async startMonitoring(intervalMs: number = 5000): Promise<void> {
     console.log(`[Health] Starting monitoring (interval: ${intervalMs}ms)`);
 
-    setInterval(async () => {
+    this.monitoringInterval = setInterval(async () => {
       try {
         const health = await this.checkSystemHealth();
         console.log(
@@ -244,8 +262,11 @@ export class HealthMonitorService {
   }
 
   stopMonitoring(): void {
-    // Stop monitoring interval if implemented
-    console.log('[Health] Monitoring stopped');
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+      console.log('[Health] Monitoring stopped');
+    }
   }
 
   async close(): Promise<void> {

@@ -1,3 +1,4 @@
+// REQ-DEVOPS-EDGE-MONITORING-1767150339448: Edge Computer Monitoring Dashboard
 import { useState, useEffect } from 'react';
 import { Container, Typography, Box, Button, Grid } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -5,6 +6,7 @@ import { SystemStatusCard } from '@components/monitoring/SystemStatusCard';
 import { ErrorListCard } from '@components/monitoring/ErrorListCard';
 import { ActiveFixesCard } from '@components/monitoring/ActiveFixesCard';
 import { AgentActivityCard } from '@components/monitoring/AgentActivityCard';
+import { EdgeDeviceMonitoringCard } from '@components/monitoring/EdgeDeviceMonitoringCard';
 
 export const MonitoringDashboard = () => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -40,6 +42,11 @@ export const MonitoringDashboard = () => {
       <Box mb={4}>
         <Typography variant="h5" gutterBottom>System Health</Typography>
         <SystemStatusCard lastRefresh={lastRefresh} />
+      </Box>
+
+      <Box mb={4}>
+        <Typography variant="h5" gutterBottom>Edge Computer Fleet</Typography>
+        <EdgeDeviceMonitoringCard lastRefresh={lastRefresh} />
       </Box>
 
       <Grid container spacing={3} mb={4}>

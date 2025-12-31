@@ -14,6 +14,7 @@ import { DatabaseModule } from '../../database/database.module';
 import { MonitoringResolver } from './monitoring.resolver';
 import { AgentActivityService } from './services/agent-activity.service';
 import { PerformanceMetricsService } from './services/performance-metrics.service';
+import { HealthMonitorService } from './services/health-monitor.service';
 import { PerformanceResolver } from '../../graphql/resolvers/performance.resolver';
 
 @Module({
@@ -23,7 +24,8 @@ import { PerformanceResolver } from '../../graphql/resolvers/performance.resolve
     PerformanceResolver,
     AgentActivityService,
     PerformanceMetricsService,
+    HealthMonitorService,
   ],
-  exports: [MonitoringResolver, PerformanceResolver, AgentActivityService, PerformanceMetricsService],
+  exports: [MonitoringResolver, PerformanceResolver, AgentActivityService, PerformanceMetricsService, HealthMonitorService],
 })
 export class MonitoringModule {}

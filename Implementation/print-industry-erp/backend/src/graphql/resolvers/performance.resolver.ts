@@ -128,4 +128,92 @@ export class PerformanceResolver {
       }))
     };
   }
+
+  /**
+   * Get real-time database statistics
+   */
+  @Query()
+  async databaseStats(@Context() context: any) {
+    const pool = (this.performanceMetricsService as any).db;
+
+    // Query PostgreSQL system statistics
+    const statsQuery = `
+      SELECT
+        -- Connection stats
+        (SELECT setting::int FROM pg_settings WHERE name = 'max_connections') AS max_connections,
+        (SELECT count(*) FROM pg_stat_activity) AS total_connections,
+        (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') AS active_connections,
+        (SELECT count(*) FROM pg_stat_activity WHERE state = 'idle') AS idle_connections,
+        (SELECT count(*) FROM pg_stat_activity WHERE wait_event_type IS NOT NULL) AS waiting_connections,
+
+        -- Query stats
+        (SELECT sum(calls) FROM pg_stat_user_functions) AS total_queries,
+        (SELECT avg(mean_exec_time) FROM pg_stat_statements WHERE calls > 0) AS avg_query_time_ms,
+        (SELECT count(*) FROM pg_stat_statements WHERE mean_exec_time > 1000) AS slow_queries,
+
+        -- Cache hit ratio
+        (SELECT
+          CASE
+            WHEN (sum(blks_hit) + sum(blks_read)) > 0
+            THEN (sum(blks_hit)::float / (sum(blks_hit) + sum(blks_read))) * 100
+            ELSE 0
+          END
+         FROM pg_stat_database) AS cache_hit_ratio,
+
+        -- Table stats
+        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS total_tables,
+        (SELECT sum(n_live_tup) FROM pg_stat_user_tables) AS total_rows,
+        (SELECT sum(pg_total_relation_size(schemaname||'.'||tablename)::bigint) / 1024 / 1024
+         FROM pg_tables WHERE schemaname = 'public') AS total_size_mb,
+        (SELECT sum(pg_indexes_size(schemaname||'.'||tablename)::bigint) / 1024 / 1024
+         FROM pg_tables WHERE schemaname = 'public') AS index_size_mb,
+
+        -- Performance stats
+        (SELECT sum(xact_commit + xact_rollback) FROM pg_stat_database) AS total_transactions,
+        (SELECT sum(blks_read) FROM pg_stat_database) AS blocks_read,
+        (SELECT sum(blks_hit) FROM pg_stat_database) AS blocks_hit,
+        (SELECT sum(tup_returned) FROM pg_stat_database) AS tuples_returned,
+        (SELECT sum(tup_fetched) FROM pg_stat_database) AS tuples_fetched
+    `;
+
+    const result = await pool.query(statsQuery);
+    const stats = result.rows[0];
+
+    // Calculate transactions per second (approximate based on uptime)
+    const uptimeQuery = 'SELECT EXTRACT(EPOCH FROM (now() - pg_postmaster_start_time())) AS uptime_seconds';
+    const uptimeResult = await pool.query(uptimeQuery);
+    const uptimeSeconds = parseFloat(uptimeResult.rows[0].uptime_seconds);
+    const transactionsPerSecond = uptimeSeconds > 0
+      ? (parseInt(stats.total_transactions || '0') / uptimeSeconds)
+      : 0;
+
+    return {
+      connectionStats: {
+        total: parseInt(stats.total_connections || '0'),
+        active: parseInt(stats.active_connections || '0'),
+        idle: parseInt(stats.idle_connections || '0'),
+        waiting: parseInt(stats.waiting_connections || '0'),
+        maxConnections: parseInt(stats.max_connections || '100'),
+      },
+      queryStats: {
+        totalQueries: parseInt(stats.total_queries || '0'),
+        avgQueryTimeMs: parseFloat(stats.avg_query_time_ms || '0'),
+        slowQueries: parseInt(stats.slow_queries || '0'),
+        cacheHitRatio: parseFloat(stats.cache_hit_ratio || '0'),
+      },
+      tableStats: {
+        totalTables: parseInt(stats.total_tables || '0'),
+        totalRows: parseInt(stats.total_rows || '0'),
+        totalSizeMB: parseFloat(stats.total_size_mb || '0'),
+        indexSizeMB: parseFloat(stats.index_size_mb || '0'),
+      },
+      performanceStats: {
+        transactionsPerSecond,
+        blocksRead: parseInt(stats.blocks_read || '0'),
+        blocksHit: parseInt(stats.blocks_hit || '0'),
+        tuplesReturned: parseInt(stats.tuples_returned || '0'),
+        tuplesFetched: parseInt(stats.tuples_fetched || '0'),
+      },
+    };
+  }
 }

@@ -3,55 +3,84 @@
  * Provides real-time monitoring data from NATS
  */
 
-import { Resolver, Query } from '@nestjs/graphql';
+import { Resolver, Query, Args } from '@nestjs/graphql';
 import { AgentActivityService } from './services/agent-activity.service';
+import { HealthMonitorService } from './services/health-monitor.service';
 
 @Resolver()
 export class MonitoringResolver {
-  constructor(private agentActivityService: AgentActivityService) {}
+  constructor(
+    private agentActivityService: AgentActivityService,
+    private healthMonitorService: HealthMonitorService
+  ) {}
 
   /**
    * Get current system health
-   * Returns stub data indicating system is operational
+   * Returns real-time health data from HealthMonitorService
    */
   @Query()
-  systemHealth() {
+  async systemHealth() {
+    const health = await this.healthMonitorService.checkSystemHealth();
     return {
-      overall: 'OPERATIONAL',
+      overall: health.overall,
       backend: {
-        name: 'backend',
-        status: 'OPERATIONAL',
-        lastCheck: new Date().toISOString(),
-        responseTime: 50,
-        error: null,
-        metadata: {}
+        name: health.backend.name,
+        status: health.backend.status,
+        lastCheck: health.backend.lastCheck.toISOString(),
+        responseTime: health.backend.responseTime || null,
+        error: health.backend.error || null,
+        metadata: health.backend.metadata || {}
       },
       frontend: {
-        name: 'frontend',
-        status: 'OPERATIONAL',
-        lastCheck: new Date().toISOString(),
-        responseTime: 30,
-        error: null,
-        metadata: {}
+        name: health.frontend.name,
+        status: health.frontend.status,
+        lastCheck: health.frontend.lastCheck.toISOString(),
+        responseTime: health.frontend.responseTime || null,
+        error: health.frontend.error || null,
+        metadata: health.frontend.metadata || {}
       },
       database: {
-        name: 'database',
-        status: 'OPERATIONAL',
-        lastCheck: new Date().toISOString(),
-        responseTime: 10,
-        error: null,
-        metadata: {}
+        name: health.database.name,
+        status: health.database.status,
+        lastCheck: health.database.lastCheck.toISOString(),
+        responseTime: health.database.responseTime || null,
+        error: health.database.error || null,
+        metadata: health.database.metadata || {}
       },
       nats: {
-        name: 'nats',
-        status: 'OPERATIONAL',
-        lastCheck: new Date().toISOString(),
-        responseTime: 5,
-        error: null,
-        metadata: {}
+        name: health.nats.name,
+        status: health.nats.status,
+        lastCheck: health.nats.lastCheck.toISOString(),
+        responseTime: health.nats.responseTime || null,
+        error: health.nats.error || null,
+        metadata: health.nats.metadata || {}
       },
-      timestamp: new Date().toISOString()
+      timestamp: health.timestamp.toISOString()
     };
+  }
+
+  /**
+   * Get health history for a specific component
+   */
+  @Query()
+  async healthHistory(
+    @Args('component', { nullable: true }) component?: string,
+    @Args('startTime', { nullable: true }) startTime?: string,
+    @Args('endTime', { nullable: true }) endTime?: string
+  ) {
+    const history = await this.healthMonitorService.getHealthHistory(
+      component,
+      startTime ? new Date(startTime) : undefined,
+      endTime ? new Date(endTime) : undefined
+    );
+    return history.map(h => ({
+      name: h.name,
+      status: h.status,
+      lastCheck: h.lastCheck.toISOString(),
+      responseTime: h.responseTime || null,
+      error: h.error || null,
+      metadata: h.metadata || {}
+    }));
   }
 
   /**

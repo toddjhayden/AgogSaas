@@ -36,6 +36,8 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
 import { PredictiveMaintenanceModule } from './modules/predictive-maintenance/predictive-maintenance.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
+import { DevOpsModule } from './modules/devops/devops.module';
+import { SecurityModule } from './modules/security/security.module';
 
 @Module({
   imports: [
@@ -170,6 +172,8 @@ import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.
     PredictiveMaintenanceModule, // Predictive Maintenance AI (REQ-STRATEGIC-AUTO-1767108044310)
     CrmModule,               // Integrated CRM & Sales Pipeline Management (REQ-STRATEGIC-AUTO-1767116143665)
     SupplierPortalModule,    // Supply Chain Visibility & Supplier Portal (REQ-STRATEGIC-AUTO-1767116143666)
+    DevOpsModule,            // DevOps Automation & Deployment Approvals (REQ-DEVOPS-DEPLOY-APPROVAL-1767150339448)
+    SecurityModule,          // Security Audit Dashboard & Threat Detection (REQ-DEVOPS-SECURITY-1767150339448)
 
     // DEVELOPMENT ONLY - Test Data Loading
     TestDataModule,

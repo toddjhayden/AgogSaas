@@ -19,7 +19,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@components/*": ["./src/components/*"],
-      "@graphql/*": ["./src/graphql/*"]
+      "@graphql/*": ["./src/graphql/*"],
+      "@store/*": ["./src/store/*"]
     }
   },
   "include": ["src"],

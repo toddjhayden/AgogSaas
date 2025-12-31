@@ -1,0 +1,725 @@
+"""
+Deployment Approval Workflow Schema
+Manages approval workflows for production deployments
+"""
+
+"""
+Deployment represents a deployment request that requires approval
+"""
+type Deployment {
+  id: ID!
+  tenantId: String!
+  deploymentNumber: String!
+
+  # Deployment Details
+  title: String!
+  description: String
+  environment: DeploymentEnvironment!
+  version: String!
+  deployedBy: String!
+
+  # Deployment Metadata
+  gitCommitHash: String
+  gitBranch: String
+  releaseNotes: String
+
+  # Status & Timing
+  status: DeploymentStatus!
+  scheduledDeploymentTime: String
+  requestedAt: String!
+  approvedAt: String
+  deployedAt: String
+
+  # Approval Workflow
+  currentApprovalWorkflowId: String
+  currentApprovalStep: Int
+  approvalStartedAt: String
+  approvalCompletedAt: String
+  pendingApproverId: String
+
+  # Health & Rollback
+  preDeploymentHealthCheck: HealthCheckStatus
+  postDeploymentHealthCheck: HealthCheckStatus
+  rollbackAvailable: Boolean!
+  autoRollbackEnabled: Boolean!
+
+  # Urgency
+  urgency: DeploymentUrgency!
+  slaDeadline: String
+
+  # Audit Trail
+  createdBy: String!
+  updatedBy: String
+  createdAt: String!
+  updatedAt: String
+}
+
+"""
+Deployment environment types
+"""
+enum DeploymentEnvironment {
+  STAGING
+  PRE_PRODUCTION
+  PRODUCTION
+  DISASTER_RECOVERY
+}
+
+"""
+Deployment status lifecycle
+"""
+enum DeploymentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  DEPLOYED
+  FAILED
+  ROLLED_BACK
+  CANCELLED
+}
+
+"""
+Health check status for pre/post deployment validation
+"""
+enum HealthCheckStatus {
+  PENDING
+  PASSED
+  FAILED
+  SKIPPED
+}
+
+"""
+Deployment urgency levels
+"""
+enum DeploymentUrgency {
+  CRITICAL      # Critical hotfix
+  HIGH          # Security patch
+  MEDIUM        # Feature release
+  LOW           # Minor update
+}
+
+"""
+Deployment approval workflow step actions
+"""
+enum DeploymentApprovalAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  DELEGATED
+  ESCALATED
+  REQUESTED_CHANGES
+  CANCELLED
+  HEALTH_CHECK_PASSED
+  HEALTH_CHECK_FAILED
+  DEPLOYED
+  ROLLED_BACK
+}
+
+"""
+Deployment approval history entry for audit trail
+"""
+type DeploymentApprovalHistoryEntry {
+  id: ID!
+  deploymentId: String!
+  tenantId: String!
+
+  # Action Details
+  action: DeploymentApprovalAction!
+  actionByUserId: String
+  actionByUserName: String
+  actionAt: String!
+
+  # Approval Context
+  approvalStep: Int
+  comments: String
+
+  # Delegation
+  delegatedToUserId: String
+  delegatedToUserName: String
+
+  # Escalation
+  isEscalated: Boolean!
+  escalationReason: String
+
+  # Change Request
+  changeRequest: String
+
+  # Metadata
+  metadata: String  # JSON blob for additional context
+}
+
+"""
+Pending deployment approval item for approval dashboard
+"""
+type PendingDeploymentApproval {
+  deploymentId: String!
+  deploymentNumber: String!
+  tenantId: String!
+
+  # Deployment Info
+  title: String!
+  environment: DeploymentEnvironment!
+  version: String!
+  deployedBy: String!
+  requestedAt: String!
+
+  # Approval Context
+  currentStep: Int!
+  totalSteps: Int!
+  stepDescription: String
+  pendingApproverId: String!
+
+  # Urgency & SLA
+  urgency: DeploymentUrgency!
+  slaDeadline: String
+  slaRemainingHours: Float
+  isOverdue: Boolean!
+  urgencyLevel: UrgencyLevel!
+
+  # Health Status
+  preDeploymentHealthCheck: HealthCheckStatus
+}
+
+"""
+Urgency level indicator for dashboard
+"""
+enum UrgencyLevel {
+  URGENT    # Overdue SLA
+  WARNING   # Approaching SLA (< 4 hours)
+  NORMAL    # Sufficient time remaining
+}
+
+"""
+Deployment approval workflow configuration
+"""
+type DeploymentApprovalWorkflow {
+  id: ID!
+  tenantId: String!
+
+  # Workflow Identity
+  workflowName: String!
+  description: String
+
+  # Environment Targeting
+  environment: DeploymentEnvironment!
+
+  # Approval Steps
+  steps: [DeploymentApprovalWorkflowStep!]!
+
+  # SLA Configuration
+  defaultSlaHours: Int!
+  escalationEnabled: Boolean!
+
+  # Auto-Approval Rules
+  autoApproveForMinorUpdates: Boolean
+  autoApproveMaxSeverity: DeploymentUrgency
+
+  # Status
+  isActive: Boolean!
+  priority: Int!  # Higher priority workflows match first
+
+  # Audit
+  createdBy: String!
+  createdAt: String!
+  updatedAt: String
+}
+
+"""
+Individual approval step in deployment workflow
+"""
+type DeploymentApprovalWorkflowStep {
+  stepNumber: Int!
+  stepName: String!
+  description: String
+
+  # Approver Assignment
+  approverId: String         # Specific user
+  approverRole: String       # Or role-based
+  approverGroup: String      # Or group-based
+
+  # Step Configuration
+  slaHours: Int
+  allowDelegation: Boolean!
+  canSkip: Boolean!
+
+  # Parallel Approval
+  requiresAllApprovers: Boolean!  # If multiple approvers
+}
+
+"""
+Deployment approval statistics
+"""
+type DeploymentApprovalStats {
+  tenantId: String!
+
+  # Counts
+  totalPending: Int!
+  criticalPending: Int!
+  overdueCount: Int!
+  warningCount: Int!
+
+  # By Environment
+  productionPending: Int!
+  stagingPending: Int!
+
+  # Recent Activity
+  approvedLast24h: Int!
+  rejectedLast24h: Int!
+  deployedLast24h: Int!
+}
+
+"""
+Rollback eligible deployment with health metrics
+"""
+type RollbackEligibleDeployment {
+  deploymentId: String!
+  deploymentNumber: String!
+  tenantId: String!
+
+  # Deployment Info
+  title: String!
+  environment: DeploymentEnvironment!
+  version: String!
+  deployedBy: String!
+  deployedAt: String!
+
+  # Git Info
+  gitCommitHash: String
+  gitBranch: String
+
+  # Time Tracking
+  minutesSinceDeployment: Float!
+
+  # Rollback Eligibility
+  rollbackAvailable: Boolean!
+  autoRollbackEnabled: Boolean!
+  postDeploymentHealthCheck: HealthCheckStatus
+
+  # Previous Deployment
+  previousDeploymentId: String
+  previousVersion: String
+
+  # Current Health Metrics
+  currentErrorRatePercent: Float
+  currentSuccessRatePercent: Float
+  currentAvgResponseTimeMs: Int
+
+  # Rollback Configuration
+  activeAutoRollbackRules: Int!
+  rollbackCount: Int!
+}
+
+"""
+Rollback decision criteria configuration
+"""
+type RollbackDecisionCriteria {
+  id: ID!
+  tenantId: String!
+
+  # Criteria Identity
+  criteriaName: String!
+  description: String
+  environment: DeploymentEnvironment!
+
+  # Auto Rollback
+  autoRollbackEnabled: Boolean!
+
+  # Health Thresholds
+  maxErrorRatePercent: Float
+  maxResponseTimeMs: Int
+  minSuccessRatePercent: Float
+
+  # Time Windows
+  monitoringWindowMinutes: Int!
+  decisionWindowMinutes: Int!
+
+  # Service Health
+  requiredHealthyServices: String  # JSON
+  maxUnhealthyInstancesPercent: Float
+
+  # Custom Metrics
+  customMetricThresholds: String  # JSON
+
+  # Notifications
+  notifyOnAutoRollback: Boolean!
+  notificationChannels: String  # JSON
+
+  # Status
+  isActive: Boolean!
+  priority: Int!
+
+  # Audit
+  createdBy: String!
+  createdAt: String!
+  updatedAt: String
+}
+
+"""
+Deployment rollback request and execution tracking
+"""
+type DeploymentRollback {
+  id: ID!
+  deploymentId: String!
+  tenantId: String!
+
+  # Rollback Details
+  rollbackNumber: String!
+  rollbackReason: String!
+  rollbackType: RollbackType!
+
+  # Decision Criteria
+  decisionCriteria: String  # JSON
+  healthCheckStatus: HealthCheckStatus
+  postDeploymentDurationMinutes: Int
+
+  # Execution
+  status: RollbackStatus!
+  rollbackStartedAt: String
+  rollbackCompletedAt: String
+  rollbackDurationSeconds: Int
+
+  # Previous State
+  previousDeploymentId: String
+  previousVersion: String
+  previousGitCommitHash: String
+
+  # Impact
+  affectedServices: String  # JSON
+  downtimeMinutes: Int
+
+  # Approval
+  requiresApproval: Boolean!
+  approvedByUserId: String
+  approvedAt: String
+
+  # Audit
+  initiatedByUserId: String
+  createdAt: String!
+  updatedAt: String
+}
+
+"""
+Rollback type
+"""
+enum RollbackType {
+  MANUAL      # Manual rollback initiated by user
+  AUTOMATIC   # Automatic rollback triggered by criteria
+  EMERGENCY   # Emergency rollback
+}
+
+"""
+Rollback status
+"""
+enum RollbackStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+"""
+Rollback health metrics snapshot
+"""
+type RollbackHealthMetrics {
+  id: ID!
+  deploymentId: String!
+  tenantId: String!
+
+  # Timing
+  metricTimestamp: String!
+  minutesSinceDeployment: Int!
+
+  # Health Metrics
+  errorRatePercent: Float
+  successRatePercent: Float
+  avgResponseTimeMs: Int
+  requestCount: Int
+  errorCount: Int
+
+  # Service Health
+  healthyServicesCount: Int
+  unhealthyServicesCount: Int
+  totalServicesCount: Int
+
+  # Resource Metrics
+  cpuUsagePercent: Float
+  memoryUsagePercent: Float
+  diskUsagePercent: Float
+
+  # Custom Metrics
+  customMetrics: String  # JSON
+
+  # Decision
+  triggersRollbackCriteria: Boolean!
+  violatedThresholds: String  # JSON
+
+  createdAt: String!
+}
+
+"""
+Input for creating a deployment request
+"""
+input CreateDeploymentInput {
+  tenantId: String!
+  title: String!
+  description: String
+  environment: DeploymentEnvironment!
+  version: String!
+
+  # Git Information
+  gitCommitHash: String
+  gitBranch: String
+  releaseNotes: String
+
+  # Scheduling
+  scheduledDeploymentTime: String
+
+  # Configuration
+  urgency: DeploymentUrgency!
+  autoRollbackEnabled: Boolean
+
+  # Requester
+  deployedBy: String!
+}
+
+"""
+Input for submitting deployment for approval
+"""
+input SubmitDeploymentForApprovalInput {
+  deploymentId: String!
+  tenantId: String!
+  submittedByUserId: String!
+}
+
+"""
+Input for approving a deployment step
+"""
+input ApproveDeploymentInput {
+  deploymentId: String!
+  tenantId: String!
+  approvedByUserId: String!
+  comments: String
+}
+
+"""
+Input for rejecting a deployment
+"""
+input RejectDeploymentInput {
+  deploymentId: String!
+  tenantId: String!
+  rejectedByUserId: String!
+  rejectionReason: String!
+}
+
+"""
+Input for delegating deployment approval
+"""
+input DelegateDeploymentApprovalInput {
+  deploymentId: String!
+  tenantId: String!
+  delegatedByUserId: String!
+  delegatedToUserId: String!
+  comments: String
+}
+
+"""
+Input for requesting changes to deployment
+"""
+input RequestDeploymentChangesInput {
+  deploymentId: String!
+  tenantId: String!
+  requestedByUserId: String!
+  changeRequest: String!
+}
+
+"""
+Input for filtering pending deployment approvals
+"""
+input PendingDeploymentApprovalFilter {
+  environment: DeploymentEnvironment
+  urgency: DeploymentUrgency
+  urgencyLevel: UrgencyLevel
+}
+
+type Query {
+  """
+  Get all deployments with optional filtering
+  """
+  getDeployments(
+    tenantId: String!
+    environment: DeploymentEnvironment
+    status: DeploymentStatus
+    limit: Int
+    offset: Int
+  ): [Deployment!]!
+
+  """
+  Get a specific deployment by ID
+  """
+  getDeployment(
+    deploymentId: String!
+    tenantId: String!
+  ): Deployment
+
+  """
+  Get pending deployment approvals for current user
+  """
+  getMyPendingDeploymentApprovals(
+    tenantId: String!
+    userId: String!
+    filters: PendingDeploymentApprovalFilter
+  ): [PendingDeploymentApproval!]!
+
+  """
+  Get deployment approval history
+  """
+  getDeploymentApprovalHistory(
+    deploymentId: String!
+    tenantId: String!
+  ): [DeploymentApprovalHistoryEntry!]!
+
+  """
+  Get deployment approval workflows
+  """
+  getDeploymentApprovalWorkflows(
+    tenantId: String!
+    environment: DeploymentEnvironment
+    isActive: Boolean
+  ): [DeploymentApprovalWorkflow!]!
+
+  """
+  Get applicable workflow for a deployment
+  """
+  getApplicableDeploymentWorkflow(
+    tenantId: String!
+    environment: DeploymentEnvironment!
+    urgency: DeploymentUrgency!
+  ): DeploymentApprovalWorkflow
+
+  """
+  Get deployment approval statistics
+  """
+  getDeploymentApprovalStats(
+    tenantId: String!
+  ): DeploymentApprovalStats!
+
+  """
+  Get rollback eligible deployments
+  """
+  getRollbackEligibleDeployments(
+    tenantId: String!
+    environment: DeploymentEnvironment
+    limit: Int
+    offset: Int
+  ): [RollbackEligibleDeployment!]!
+
+  """
+  Get rollback decision criteria
+  """
+  getRollbackDecisionCriteria(
+    tenantId: String!
+    environment: DeploymentEnvironment
+    isActive: Boolean
+  ): [RollbackDecisionCriteria!]!
+
+  """
+  Get rollback history for a deployment
+  """
+  getDeploymentRollbacks(
+    deploymentId: String!
+    tenantId: String!
+  ): [DeploymentRollback!]!
+
+  """
+  Get rollback health metrics for a deployment
+  """
+  getRollbackHealthMetrics(
+    deploymentId: String!
+    tenantId: String!
+    limit: Int
+  ): [RollbackHealthMetrics!]!
+}
+
+type Mutation {
+  """
+  Create a new deployment request
+  """
+  createDeployment(
+    input: CreateDeploymentInput!
+  ): Deployment!
+
+  """
+  Submit deployment for approval
+  """
+  submitDeploymentForApproval(
+    input: SubmitDeploymentForApprovalInput!
+  ): Deployment!
+
+  """
+  Approve a deployment workflow step
+  """
+  approveDeployment(
+    input: ApproveDeploymentInput!
+  ): Deployment!
+
+  """
+  Reject a deployment
+  """
+  rejectDeployment(
+    input: RejectDeploymentInput!
+  ): Deployment!
+
+  """
+  Delegate deployment approval to another user
+  """
+  delegateDeploymentApproval(
+    input: DelegateDeploymentApprovalInput!
+  ): Deployment!
+
+  """
+  Request changes to a deployment
+  """
+  requestDeploymentChanges(
+    input: RequestDeploymentChangesInput!
+  ): Deployment!
+
+  """
+  Cancel a deployment request
+  """
+  cancelDeployment(
+    deploymentId: String!
+    tenantId: String!
+    cancelledByUserId: String!
+    cancellationReason: String
+  ): Deployment!
+
+  """
+  Execute approved deployment (triggers actual deployment)
+  """
+  executeDeployment(
+    deploymentId: String!
+    tenantId: String!
+    executedByUserId: String!
+  ): Deployment!
+
+  """
+  Rollback a deployed deployment
+  """
+  rollbackDeployment(
+    deploymentId: String!
+    tenantId: String!
+    rolledBackByUserId: String!
+    rollbackReason: String!
+    rollbackType: String  # MANUAL, AUTOMATIC, EMERGENCY
+  ): DeploymentRollback!
+
+  """
+  Run health check on a deployment
+  """
+  runDeploymentHealthCheck(
+    deploymentId: String!
+    tenantId: String!
+    checkType: String!  # PRE_DEPLOYMENT or POST_DEPLOYMENT
+  ): Deployment!
+}

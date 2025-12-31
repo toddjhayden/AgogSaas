@@ -84,6 +84,10 @@ import SupplierPurchaseOrdersPage from './pages/SupplierPurchaseOrdersPage';
 import SupplierPurchaseOrderDetailPage from './pages/SupplierPurchaseOrderDetailPage';
 import SupplierCreateASNPage from './pages/SupplierCreateASNPage';
 import SupplierPerformanceDashboard from './pages/SupplierPerformanceDashboard';
+import { EdgeProvisioningPage } from './pages/EdgeProvisioningPage';
+import DeploymentApprovalPage from './pages/DeploymentApprovalPage';
+import RollbackDecisionPage from './pages/RollbackDecisionPage';
+import SecurityAuditDashboard from './pages/SecurityAuditDashboard';
 import './index.css';
 
 const App: React.FC = () => {
@@ -198,6 +202,14 @@ const App: React.FC = () => {
                 <Route path="/supplier/purchase-orders/:poNumber" element={<SupplierPurchaseOrderDetailPage />} />
                 <Route path="/supplier/asn/create" element={<SupplierCreateASNPage />} />
                 <Route path="/supplier/performance" element={<SupplierPerformanceDashboard />} />
+                {/* DevOps/Edge Routes - REQ-DEVOPS-EDGE-PROVISION-1767150339448 */}
+                <Route path="/devops/edge-provisioning" element={<EdgeProvisioningPage />} />
+                {/* DevOps Deployment Approvals - REQ-DEVOPS-DEPLOY-APPROVAL-1767150339448 */}
+                <Route path="/devops/deployment-approvals" element={<DeploymentApprovalPage />} />
+                {/* DevOps Rollback Decision - REQ-DEVOPS-ROLLBACK-1767150339448 */}
+                <Route path="/devops/rollback-decision" element={<RollbackDecisionPage />} />
+                {/* Security Audit Dashboard - REQ-DEVOPS-SECURITY-1767150339448 */}
+                <Route path="/security/audit" element={<SecurityAuditDashboard />} />
               </Route>
             </Routes>
           </Router>

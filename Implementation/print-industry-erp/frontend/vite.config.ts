@@ -9,10 +9,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       '@components': path.resolve(__dirname, './src/components'),
       '@graphql': path.resolve(__dirname, './src/graphql'),
+      '@store': path.resolve(__dirname, './src/store'),
     },
   },
   server: {
     port: 3000,
+    host: true,
+    allowedHosts: true,
     proxy: {
       '/graphql': {
         target: 'http://backend:4000',
