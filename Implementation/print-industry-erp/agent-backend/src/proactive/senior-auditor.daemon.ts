@@ -168,6 +168,9 @@ class SeniorAuditorDaemon {
         await this.createRequirementsForIssues(result);
       }
 
+      // Trigger UI testing REQ generation for Liz
+      await this.triggerUITesting(result);
+
       // Publish final result to NATS
       if (this.nc) {
         this.nc.publish(CONFIG.resultSubject, sc.encode(JSON.stringify(result)));
@@ -353,6 +356,31 @@ This requirement was automatically created by Sam during a system-wide audit.
     }
 
     console.log(`[Sam] Created ${createdCount} requirements for issues`);
+  }
+
+  /**
+   * Trigger UI testing REQ generation for Liz after each audit
+   */
+  private async triggerUITesting(result: AuditResult): Promise<void> {
+    if (!this.nc) {
+      console.warn('[Sam] No NATS connection, cannot trigger UI testing');
+      return;
+    }
+
+    try {
+      const payload = {
+        auditType: result.audit_type,
+        timestamp: result.timestamp,
+        overallStatus: result.overall_status,
+        recommendations: result.recommendations || [],
+        triggeredBy: 'sam-senior-auditor'
+      };
+
+      this.nc.publish('agog.testing.ui.generate', sc.encode(JSON.stringify(payload)));
+      console.log('[Sam] ✅ Triggered UI testing REQ generation for Liz');
+    } catch (error) {
+      console.error('[Sam] Failed to trigger UI testing:', error);
+    }
   }
 
   async stop(): Promise<void> {
