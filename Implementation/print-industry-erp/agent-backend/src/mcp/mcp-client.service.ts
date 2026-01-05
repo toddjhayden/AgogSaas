@@ -27,8 +27,11 @@ export class MCPMemoryClient {
   private ollamaUrl: string;
 
   constructor() {
-    // Use DATABASE_URL connection string (set by docker-compose)
-    const connectionString = process.env.DATABASE_URL || 'postgresql://agogsaas_user:changeme@localhost:5433/agogsaas';
+    // Use DATABASE_URL connection string for agent_memory database
+    // Port 5434 is the external port mapped from docker-compose.agents.yml (agent-postgres)
+    // IMPORTANT: When running outside Docker, use localhost:5434 (external port)
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://agent_user:agent_dev_password_2024@localhost:5434/agent_memory';
     this.pool = new Pool({
       connectionString,
       max: 10,
@@ -141,8 +144,9 @@ export class MCPMemoryClient {
   /**
    * Generate embedding using Ollama (FREE, local)
    * Uses nomic-embed-text model (768 dimensions)
+   * Made public for use by dependency inference
    */
-  private async generateEmbedding(text: string): Promise<number[]> {
+  async generateEmbedding(text: string): Promise<number[]> {
     if (!this.ollamaUrl) {
       console.warn('[MCP] No Ollama URL, returning zero vector');
       return Array(768).fill(0);

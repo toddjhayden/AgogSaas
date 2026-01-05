@@ -330,3 +330,90 @@ export async function moveRecommendationToPhase(
 ): Promise<ApiResponse<Recommendation>> {
   return updateRecommendationStatus(id, phase);
 }
+
+// =============================================================================
+// Request Blockers (Dependency Graph)
+// =============================================================================
+
+export interface BlockerInfo {
+  reqNumber: string;
+  title: string;
+  currentPhase: string;
+  isBlocked: boolean;
+  blockerCount: number;
+  blockedBy: string[];
+  blocking: string[];
+}
+
+export interface DeepestUnblockedRequest {
+  reqNumber: string;
+  title: string;
+  priority: string;
+  currentPhase: string;
+  depth: number;
+  blocksCount: number;
+}
+
+export async function getBlockers(reqNumber: string): Promise<ApiResponse<BlockerInfo>> {
+  return fetchApi<BlockerInfo>(`/blockers/${encodeURIComponent(reqNumber)}`);
+}
+
+export async function getDeepestUnblocked(limit: number = 10): Promise<
+  ApiResponse<{ requests: DeepestUnblockedRequest[]; count: number }>
+> {
+  return fetchApi(`/deepest-unblocked?limit=${limit}`);
+}
+
+export async function addBlocker(
+  blockedReqNumber: string,
+  blockingReqNumber: string,
+  reason?: string
+): Promise<ApiResponse<{ blockerId: string }>> {
+  return fetchApi('/blockers', {
+    method: 'POST',
+    body: JSON.stringify({ blockedReqNumber, blockingReqNumber, reason }),
+  });
+}
+
+export async function removeBlocker(
+  blockedReqNumber: string,
+  blockingReqNumber: string
+): Promise<ApiResponse<{ removed: boolean }>> {
+  return fetchApi(`/blockers/${encodeURIComponent(blockedReqNumber)}/${encodeURIComponent(blockingReqNumber)}`, {
+    method: 'DELETE',
+  });
+}
+
+// Get all requests with their blocker info for the graph
+export async function getBlockerGraph(): Promise<
+  ApiResponse<{ requests: (RequestItem & { blockedBy: string[]; blocking: string[] })[] }>
+> {
+  // First get all requests
+  const requestsResponse = await getAllRequests();
+  if (!requestsResponse.success || !requestsResponse.data) {
+    return { success: false, error: requestsResponse.error };
+  }
+
+  // Then get blocker info for each that might have blockers
+  const requests = requestsResponse.data.requests;
+  const enrichedRequests = await Promise.all(
+    requests.map(async (req) => {
+      if (req.isBlocked || req.category === 'request') {
+        const blockerInfo = await getBlockers(req.reqNumber);
+        if (blockerInfo.success && blockerInfo.data) {
+          return {
+            ...req,
+            blockedBy: blockerInfo.data.blockedBy || [],
+            blocking: blockerInfo.data.blocking || [],
+          };
+        }
+      }
+      return { ...req, blockedBy: [], blocking: [] };
+    })
+  );
+
+  return {
+    success: true,
+    data: { requests: enrichedRequests },
+  };
+}
