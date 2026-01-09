@@ -239,13 +239,13 @@ const SecurityAuditDashboard: React.FC = () => {
               <LinearProgress
                 variant="determinate"
                 value={overview?.securityScore || 0}
-                color={getScoreColor(overview?.securityScore || 0) as any}
+                color={getScoreColor(overview?.securityScore || 0) as unknown}
                 sx={{ mb: 1 }}
               />
               <Chip
                 label={overview?.trend}
                 size="small"
-                color={getScoreColor(overview?.securityScore || 0) as any}
+                color={getScoreColor(overview?.securityScore || 0) as unknown}
               />
             </CardContent>
           </Card>
@@ -550,7 +550,7 @@ const SecurityAuditDashboard: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {incidentsData?.securityIncidents?.edges?.map((edge: any) => {
+                  {incidentsData?.securityIncidents?.edges?.map((edge: unknown) => {
                     const incident = edge.node;
                     return (
                       <TableRow key={incident.id}>
@@ -663,7 +663,7 @@ const SecurityAuditDashboard: React.FC = () => {
                   variant="determinate"
                   value={overview?.complianceScore || 0}
                   sx={{ flexGrow: 1 }}
-                  color={getScoreColor(overview?.complianceScore || 0) as any}
+                  color={getScoreColor(overview?.complianceScore || 0) as unknown}
                 />
               </Box>
             </Grid>

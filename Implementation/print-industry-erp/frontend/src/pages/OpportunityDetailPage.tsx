@@ -200,7 +200,7 @@ export const OpportunityDetailPage: React.FC = () => {
   const notes: Note[] = notesData?.getNotesByOpportunity || [];
   const pipelineStages = stagesData?.getPipelineStages || [];
 
-  const currentStage = pipelineStages.find((s: any) => s.id === opportunity?.pipelineStageId);
+  const currentStage = pipelineStages.find((s: unknown) => s.id === opportunity?.pipelineStageId);
 
   const resetActivityForm = () => {
     setActivityFormData({

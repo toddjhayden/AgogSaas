@@ -18,7 +18,7 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; mfa?: string }>({});
 
-  const from = (location.state as any)?.from || '/dashboard';
+  const from = (location.state as unknown)?.from || '/dashboard';
 
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
@@ -50,7 +50,7 @@ export const LoginPage: React.FC = () => {
       await login(email, password, showMfaInput ? mfaCode : undefined);
       toast.success(t('auth.loginSuccess', 'Login successful'));
       navigate(from, { replace: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login failed:', error);
 
       const errorMessage = error.message || '';

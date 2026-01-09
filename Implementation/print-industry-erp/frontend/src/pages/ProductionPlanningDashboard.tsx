@@ -73,7 +73,7 @@ export const ProductionPlanningDashboard: React.FC = () => {
       };
     }
 
-    const orders = data.productionOrders.edges.map((edge: any) => edge.node);
+    const orders = data.productionOrders.edges.map((edge: unknown) => edge.node);
     const total = orders.length;
     const inProgress = orders.filter((o: ProductionOrder) => o.status === 'IN_PROGRESS').length;
     const completed = orders.filter((o: ProductionOrder) => o.status === 'COMPLETED').length;
@@ -209,7 +209,7 @@ export const ProductionPlanningDashboard: React.FC = () => {
 
   const filteredData = useMemo(() => {
     if (!data?.productionOrders?.edges) return [];
-    return data.productionOrders.edges.map((edge: any) => edge.node);
+    return data.productionOrders.edges.map((edge: unknown) => edge.node);
   }, [data]);
 
   if (loading) {

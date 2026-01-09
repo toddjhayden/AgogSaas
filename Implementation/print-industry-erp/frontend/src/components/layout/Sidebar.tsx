@@ -51,6 +51,7 @@ import {
   Rocket,
   Undo2,
   ShieldAlert,
+  HeartPulse,
 } from 'lucide-react';
 
 const navItems = [
@@ -80,6 +81,9 @@ const navItems = [
   { path: '/quality/spc/alerts', icon: AlertTriangle, label: 'nav.spcAlerts' },
   { path: '/marketplace', icon: ShoppingCart, label: 'nav.marketplace' },
   { path: '/approvals/my-approvals', icon: CheckSquare, label: 'nav.myApprovals' },
+  { path: '/approvals/po', icon: FileCheck, label: 'nav.poApprovals' },
+  { path: '/approvals/workflow-config', icon: Settings, label: 'nav.workflowConfig' },
+  { path: '/approvals/authority-management', icon: ShieldCheck, label: 'nav.authorityManagement' },
   { path: '/procurement/purchase-orders', icon: FileText, label: 'nav.procurement' },
   { path: '/procurement/vendor-scorecard', icon: Award, label: 'nav.vendorScorecard' },
   { path: '/procurement/vendor-comparison', icon: Users, label: 'nav.vendorComparison' },
@@ -99,18 +103,27 @@ const navItems = [
   { path: '/workflows/my-tasks', icon: ListTodo, label: 'nav.myTasks' },
   { path: '/workflows/instances', icon: GitBranch, label: 'nav.workflowInstances' },
   { path: '/workflows/analytics', icon: Workflow, label: 'nav.workflowAnalytics' },
+  { path: '/workflows/recovery', icon: ShieldAlert, label: 'nav.workflowRecovery' },
   // Supplier Portal - REQ-STRATEGIC-AUTO-1767116143666
   { path: '/supplier', icon: Truck, label: 'nav.supplierPortal' },
   { path: '/supplier/purchase-orders', icon: ClipboardList, label: 'nav.supplierPurchaseOrders' },
   { path: '/supplier/performance', icon: Award, label: 'nav.supplierPerformance' },
   // DevOps/Edge - REQ-DEVOPS-EDGE-PROVISION-1767150339448
   { path: '/devops/edge-provisioning', icon: Server, label: 'nav.edgeProvisioning' },
+  // DevOps Edge Monitoring - REQ-DEVOPS-EDGE-MONITORING-1767150339448
+  { path: '/devops/edge-monitoring', icon: Activity, label: 'nav.edgeMonitoring' },
   // DevOps Deployment Approvals - REQ-DEVOPS-DEPLOY-APPROVAL-1767150339448
   { path: '/devops/deployment-approvals', icon: Rocket, label: 'nav.deploymentApprovals' },
   // DevOps Rollback Decision - REQ-DEVOPS-ROLLBACK-1767150339448
   { path: '/devops/rollback-decision', icon: Undo2, label: 'nav.rollbackDecision' },
   // Security Audit Dashboard - REQ-DEVOPS-SECURITY-1767150339448
   { path: '/security/audit', icon: ShieldAlert, label: 'nav.securityAudit' },
+  // Database Replication Monitoring - REQ-1767364752529
+  { path: '/database/replication-monitoring', icon: Database, label: 'nav.databaseReplication' },
+  // Database Performance Dashboard - REQ-P0-1767915020217-kcl8m
+  { path: '/database/performance', icon: Gauge, label: 'nav.databasePerformance' },
+  // Runtime Dependency Health Dashboard - REQ-AUDIT-1767982074
+  { path: '/monitoring/runtime-dependencies', icon: HeartPulse, label: 'nav.runtimeDependencies' },
 ];
 
 export const Sidebar: React.FC = () => {

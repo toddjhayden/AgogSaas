@@ -105,7 +105,7 @@ export const FinanceDashboard: React.FC = () => {
   // Cash flow trend data
   const cashFlowChartData = React.useMemo(() => {
     if (!cashFlowData?.cashFlowForecast) return [];
-    return cashFlowData.cashFlowForecast.map((item: any) => ({
+    return cashFlowData.cashFlowForecast.map((item: unknown) => ({
       date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       balance: item.endingBalance,
       inflows: item.cashInflows.reduce((sum: number, inflow: any) => sum + inflow.amount, 0),

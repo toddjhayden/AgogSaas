@@ -375,6 +375,7 @@ export const GET_VENDOR_PERFORMANCE_ALERTS = gql`
     $alertStatus: AlertStatus
     $alertType: AlertType
     $alertCategory: AlertCategory
+    $severity: AlertSeverity
   ) {
     getVendorPerformanceAlerts(
       tenantId: $tenantId
@@ -382,6 +383,7 @@ export const GET_VENDOR_PERFORMANCE_ALERTS = gql`
       alertStatus: $alertStatus
       alertType: $alertType
       alertCategory: $alertCategory
+      severity: $severity
     ) {
       id
       tenantId
@@ -389,6 +391,7 @@ export const GET_VENDOR_PERFORMANCE_ALERTS = gql`
 
       alertType
       alertCategory
+      severity
       alertMessage
       metricValue
       thresholdValue

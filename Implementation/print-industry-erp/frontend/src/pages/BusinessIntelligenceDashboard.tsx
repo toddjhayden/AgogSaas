@@ -131,7 +131,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.totalRevenue')}
             currentValue={kpiSummary?.financialKPIs.totalRevenue || 0}
             unit="$"
-            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as unknown}
             trendPercent={5.2}
             sparklineData={[]}
           />
@@ -140,7 +140,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.netProfit')}
             currentValue={kpiSummary?.financialKPIs.netProfit || 0}
             unit="$"
-            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as unknown}
             trendPercent={3.8}
             sparklineData={[]}
           />
@@ -149,7 +149,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.profitMargin')}
             currentValue={kpiSummary?.financialKPIs.profitMargin || 0}
             unit="%"
-            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as unknown}
             trendPercent={1.5}
             sparklineData={[]}
           />
@@ -158,7 +158,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.totalCosts')}
             currentValue={kpiSummary?.financialKPIs.totalCosts || 0}
             unit="$"
-            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.financialKPIs.trend || 'stable') as unknown}
             trendPercent={2.1}
             sparklineData={[]}
           />
@@ -177,7 +177,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.avgCycleTime')}
             currentValue={kpiSummary?.operationalKPIs.avgCycleTime || 0}
             unit="days"
-            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as unknown}
             trendPercent={-2.3}
             sparklineData={[]}
           />
@@ -186,7 +186,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.onTimeDelivery')}
             currentValue={kpiSummary?.operationalKPIs.onTimeDeliveryRate || 0}
             unit="%"
-            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as unknown}
             trendPercent={1.8}
             sparklineData={[]}
           />
@@ -195,7 +195,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.prodEfficiency')}
             currentValue={kpiSummary?.operationalKPIs.productionEfficiency || 0}
             unit="%"
-            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as unknown}
             trendPercent={3.2}
             sparklineData={[]}
           />
@@ -204,7 +204,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.materialUtil')}
             currentValue={kpiSummary?.operationalKPIs.materialUtilization || 0}
             unit="%"
-            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.operationalKPIs.trend || 'stable') as unknown}
             trendPercent={1.1}
             sparklineData={[]}
           />
@@ -225,7 +225,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
               name={t('analytics.avgLeadTime')}
               currentValue={kpiSummary?.vendorKPIs.avgLeadTime || 0}
               unit="days"
-              trend={getTrendIcon(kpiSummary?.vendorKPIs.trend || 'stable') as any}
+              trend={getTrendIcon(kpiSummary?.vendorKPIs.trend || 'stable') as unknown}
               trendPercent={-1.5}
               sparklineData={[]}
             />
@@ -234,7 +234,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
               name={t('analytics.vendorOnTime')}
               currentValue={kpiSummary?.vendorKPIs.avgOnTimeDelivery || 0}
               unit="%"
-              trend={getTrendIcon(kpiSummary?.vendorKPIs.trend || 'stable') as any}
+              trend={getTrendIcon(kpiSummary?.vendorKPIs.trend || 'stable') as unknown}
               trendPercent={2.1}
               sparklineData={[]}
             />
@@ -243,7 +243,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
               name={t('analytics.qualityScore')}
               currentValue={kpiSummary?.vendorKPIs.avgQualityScore || 0}
               unit=""
-              trend={getTrendIcon(kpiSummary?.vendorKPIs.trend || 'stable') as any}
+              trend={getTrendIcon(kpiSummary?.vendorKPIs.trend || 'stable') as unknown}
               trendPercent={0.8}
               sparklineData={[]}
             />
@@ -262,7 +262,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
               name={t('analytics.activeCustomers')}
               currentValue={kpiSummary?.customerKPIs.activeCustomerCount || 0}
               unit=""
-              trend={getTrendIcon(kpiSummary?.customerKPIs.trend || 'stable') as any}
+              trend={getTrendIcon(kpiSummary?.customerKPIs.trend || 'stable') as unknown}
               trendPercent={5.3}
               sparklineData={[]}
             />
@@ -271,7 +271,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
               name={t('analytics.avgOrderValue')}
               currentValue={kpiSummary?.customerKPIs.avgOrderValue || 0}
               unit="$"
-              trend={getTrendIcon(kpiSummary?.customerKPIs.trend || 'stable') as any}
+              trend={getTrendIcon(kpiSummary?.customerKPIs.trend || 'stable') as unknown}
               trendPercent={3.7}
               sparklineData={[]}
             />
@@ -280,7 +280,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
               name={t('analytics.retentionRate')}
               currentValue={kpiSummary?.customerKPIs.customerRetentionRate || 0}
               unit="%"
-              trend={getTrendIcon(kpiSummary?.customerKPIs.trend || 'stable') as any}
+              trend={getTrendIcon(kpiSummary?.customerKPIs.trend || 'stable') as unknown}
               trendPercent={1.2}
               sparklineData={[]}
             />
@@ -300,7 +300,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.forecastAccuracy')}
             currentValue={kpiSummary?.forecastKPIs.forecastAccuracy || 0}
             unit="%"
-            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as unknown}
             trendPercent={2.5}
             sparklineData={[]}
           />
@@ -309,7 +309,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.stockoutRate')}
             currentValue={kpiSummary?.forecastKPIs.stockoutRate || 0}
             unit="%"
-            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as unknown}
             trendPercent={-1.8}
             sparklineData={[]}
           />
@@ -318,7 +318,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.excessInventory')}
             currentValue={kpiSummary?.forecastKPIs.excessInventoryRate || 0}
             unit="%"
-            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as unknown}
             trendPercent={-0.9}
             sparklineData={[]}
           />
@@ -327,7 +327,7 @@ export const BusinessIntelligenceDashboard: React.FC = () => {
             name={t('analytics.turnoverDays')}
             currentValue={kpiSummary?.forecastKPIs.turnoverDays || 0}
             unit="days"
-            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as any}
+            trend={getTrendIcon(kpiSummary?.forecastKPIs.trend || 'stable') as unknown}
             trendPercent={-2.1}
             sparklineData={[]}
           />

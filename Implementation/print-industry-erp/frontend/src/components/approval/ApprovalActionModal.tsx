@@ -47,7 +47,7 @@ export const ApprovalActionModal: React.FC<ApprovalActionModalProps> = ({
       }
       setComments('');
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message || t('common.error'));
     } finally {
       setIsSubmitting(false);

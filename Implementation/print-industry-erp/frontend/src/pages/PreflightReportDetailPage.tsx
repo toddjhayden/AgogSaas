@@ -94,9 +94,9 @@ export const PreflightReportDetailPage: React.FC = () => {
   const report = reportData?.preflightReport;
   const issues = issuesData?.preflightIssues || [];
 
-  const errors = issues.filter((i: any) => i.issueType === 'ERROR');
-  const warnings = issues.filter((i: any) => i.issueType === 'WARNING');
-  // Info issues could be displayed if needed: issues.filter((i: any) => i.issueType === 'INFO')
+  const errors = issues.filter((i: unknown) => i.issueType === 'ERROR');
+  const warnings = issues.filter((i: unknown) => i.issueType === 'WARNING');
+  // Info issues could be displayed if needed: issues.filter((i: unknown) => i.issueType === 'INFO')
 
   if (reportLoading) {
     return (
@@ -275,8 +275,8 @@ export const PreflightReportDetailPage: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-600">{t('preflight.dimensions', 'Dimensions')}</p>
                   <p className="font-medium">
-                    {report.pdfMetadata.dimensions.widthInches.toFixed(2)}" x{' '}
-                    {report.pdfMetadata.dimensions.heightInches.toFixed(2)}"
+                    {report.pdfMetadata.dimensions.widthInches.toFixed(2)}&quot; x{' '}
+                    {report.pdfMetadata.dimensions.heightInches.toFixed(2)}&quot;
                   </p>
                 </div>
               </>

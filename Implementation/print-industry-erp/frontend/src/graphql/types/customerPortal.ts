@@ -188,7 +188,7 @@ export interface Product {
 export interface CustomerQuoteRequestInput {
   productId: string;
   quantity: number;
-  specifications?: Record<string, any>;
+  specifications?: Record<string, unknown>;
   artworkFileUrl?: string;
   requestedDeliveryDate?: string;
   notes?: string;
@@ -201,5 +201,5 @@ export interface CustomerProfileUpdateInput {
   phone?: string;
   preferredLanguage?: string;
   timezone?: string;
-  notificationPreferences?: Record<string, any>;
+  notificationPreferences?: Record<string, unknown>;
 }

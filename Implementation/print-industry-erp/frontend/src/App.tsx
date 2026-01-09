@@ -5,7 +5,7 @@ import { I18nextProvider } from 'react-i18next';
 import { Toaster, toast } from 'react-hot-toast';
 import { apolloClient } from './graphql/client';
 import i18n from './i18n/config';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { MainLayout } from './components/layout/MainLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { LoginPage } from './pages/auth/LoginPage';
@@ -43,6 +43,7 @@ import { VendorScorecardDashboard } from './pages/VendorScorecardDashboard';
 import { VendorScorecardEnhancedDashboard } from './pages/VendorScorecardEnhancedDashboard';
 import { VendorComparisonDashboard } from './pages/VendorComparisonDashboard';
 import { VendorScorecardConfigPage } from './pages/VendorScorecardConfigPage';
+import { VendorAlertsManagementPage } from './pages/VendorAlertsManagementPage';
 import { InventoryForecastingDashboard } from './pages/InventoryForecastingDashboard';
 import SalesQuoteDashboard from './pages/SalesQuoteDashboard';
 import SalesQuoteDetailPage from './pages/SalesQuoteDetailPage';
@@ -72,6 +73,7 @@ import MyTasksPage from './pages/MyTasksPage';
 import WorkflowInstancesPage from './pages/WorkflowInstancesPage';
 import WorkflowInstanceDetailPage from './pages/WorkflowInstanceDetailPage';
 import WorkflowAnalyticsDashboard from './pages/WorkflowAnalyticsDashboard';
+import WorkflowRecoveryMonitorPage from './pages/WorkflowRecoveryMonitorPage';
 import { QualityGateValidationDetailPage } from './pages/QualityGateValidationDetailPage';
 import { CRMDashboard } from './pages/CRMDashboard';
 import { ContactManagementPage } from './pages/ContactManagementPage';
@@ -84,9 +86,17 @@ import SupplierPurchaseOrderDetailPage from './pages/SupplierPurchaseOrderDetail
 import SupplierCreateASNPage from './pages/SupplierCreateASNPage';
 import SupplierPerformanceDashboard from './pages/SupplierPerformanceDashboard';
 import { EdgeProvisioningPage } from './pages/EdgeProvisioningPage';
+import { EdgeMonitoringDashboardPage } from './pages/EdgeMonitoringDashboardPage';
 import DeploymentApprovalPage from './pages/DeploymentApprovalPage';
 import RollbackDecisionPage from './pages/RollbackDecisionPage';
 import SecurityAuditDashboard from './pages/SecurityAuditDashboard';
+import { POApprovalPage } from './pages/POApprovalPage';
+import { ApprovalWorkflowConfigPage } from './pages/ApprovalWorkflowConfigPage';
+import { ApprovalAuthorityManagementPage } from './pages/ApprovalAuthorityManagementPage';
+import { PurchaseOrderApprovalPage } from './pages/PurchaseOrderApprovalPage';
+import { DatabaseReplicationMonitoringPage } from './pages/DatabaseReplicationMonitoringPage';
+import { DatabasePerformanceDashboard } from './pages/DatabasePerformanceDashboard';
+import { RuntimeDependencyHealthDashboard } from './pages/RuntimeDependencyHealthDashboard';
 import './index.css';
 
 const App: React.FC = () => {
@@ -146,6 +156,10 @@ const App: React.FC = () => {
                 <Route path="/procurement/purchase-orders/:id" element={<PurchaseOrderDetailPageEnhanced />} />
                 <Route path="/approvals/my-approvals" element={<MyApprovalsPage />} />
                 <Route path="/procurement/my-approvals" element={<Navigate to="/approvals/my-approvals" replace />} />
+                <Route path="/approvals/po" element={<POApprovalPage />} />
+                <Route path="/approvals/workflow-config" element={<ApprovalWorkflowConfigPage />} />
+                <Route path="/approvals/authority-management" element={<ApprovalAuthorityManagementPage />} />
+                <Route path="/procurement/purchase-orders/:id/approve" element={<PurchaseOrderApprovalPage />} />
                 <Route path="/wms/bin-utilization" element={<BinUtilizationDashboard />} />
                 <Route path="/wms/bin-utilization-enhanced" element={<BinUtilizationEnhancedDashboard />} />
                 <Route path="/wms/health" element={<BinOptimizationHealthDashboard />} />
@@ -157,7 +171,8 @@ const App: React.FC = () => {
                 <Route path="/procurement/vendor-scorecard" element={<VendorScorecardDashboard />} />
                 <Route path="/procurement/vendor-scorecard-enhanced" element={<VendorScorecardEnhancedDashboard />} />
                 <Route path="/procurement/vendor-comparison" element={<VendorComparisonDashboard />} />
-                <Route path="/procurement/vendor-config" element={<VendorScorecardConfigPage />} />
+                <Route path="/procurement/vendor-scorecard-config" element={<VendorScorecardConfigPage />} />
+                <Route path="/procurement/vendor-alerts" element={<VendorAlertsManagementPage />} />
                 <Route path="/operations/forecasting" element={<InventoryForecastingDashboard />} />
                 <Route path="/operations/production-planning" element={<ProductionPlanningDashboard />} />
                 <Route path="/operations/work-center-monitoring" element={<WorkCenterMonitoringDashboard />} />
@@ -187,6 +202,7 @@ const App: React.FC = () => {
                 <Route path="/workflows/instances" element={<WorkflowInstancesPage />} />
                 <Route path="/workflows/instances/:instanceId" element={<WorkflowInstanceDetailPage />} />
                 <Route path="/workflows/analytics" element={<WorkflowAnalyticsDashboard />} />
+                <Route path="/workflows/recovery" element={<WorkflowRecoveryMonitorPage />} />
                 <Route path="/quality/code-quality/validations/:id" element={<QualityGateValidationDetailPage />} />
                 <Route path="/crm" element={<CRMDashboard />} />
                 <Route path="/crm/contacts" element={<ContactManagementPage />} />
@@ -203,12 +219,20 @@ const App: React.FC = () => {
                 <Route path="/supplier/performance" element={<SupplierPerformanceDashboard />} />
                 {/* DevOps/Edge Routes - REQ-DEVOPS-EDGE-PROVISION-1767150339448 */}
                 <Route path="/devops/edge-provisioning" element={<EdgeProvisioningPage />} />
+                {/* DevOps Edge Monitoring - REQ-DEVOPS-EDGE-MONITORING-1767150339448 */}
+                <Route path="/devops/edge-monitoring" element={<EdgeMonitoringDashboardPage />} />
                 {/* DevOps Deployment Approvals - REQ-DEVOPS-DEPLOY-APPROVAL-1767150339448 */}
                 <Route path="/devops/deployment-approvals" element={<DeploymentApprovalPage />} />
                 {/* DevOps Rollback Decision - REQ-DEVOPS-ROLLBACK-1767150339448 */}
                 <Route path="/devops/rollback-decision" element={<RollbackDecisionPage />} />
                 {/* Security Audit Dashboard - REQ-DEVOPS-SECURITY-1767150339448 */}
                 <Route path="/security/audit" element={<SecurityAuditDashboard />} />
+                {/* Database Replication Monitoring - REQ-1767364752529 */}
+                <Route path="/database/replication-monitoring" element={<DatabaseReplicationMonitoringPage />} />
+                {/* Database Performance Dashboard - REQ-P0-1767915020217-kcl8m */}
+                <Route path="/database/performance" element={<DatabasePerformanceDashboard />} />
+                {/* Runtime Dependency Health Dashboard - REQ-AUDIT-1767982074 */}
+                <Route path="/monitoring/runtime-dependencies" element={<RuntimeDependencyHealthDashboard />} />
               </Route>
             </Routes>
           </Router>

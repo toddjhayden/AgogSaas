@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTranslation } from 'react-i18next';
+import { useSnackbar } from 'notistack';
 import {
   Box,
   Card,
@@ -29,6 +30,7 @@ import {
   FormControl,
   InputLabel,
   Select,
+  SelectChangeEvent,
 } from '@mui/material';
 import {
   Undo as RollbackIcon,
@@ -43,6 +45,18 @@ import {
   GET_ROLLBACK_HEALTH_METRICS,
   ROLLBACK_DEPLOYMENT,
 } from '../graphql/queries/rollbackDecision';
+import type {
+  RollbackEligibleDeployment,
+  DeploymentEnvironment,
+  RollbackType,
+  RollbackHealthMetrics,
+  DeploymentRollback,
+  GetRollbackEligibleDeploymentsResponse,
+  GetRollbackDecisionCriteriaResponse,
+  GetRollbackHealthMetricsResponse,
+  GetDeploymentRollbacksResponse,
+} from '../types/rollback';
+import { useHealthScore } from '../hooks/useHealthScore';
 
 /**
  * RollbackDecisionPage
@@ -57,27 +71,41 @@ import {
  * - Manual rollback execution
  * - Rollback history tracking
  * - Auto-rollback rule configuration display
+ *
+ * P1 Improvements Applied (REQ-DEVOPS-ROLLBACK-1767150339448):
+ * - TypeScript types for all data structures
+ * - Custom hook for health score calculations
+ * - Emergency rollback confirmation dialog
+ * - Toast notifications instead of alert()
  */
 const RollbackDecisionPage: React.FC = () => {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
+  const { calculateHealthScore, getHealthScoreColor, getHealthCheckColor } =
+    useHealthScore();
 
   // Mock user context (replace with actual auth context)
   const tenantId = 'default';
   const currentUserId = 'user123';
 
   // State
-  const [environmentFilter, setEnvironmentFilter] = useState<string>('');
-  const [selectedDeployment, setSelectedDeployment] = useState<any>(null);
+  const [environmentFilter, setEnvironmentFilter] =
+    useState<DeploymentEnvironment | ''>('');
+  const [selectedDeployment, setSelectedDeployment] =
+    useState<RollbackEligibleDeployment | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Dialog states
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [emergencyConfirmDialogOpen, setEmergencyConfirmDialogOpen] =
+    useState(false);
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
   // Form states
   const [rollbackReason, setRollbackReason] = useState('');
-  const [rollbackType, setRollbackType] = useState('MANUAL');
+  const [rollbackType, setRollbackType] = useState<RollbackType>('MANUAL');
+  const [emergencyConfirmText, setEmergencyConfirmText] = useState('');
 
   // GraphQL Queries
   const {
@@ -85,48 +113,49 @@ const RollbackDecisionPage: React.FC = () => {
     loading: deploymentsLoading,
     error: deploymentsError,
     refetch: refetchDeployments,
-  } = useQuery(GET_ROLLBACK_ELIGIBLE_DEPLOYMENTS, {
-    variables: {
-      tenantId,
-      environment: environmentFilter || undefined,
-      limit: 50,
-      offset: 0,
-    },
-    pollInterval: autoRefresh ? 30000 : 0,
-  });
+  } = useQuery<GetRollbackEligibleDeploymentsResponse>(
+    GET_ROLLBACK_ELIGIBLE_DEPLOYMENTS,
+    {
+      variables: {
+        tenantId,
+        environment: environmentFilter || undefined,
+        limit: 50,
+        offset: 0,
+      },
+      pollInterval: autoRefresh ? 30000 : 0,
+    }
+  );
 
-  const {
-    data: criteriaData,
-  } = useQuery(GET_ROLLBACK_DECISION_CRITERIA, {
-    variables: {
-      tenantId,
-      environment: environmentFilter || undefined,
-      isActive: true,
-    },
-  });
+  const { data: criteriaData } =
+    useQuery<GetRollbackDecisionCriteriaResponse>(
+      GET_ROLLBACK_DECISION_CRITERIA,
+      {
+        variables: {
+          tenantId,
+          environment: environmentFilter || undefined,
+          isActive: true,
+        },
+      }
+    );
 
-  const {
-    data: metricsData,
-    loading: metricsLoading,
-  } = useQuery(GET_ROLLBACK_HEALTH_METRICS, {
-    variables: {
-      deploymentId: selectedDeployment?.deploymentId,
-      tenantId,
-      limit: 20,
-    },
-    skip: !selectedDeployment || !metricsDialogOpen,
-  });
+  const { data: metricsData, loading: metricsLoading } =
+    useQuery<GetRollbackHealthMetricsResponse>(GET_ROLLBACK_HEALTH_METRICS, {
+      variables: {
+        deploymentId: selectedDeployment?.deploymentId,
+        tenantId,
+        limit: 20,
+      },
+      skip: !selectedDeployment || !metricsDialogOpen,
+    });
 
-  const {
-    data: historyData,
-    loading: historyLoading,
-  } = useQuery(GET_DEPLOYMENT_ROLLBACKS, {
-    variables: {
-      deploymentId: selectedDeployment?.deploymentId,
-      tenantId,
-    },
-    skip: !selectedDeployment || !historyDialogOpen,
-  });
+  const { data: historyData, loading: historyLoading } =
+    useQuery<GetDeploymentRollbacksResponse>(GET_DEPLOYMENT_ROLLBACKS, {
+      variables: {
+        deploymentId: selectedDeployment?.deploymentId,
+        tenantId,
+      },
+      skip: !selectedDeployment || !historyDialogOpen,
+    });
 
   // GraphQL Mutations
   const [rollbackDeployment] = useMutation(ROLLBACK_DEPLOYMENT);
@@ -136,8 +165,32 @@ const RollbackDecisionPage: React.FC = () => {
     refetchDeployments();
   };
 
-  // Execute rollback
-  const handleRollback = async () => {
+  // Handle rollback type change
+  const handleRollbackTypeChange = (event: SelectChangeEvent<RollbackType>) => {
+    const newType = event.target.value as RollbackType;
+    setRollbackType(newType);
+  };
+
+  // Handle environment filter change
+  const handleEnvironmentFilterChange = (event: SelectChangeEvent) => {
+    setEnvironmentFilter(event.target.value as DeploymentEnvironment | '');
+  };
+
+  // Initiate rollback (with emergency confirmation if needed)
+  const handleInitiateRollback = () => {
+    if (!selectedDeployment || !rollbackReason.trim()) return;
+
+    // P1: Emergency rollback confirmation
+    if (rollbackType === 'EMERGENCY') {
+      setRollbackDialogOpen(false);
+      setEmergencyConfirmDialogOpen(true);
+    } else {
+      executeRollback();
+    }
+  };
+
+  // Execute rollback after confirmations
+  const executeRollback = async () => {
     if (!selectedDeployment || !rollbackReason.trim()) return;
 
     try {
@@ -151,14 +204,45 @@ const RollbackDecisionPage: React.FC = () => {
         },
       });
 
+      // Close all dialogs
       setRollbackDialogOpen(false);
+      setEmergencyConfirmDialogOpen(false);
       setRollbackReason('');
+      setEmergencyConfirmText('');
       setSelectedDeployment(null);
+
+      // Refresh data
       refetchDeployments();
-      alert('Rollback initiated successfully');
+
+      // P2: Toast notification instead of alert()
+      enqueueSnackbar(
+        t('rollback.success.initiated', {
+          deployment: selectedDeployment.deploymentNumber,
+        }),
+        { variant: 'success' }
+      );
     } catch (error) {
       console.error('Error rolling back deployment:', error);
-      alert('Failed to rollback deployment');
+
+      // P2: Toast notification instead of alert()
+      enqueueSnackbar(
+        t('rollback.error.failed', {
+          deployment: selectedDeployment.deploymentNumber,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+        { variant: 'error' }
+      );
+    }
+  };
+
+  // Handle emergency confirmation
+  const handleEmergencyConfirm = () => {
+    if (emergencyConfirmText === 'EMERGENCY') {
+      executeRollback();
+    } else {
+      enqueueSnackbar(t('rollback.error.emergencyConfirmFailed'), {
+        variant: 'warning',
+      });
     }
   };
 
@@ -168,7 +252,9 @@ const RollbackDecisionPage: React.FC = () => {
   const rollbackHistory = historyData?.getDeploymentRollbacks || [];
 
   // Environment badge color
-  const getEnvironmentColor = (env: string) => {
+  const getEnvironmentColor = (
+    env: DeploymentEnvironment
+  ): 'error' | 'warning' | 'info' | 'default' => {
     switch (env) {
       case 'PRODUCTION':
         return 'error';
@@ -181,51 +267,11 @@ const RollbackDecisionPage: React.FC = () => {
     }
   };
 
-  // Health check status color
-  const getHealthColor = (status: string) => {
-    switch (status) {
-      case 'PASSED':
-        return 'success';
-      case 'FAILED':
-        return 'error';
-      case 'PENDING':
-        return 'warning';
-      default:
-        return 'default';
-    }
-  };
-
   // Format time since deployment
-  const formatTimeSince = (minutes: number) => {
+  const formatTimeSince = (minutes: number): string => {
     if (minutes < 60) return `${Math.round(minutes)}m ago`;
     if (minutes < 1440) return `${Math.round(minutes / 60)}h ago`;
     return `${Math.round(minutes / 1440)}d ago`;
-  };
-
-  // Health score based on metrics
-  const getHealthScore = (deployment: any) => {
-    let score = 100;
-
-    if (deployment.currentErrorRatePercent) {
-      score -= deployment.currentErrorRatePercent * 10;
-    }
-
-    if (deployment.currentSuccessRatePercent) {
-      score = Math.min(score, deployment.currentSuccessRatePercent);
-    }
-
-    if (deployment.postDeploymentHealthCheck === 'FAILED') {
-      score -= 30;
-    }
-
-    return Math.max(0, Math.min(100, score));
-  };
-
-  // Health score color
-  const getHealthScoreColor = (score: number) => {
-    if (score >= 90) return 'success';
-    if (score >= 70) return 'warning';
-    return 'error';
   };
 
   return (
@@ -280,7 +326,11 @@ const RollbackDecisionPage: React.FC = () => {
                 {t('rollback.stats.unhealthyDeployments')}
               </Typography>
               <Typography variant="h4" color="warning.main">
-                {deployments.filter((d: any) => getHealthScore(d) < 70).length}
+                {
+                  deployments.filter(
+                    (d) => calculateHealthScore(d) < 70
+                  ).length
+                }
               </Typography>
             </CardContent>
           </Card>
@@ -292,7 +342,7 @@ const RollbackDecisionPage: React.FC = () => {
                 {t('rollback.stats.autoRollbackEnabled')}
               </Typography>
               <Typography variant="h4" color="error.main">
-                {deployments.filter((d: any) => d.autoRollbackEnabled).length}
+                {deployments.filter((d) => d.autoRollbackEnabled).length}
               </Typography>
             </CardContent>
           </Card>
@@ -306,7 +356,7 @@ const RollbackDecisionPage: React.FC = () => {
             <InputLabel>{t('rollback.filters.environment')}</InputLabel>
             <Select
               value={environmentFilter}
-              onChange={(e) => setEnvironmentFilter(e.target.value)}
+              onChange={handleEnvironmentFilterChange}
               label={t('rollback.filters.environment')}
             >
               <MenuItem value="">{t('common.all')}</MenuItem>
@@ -355,8 +405,8 @@ const RollbackDecisionPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {deployments.map((deployment: any) => {
-                const healthScore = getHealthScore(deployment);
+              {deployments.map((deployment: RollbackEligibleDeployment) => {
+                const healthScore = calculateHealthScore(deployment);
                 return (
                   <TableRow key={deployment.deploymentId}>
                     <TableCell>
@@ -420,7 +470,9 @@ const RollbackDecisionPage: React.FC = () => {
                         {deployment.postDeploymentHealthCheck && (
                           <Chip
                             label={deployment.postDeploymentHealthCheck}
-                            color={getHealthColor(deployment.postDeploymentHealthCheck)}
+                            color={getHealthCheckColor(
+                              deployment.postDeploymentHealthCheck
+                            )}
                             size="small"
                           />
                         )}
@@ -488,13 +540,18 @@ const RollbackDecisionPage: React.FC = () => {
             <InputLabel>{t('rollback.dialogs.rollback.type')}</InputLabel>
             <Select
               value={rollbackType}
-              onChange={(e) => setRollbackType(e.target.value)}
+              onChange={handleRollbackTypeChange}
               label={t('rollback.dialogs.rollback.type')}
             >
               <MenuItem value="MANUAL">Manual Rollback</MenuItem>
               <MenuItem value="EMERGENCY">Emergency Rollback</MenuItem>
             </Select>
           </FormControl>
+          {rollbackType === 'EMERGENCY' && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {t('rollback.dialogs.rollback.emergencyWarning')}
+            </Alert>
+          )}
           <TextField
             fullWidth
             required
@@ -508,14 +565,72 @@ const RollbackDecisionPage: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRollbackDialogOpen(false)}>{t('common.cancel')}</Button>
+          <Button onClick={() => setRollbackDialogOpen(false)}>
+            {t('common.cancel')}
+          </Button>
           <Button
-            onClick={handleRollback}
+            onClick={handleInitiateRollback}
             variant="contained"
             color="error"
             disabled={!rollbackReason.trim()}
           >
             {t('rollback.actions.rollback')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Emergency Rollback Confirmation Dialog - P1 Improvement */}
+      <Dialog
+        open={emergencyConfirmDialogOpen}
+        onClose={() => setEmergencyConfirmDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main' }}>
+          {t('rollback.dialogs.emergency.title')}
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {t('rollback.dialogs.emergency.criticalWarning')}
+          </Alert>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            {t('rollback.dialogs.emergency.message', {
+              deployment: selectedDeployment?.deploymentNumber,
+            })}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2, fontWeight: 'bold' }}>
+            {t('rollback.dialogs.emergency.confirmInstruction')}
+          </Typography>
+          <TextField
+            fullWidth
+            required
+            label={t('rollback.dialogs.emergency.confirmLabel')}
+            value={emergencyConfirmText}
+            onChange={(e) => setEmergencyConfirmText(e.target.value)}
+            placeholder="EMERGENCY"
+            error={
+              emergencyConfirmText.length > 0 &&
+              emergencyConfirmText !== 'EMERGENCY'
+            }
+            helperText={
+              emergencyConfirmText.length > 0 &&
+              emergencyConfirmText !== 'EMERGENCY'
+                ? t('rollback.dialogs.emergency.confirmError')
+                : ''
+            }
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEmergencyConfirmDialogOpen(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            onClick={handleEmergencyConfirm}
+            variant="contained"
+            color="error"
+            disabled={emergencyConfirmText !== 'EMERGENCY'}
+          >
+            {t('rollback.dialogs.emergency.confirmButton')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -541,17 +656,25 @@ const RollbackDecisionPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {metrics.map((metric: any) => (
+                  {metrics.map((metric: RollbackHealthMetrics) => (
                     <TableRow key={metric.id}>
-                      <TableCell>{formatTimeSince(metric.minutesSinceDeployment)}</TableCell>
                       <TableCell>
-                        {metric.errorRatePercent !== null ? `${metric.errorRatePercent.toFixed(2)}%` : 'N/A'}
+                        {formatTimeSince(metric.minutesSinceDeployment)}
                       </TableCell>
                       <TableCell>
-                        {metric.successRatePercent !== null ? `${metric.successRatePercent.toFixed(2)}%` : 'N/A'}
+                        {metric.errorRatePercent !== null
+                          ? `${metric.errorRatePercent.toFixed(2)}%`
+                          : 'N/A'}
                       </TableCell>
                       <TableCell>
-                        {metric.avgResponseTimeMs !== null ? `${metric.avgResponseTimeMs}ms` : 'N/A'}
+                        {metric.successRatePercent !== null
+                          ? `${metric.successRatePercent.toFixed(2)}%`
+                          : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        {metric.avgResponseTimeMs !== null
+                          ? `${metric.avgResponseTimeMs}ms`
+                          : 'N/A'}
                       </TableCell>
                       <TableCell>
                         {metric.triggersRollbackCriteria ? (
@@ -593,7 +716,7 @@ const RollbackDecisionPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {rollbackHistory.map((rollback: any) => (
+                  {rollbackHistory.map((rollback: DeploymentRollback) => (
                     <TableRow key={rollback.id}>
                       <TableCell>{rollback.rollbackNumber}</TableCell>
                       <TableCell>
@@ -603,7 +726,9 @@ const RollbackDecisionPage: React.FC = () => {
                       <TableCell>
                         <Chip
                           label={rollback.status}
-                          color={rollback.status === 'COMPLETED' ? 'success' : 'default'}
+                          color={
+                            rollback.status === 'COMPLETED' ? 'success' : 'default'
+                          }
                           size="small"
                         />
                       </TableCell>

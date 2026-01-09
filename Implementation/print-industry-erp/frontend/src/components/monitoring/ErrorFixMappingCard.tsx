@@ -202,7 +202,7 @@ export const ErrorFixMappingCard: FC<ErrorFixMappingCardProps> = ({ lastRefresh 
                       <Chip
                         icon={getStatusIcon(mapping.status) || undefined}
                         label={mapping.reqId}
-                        color={getStatusColor(mapping.status) as any}
+                        color={getStatusColor(mapping.status) as unknown}
                         size="small"
                       />
                     </Box>

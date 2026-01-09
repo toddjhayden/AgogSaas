@@ -28,7 +28,7 @@ interface AppState {
   removeKPIFavorite: (kpiId: string) => void;
 
   // Dashboard layouts (saved custom layouts)
-  dashboardLayouts: Record<string, any>;
+  dashboardLayouts: Record<string, unknown>;
   saveDashboardLayout: (dashboardId: string, layout: any) => void;
 }
 
@@ -63,7 +63,7 @@ export const useAppStore = create<AppState>()(
         }));
         // Update global accessor for GraphQL client
         if (typeof window !== 'undefined') {
-          (window as any).__getTenantId = () => tenantId;
+          (window as unknown).__getTenantId = () => tenantId;
         }
       },
 

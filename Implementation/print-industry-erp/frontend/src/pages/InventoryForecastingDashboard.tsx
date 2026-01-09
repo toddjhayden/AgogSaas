@@ -135,7 +135,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
 
   // FIX: Get tenant ID from app store (with fallback for development)
   // TODO: In production, enforce that tenantId must be set via authentication
-  const tenantId = (preferences as any).tenantId || 'tenant-default-001';
+  const tenantId = (preferences as unknown).tenantId || 'tenant-default-001';
 
   // State management
   const [materialId, setMaterialId] = useState<string>(''); // Empty initially - user must select

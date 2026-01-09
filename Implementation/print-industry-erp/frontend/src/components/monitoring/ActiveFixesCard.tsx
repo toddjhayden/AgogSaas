@@ -28,7 +28,7 @@ export const ActiveFixesCard = ({ lastRefresh }: ActiveFixesCardProps) => {
           <Alert severity="info">No active fixes</Alert>
         ) : (
           <List>
-            {fixes.map((fix: any) => (
+            {fixes.map((fix: unknown) => (
               <ListItem key={fix.reqNumber} divider>
                 <ListItemText
                   primary={

@@ -289,7 +289,7 @@ export const ShipmentDetailPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {shipment.lines.map((line: any) => (
+                  {shipment.lines.map((line: unknown) => (
                     <tr key={line.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">{line.lineNumber}</td>
                       <td className="px-4 py-3">

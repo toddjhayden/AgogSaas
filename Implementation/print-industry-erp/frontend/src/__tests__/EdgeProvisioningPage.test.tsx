@@ -12,7 +12,7 @@
  * - Error handling and edge cases
  */
 
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within as _within } from '@testing-library/react';
 import { MockedProvider } from '@apollo/client/testing';
 import { BrowserRouter } from 'react-router-dom';
 import { EdgeProvisioningPage } from '../pages/EdgeProvisioningPage';
@@ -353,7 +353,7 @@ describe('EdgeProvisioningPage - Device Provisioning Workflow', () => {
 
     // Verify success toast is called
     await waitFor(() => {
-      const toast = require('react-hot-toast').toast;
+      const toast = jest.requireActual('react-hot-toast').toast;
       expect(toast.success).toHaveBeenCalledWith('Edge computer provisioned successfully!');
     });
   });
@@ -372,7 +372,7 @@ describe('EdgeProvisioningPage - Device Provisioning Workflow', () => {
     });
 
     // Verify error toast is called
-    const toast = require('react-hot-toast').toast;
+    const toast = jest.requireActual('react-hot-toast').toast;
     expect(toast.error).toHaveBeenCalledWith('Please fill in all required fields');
   });
 
@@ -488,7 +488,7 @@ describe('EdgeProvisioningPage - Device Management', () => {
     });
 
     await waitFor(() => {
-      const toast = require('react-hot-toast').toast;
+      const toast = jest.requireActual('react-hot-toast').toast;
       expect(toast.success).toHaveBeenCalledWith('Device updated successfully!');
     });
   });
@@ -540,7 +540,7 @@ describe('EdgeProvisioningPage - Multi-Tenant Security', () => {
   });
 
   test('TC-020: Devices from other tenants are not displayed', async () => {
-    const otherTenantDevice = {
+    const _otherTenantDevice = {
       id: 'other-device',
       tenantId: 'other-tenant-789',
       facilityId: 'other-facility',
@@ -588,7 +588,7 @@ describe('EdgeProvisioningPage - Real-Time Monitoring', () => {
       },
     ];
 
-    const { container } = renderWithProviders(mocks);
+    const { _container } = renderWithProviders(mocks);
 
     // Verify the component is using pollInterval
     // This is checked via the mock configuration

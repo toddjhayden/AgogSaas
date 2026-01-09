@@ -358,13 +358,13 @@ export interface QuoteLineCollaborationResult {
 export interface VersionedQuoteUpdateInput {
   quoteId: string;
   version: number;
-  changes: Record<string, any>;
+  changes: Record<string, unknown>;
 }
 
 export interface VersionedQuoteLineUpdateInput {
   lineId: string;
   version: number;
-  changes: Record<string, any>;
+  changes: Record<string, unknown>;
 }
 
 export interface JoinQuoteSessionInput {

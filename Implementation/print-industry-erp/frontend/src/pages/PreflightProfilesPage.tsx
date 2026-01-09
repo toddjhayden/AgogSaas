@@ -20,7 +20,7 @@ interface PreflightProfile {
   profileName: string;
   profileType: 'PDF_X_1A' | 'PDF_X_3' | 'PDF_X_4' | 'CUSTOM';
   description?: string;
-  validationRules: Record<string, any>;
+  validationRules: Record<string, unknown>;
   isActive: boolean;
   isDefault: boolean;
   version: number;

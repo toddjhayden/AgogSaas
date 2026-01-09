@@ -109,7 +109,7 @@ export const RegisterPage: React.FC = () => {
         )
       );
       navigate('/dashboard');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration failed:', error);
 
       const errorMessage = error.message || '';

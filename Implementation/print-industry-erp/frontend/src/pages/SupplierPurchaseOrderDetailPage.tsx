@@ -114,7 +114,7 @@ const SupplierPurchaseOrderDetailPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {po.lines?.map((line: any) => (
+                  {po.lines?.map((line: unknown) => (
                     <tr key={line.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{line.lineNumber}</td>
                       <td className="px-6 py-4 text-sm text-gray-900">{line.description}</td>

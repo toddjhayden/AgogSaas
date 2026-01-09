@@ -15,7 +15,7 @@ import clsx from 'clsx';
 
 export interface DataTableProps<T> {
   data: T[];
-  columns: ColumnDef<T, any>[] | SimpleColumn<T>[];
+  columns: ColumnDef<T, unknown>[] | SimpleColumn<T>[];
   searchable?: boolean;
   exportable?: boolean;
   pageSize?: number;
@@ -36,28 +36,29 @@ export interface DataTableProps<T> {
 interface SimpleColumn<T> {
   key?: string;
   header?: string;
-  accessor?: string | ((row: T) => any);
-  render?: (value: any, row?: T) => any;
+  accessor?: string | ((row: T) => unknown);
+  render?: (value: unknown, row?: T) => React.ReactNode;
   className?: string;
   sortable?: boolean;
 }
 
 // Convert simple columns to ColumnDef format
-function convertColumns<T>(columns: ColumnDef<T, any>[] | SimpleColumn<T>[]): ColumnDef<T, any>[] {
-  return columns.map((col: any) => {
-    if (col.accessorKey || col.accessorFn) {
+function convertColumns<T>(columns: ColumnDef<T, unknown>[] | SimpleColumn<T>[]): ColumnDef<T, unknown>[] {
+  return columns.map((col: ColumnDef<T, unknown> | SimpleColumn<T>) => {
+    if ('accessorKey' in col || 'accessorFn' in col) {
       // Already a ColumnDef
-      return col;
+      return col as ColumnDef<T, unknown>;
     }
     // Convert SimpleColumn
-    const accessorKey = col.key || col.accessor;
+    const simpleCol = col as SimpleColumn<T>;
+    const accessorKey = simpleCol.key || simpleCol.accessor;
     return {
-      id: col.key || col.accessor || col.header,
+      id: simpleCol.key || (typeof simpleCol.accessor === 'string' ? simpleCol.accessor : simpleCol.header),
       accessorKey: typeof accessorKey === 'string' ? accessorKey : undefined,
-      accessorFn: typeof col.accessor === 'function' ? col.accessor : undefined,
-      header: col.header,
-      cell: col.render ? (info: any) => col.render(info.getValue(), info.row.original) : undefined,
-    } as ColumnDef<T, any>;
+      accessorFn: typeof simpleCol.accessor === 'function' ? simpleCol.accessor : undefined,
+      header: simpleCol.header,
+      cell: simpleCol.render ? (info) => simpleCol.render!(info.getValue(), info.row.original) : undefined,
+    } as ColumnDef<T, unknown>;
   });
 }
 
@@ -108,7 +109,7 @@ export function DataTable<T>({
   });
 
   const exportToCSV = () => {
-    const headers = columns.map((col: any) => col.header).join(',');
+    const headers = columns.map((col) => ('header' in col ? col.header : '')).join(',');
     const rows = table.getFilteredRowModel().rows.map((row) =>
       row.getAllCells().map((cell) => flexRender(cell.column.columnDef.cell, cell.getContext())).join(',')
     );

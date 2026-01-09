@@ -225,7 +225,7 @@ describe('DatabaseStatsCard', () => {
       },
     ];
 
-    const { container } = render(
+    const { _container } = render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <DatabaseStatsCard />
       </MockedProvider>
@@ -372,14 +372,14 @@ describe('DatabaseStatsCard', () => {
       },
     ];
 
-    const { container } = render(
+    const { _container } = render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <DatabaseStatsCard />
       </MockedProvider>
     );
 
     await waitFor(() => {
-      expect(container.querySelector('.bg-danger-50')).toBeInTheDocument();
+      expect(_container.querySelector('.bg-danger-50')).toBeInTheDocument();
     });
   });
 
@@ -447,15 +447,15 @@ describe('DatabaseStatsCard', () => {
       },
     ];
 
-    const { container } = render(
+    const { _container } = render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <DatabaseStatsCard />
       </MockedProvider>
     );
 
     await waitFor(() => {
-      expect(container.querySelector('h2')).toBeInTheDocument();
-      expect(container.querySelector('h3')).toBeInTheDocument();
+      expect(_container.querySelector('h2')).toBeInTheDocument();
+      expect(_container.querySelector('h3')).toBeInTheDocument();
     });
   });
 

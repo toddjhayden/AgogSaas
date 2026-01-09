@@ -29,7 +29,7 @@ export const ErrorListCard = ({ lastRefresh }: ErrorListCardProps) => {
           <Alert severity="success">No errors at this time</Alert>
         ) : (
           <List>
-            {errors.map((err: any) => (
+            {errors.map((err: unknown) => (
               <ListItem key={err.id} divider>
                 <ListItemText
                   primary={

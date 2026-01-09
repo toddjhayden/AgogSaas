@@ -489,7 +489,7 @@ describe('SecurityAuditDashboard', () => {
 
   it('displays critical events with error styling', async () => {
     const mocks = createDefaultMocks();
-    const { container } = renderWithProviders(<SecurityAuditDashboard />, mocks);
+    const { _container } = renderWithProviders(<SecurityAuditDashboard />, mocks);
 
     await waitFor(() => {
       const criticalCount = screen.getByText('3');

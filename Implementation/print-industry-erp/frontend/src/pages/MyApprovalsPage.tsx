@@ -392,7 +392,7 @@ export const MyApprovalsPage: React.FC = () => {
 
           <select
             value={urgencyFilter}
-            onChange={(e) => setUrgencyFilter(e.target.value as any)}
+            onChange={(e) => setUrgencyFilter(e.target.value as unknown)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
           >
             <option value="">{t('approvals.allUrgencies')}</option>

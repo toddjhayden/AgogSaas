@@ -367,7 +367,7 @@ const JobCostingDashboard: React.FC = () => {
                 },
                 tooltip: {
                   callbacks: {
-                    label: (context: any) => {
+                    label: (context: unknown) => {
                       const value = context.parsed.y;
                       return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
                     }
@@ -378,7 +378,7 @@ const JobCostingDashboard: React.FC = () => {
                 y: {
                   beginAtZero: true,
                   ticks: {
-                    callback: (value: any) => `${value}%`
+                    callback: (value: unknown) => `${value}%`
                   }
                 }
               }

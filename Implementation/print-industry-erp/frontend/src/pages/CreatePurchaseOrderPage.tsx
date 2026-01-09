@@ -98,7 +98,7 @@ export const CreatePurchaseOrderPage: React.FC = () => {
 
       // If material is selected, populate details
       if (field === 'materialId') {
-        const material = materials.find((m: any) => m.id === value);
+        const material = materials.find((m: unknown) => m.id === value);
         if (material) {
           updated[index].materialCode = material.materialCode;
           updated[index].description = material.materialName;
@@ -207,7 +207,7 @@ export const CreatePurchaseOrderPage: React.FC = () => {
                 required
               >
                 <option value="">{t('procurement.selectVendor')}</option>
-                {vendors.map((vendor: any) => (
+                {vendors.map((vendor: unknown) => (
                   <option key={vendor.id} value={vendor.id}>
                     {vendor.vendorCode} - {vendor.vendorName}
                   </option>
@@ -335,7 +335,7 @@ export const CreatePurchaseOrderPage: React.FC = () => {
                         required
                       >
                         <option value="">{t('procurement.selectMaterial')}</option>
-                        {materials.map((material: any) => (
+                        {materials.map((material: unknown) => (
                           <option key={material.id} value={material.id}>
                             {material.materialCode} - {material.materialName}
                           </option>

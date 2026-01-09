@@ -229,7 +229,7 @@ const SupplierDashboard: React.FC = () => {
             <div className="p-6">
               {dashboard?.recentAlerts && dashboard.recentAlerts.length > 0 ? (
                 <div className="space-y-4">
-                  {dashboard.recentAlerts.map((alert: any) => (
+                  {dashboard.recentAlerts.map((alert: unknown) => (
                     <div
                       key={alert.id}
                       className="border-l-4 border-yellow-400 bg-yellow-50 p-4"
@@ -315,7 +315,7 @@ const SupplierDashboard: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {dashboard?.recentPurchaseOrders &&
                   dashboard.recentPurchaseOrders.length > 0 ? (
-                    dashboard.recentPurchaseOrders.map((po: any) => (
+                    dashboard.recentPurchaseOrders.map((po: unknown) => (
                       <tr key={po.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button

@@ -111,7 +111,7 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
       { key: 'correlation', label: t('analytics.correlation'), sortable: true, format: (val: number) => val.toFixed(3) },
     ];
 
-    const chartData = impacts.map((item: any) => ({
+    const chartData = impacts.map((item: unknown) => ({
       name: item.vendorName,
       efficiency: item.productionEfficiencyImpact,
       onTime: item.onTimeDeliveryRate,
@@ -151,7 +151,7 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
       { key: 'avgOrderValue', label: t('analytics.avgOrderVal'), sortable: true, format: (val: number) => `$${val.toLocaleString()}` },
     ];
 
-    const chartData = profitability.map((item: any) => ({
+    const chartData = profitability.map((item: unknown) => ({
       name: item.customerName,
       revenue: item.totalRevenue,
       profit: item.grossProfit,

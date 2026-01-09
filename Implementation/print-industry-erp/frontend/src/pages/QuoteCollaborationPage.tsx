@@ -116,7 +116,7 @@ export const QuoteCollaborationPage: React.FC = () => {
 
       const updated = { ...prev };
       event.changes.forEach((change) => {
-        (updated as any)[change.field] = change.newValue;
+        (updated as unknown)[change.field] = change.newValue;
       });
       updated.version = event.version;
 
@@ -153,7 +153,7 @@ export const QuoteCollaborationPage: React.FC = () => {
           if (line.id === event.lineId) {
             const updatedLine = { ...line };
             event.changes.forEach((change) => {
-              (updatedLine as any)[change.field] = change.newValue;
+              (updatedLine as unknown)[change.field] = change.newValue;
             });
             updatedLine.version = event.version;
             return updatedLine;
@@ -260,7 +260,7 @@ export const QuoteCollaborationPage: React.FC = () => {
           setConflicts(result.conflicts);
           setShowConflictModal(true);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to save quote line:', error);
         toast.error(t('collaboration.saveFailed', { error: error.message }));
       }

@@ -164,7 +164,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Alert Type',
       accessorKey: 'alertType',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />
           <span className="font-medium">{row.alertType?.replace(/_/g, ' ')}</span>
@@ -174,7 +174,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Equipment',
       accessorKey: 'workCenterId',
-      cell: (row: any) => <span className="text-sm">{row.workCenterId}</span>,
+      cell: (row: unknown) => <span className="text-sm">{row.workCenterId}</span>,
     },
     {
       header: 'Failure Mode',
@@ -183,7 +183,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Probability',
       accessorKey: 'failureProbability',
-      cell: (row: any) =>
+      cell: (row: unknown) =>
         row.failureProbability ? (
           <Badge variant="outline">{(row.failureProbability * 100).toFixed(1)}%</Badge>
         ) : (
@@ -193,7 +193,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Time to Failure',
       accessorKey: 'timeToFailureHours',
-      cell: (row: any) =>
+      cell: (row: unknown) =>
         row.timeToFailureHours ? (
           <div className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
@@ -206,21 +206,21 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Severity',
       accessorKey: 'severity',
-      cell: (row: any) => (
-        <Badge variant={getSeverityColor(row.severity) as any}>{row.severity}</Badge>
+      cell: (row: unknown) => (
+        <Badge variant={getSeverityColor(row.severity) as unknown}>{row.severity}</Badge>
       ),
     },
     {
       header: 'Urgency',
       accessorKey: 'urgency',
-      cell: (row: any) => (
-        <Badge variant={getUrgencyColor(row.urgency) as any}>{row.urgency}</Badge>
+      cell: (row: unknown) => (
+        <Badge variant={getUrgencyColor(row.urgency) as unknown}>{row.urgency}</Badge>
       ),
     },
     {
       header: 'Actions',
       accessorKey: 'id',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <Button
           size="sm"
           variant="outline"
@@ -238,12 +238,12 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Equipment',
       accessorKey: 'workCenterId',
-      cell: (row: any) => <span className="font-medium">{row.workCenterId}</span>,
+      cell: (row: unknown) => <span className="font-medium">{row.workCenterId}</span>,
     },
     {
       header: 'Overall Health',
       accessorKey: 'overallHealthScore',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <div className="flex items-center gap-2">
           <div className="flex-1 bg-gray-200 rounded-full h-2">
             <div
@@ -266,8 +266,8 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Status',
       accessorKey: 'healthStatus',
-      cell: (row: any) => (
-        <Badge variant={getHealthStatusColor(row.healthStatus) as any}>
+      cell: (row: unknown) => (
+        <Badge variant={getHealthStatusColor(row.healthStatus) as unknown}>
           {row.healthStatus}
         </Badge>
       ),
@@ -275,7 +275,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Trend',
       accessorKey: 'trendDirection',
-      cell: (row: any) =>
+      cell: (row: unknown) =>
         row.trendDirection === 'IMPROVING' ? (
           <div className="flex items-center gap-1 text-green-600">
             <TrendingUp className="h-4 w-4" />
@@ -294,21 +294,21 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Sensor Health',
       accessorKey: 'sensorHealthScore',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <span className="text-sm">{row.sensorHealthScore?.toFixed(0) || '-'}</span>
       ),
     },
     {
       header: 'OEE Health',
       accessorKey: 'oeeHealthScore',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <span className="text-sm">{row.oeeHealthScore?.toFixed(0) || '-'}</span>
       ),
     },
     {
       header: 'Anomaly',
       accessorKey: 'anomalyDetected',
-      cell: (row: any) =>
+      cell: (row: unknown) =>
         row.anomalyDetected ? (
           <Badge variant="destructive">
             <Bell className="h-3 w-3 mr-1" />
@@ -325,7 +325,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Type',
       accessorKey: 'recommendationType',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <Badge variant="outline">{row.recommendationType?.replace(/_/g, ' ')}</Badge>
       ),
     },
@@ -344,7 +344,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Cost Savings',
       accessorKey: 'projectedCostSavings',
-      cell: (row: any) =>
+      cell: (row: unknown) =>
         row.projectedCostSavings ? (
           <span className="font-medium text-green-600">
             ${row.projectedCostSavings.toLocaleString()}
@@ -356,7 +356,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'ROI',
       accessorKey: 'roiPercentage',
-      cell: (row: any) =>
+      cell: (row: unknown) =>
         row.roiPercentage ? (
           <Badge variant="default">{row.roiPercentage.toFixed(1)}%</Badge>
         ) : (
@@ -366,7 +366,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Priority',
       accessorKey: 'implementationPriority',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <Badge
           variant={
             row.implementationPriority === 'URGENT' ? 'destructive' : 'default'
@@ -379,7 +379,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Actions',
       accessorKey: 'id',
-      cell: (row: any) => (
+      cell: (row: unknown) => (
         <Button
           size="sm"
           variant="outline"
@@ -483,13 +483,13 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
               type="pie"
               data={{
                 labels: dashboard.equipmentByHealthStatus.map(
-                  (item: any) => item.status
+                  (item: unknown) => item.status
                 ),
                 datasets: [
                   {
                     label: 'Equipment Count',
                     data: dashboard.equipmentByHealthStatus.map(
-                      (item: any) => item.count
+                      (item: unknown) => item.count
                     ),
                     backgroundColor: [
                       '#10b981', // EXCELLENT - green

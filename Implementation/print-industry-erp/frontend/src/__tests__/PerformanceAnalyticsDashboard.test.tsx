@@ -423,7 +423,7 @@ describe('PerformanceAnalyticsDashboard', () => {
 
   it('displays correct colors for health status', async () => {
     const mocks = createDefaultMocks();
-    const { container } = renderWithProviders(<PerformanceAnalyticsDashboard />, mocks);
+    const { _container } = renderWithProviders(<PerformanceAnalyticsDashboard />, mocks);
 
     await waitFor(() => {
       const healthyBadge = screen.getByText('HEALTHY');

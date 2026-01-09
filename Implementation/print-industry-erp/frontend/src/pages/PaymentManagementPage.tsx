@@ -76,7 +76,7 @@ export const PaymentManagementPage: React.FC = () => {
     },
   });
 
-  const handlePaymentSuccess = (_result: any) => {
+  const handlePaymentSuccess = (_result: unknown) => {
     toast.success(t('payments.paymentSuccessful'));
     setCurrentView('overview');
     refetchTransactions();
@@ -131,7 +131,7 @@ export const PaymentManagementPage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">{t('payments.successfulPayments')}</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {transactions.filter((t: any) => t.status === 'SUCCEEDED').length}
+                {transactions.filter((t: unknown) => t.status === 'SUCCEEDED').length}
               </p>
             </div>
             <RefreshCw className="h-8 w-8 text-green-600" />
@@ -186,7 +186,7 @@ export const PaymentManagementPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {paymentMethods.map((method: any) => (
+            {paymentMethods.map((method: unknown) => (
               <div
                 key={method.id}
                 className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"

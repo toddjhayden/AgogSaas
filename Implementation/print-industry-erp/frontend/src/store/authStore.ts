@@ -145,7 +145,7 @@ export const useAuthStore = create<AuthState>()(
           } else {
             throw new Error('Login failed: No data returned');
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Login error:', error);
           throw error;
         }
@@ -164,7 +164,7 @@ export const useAuthStore = create<AuthState>()(
           } else {
             throw new Error('Registration failed: No data returned');
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Registration error:', error);
           throw error;
         }
@@ -301,8 +301,8 @@ useAuthStore.getState()._initCrossTabSync();
 
 // Setup global accessors for Apollo Client (to avoid circular dependency)
 if (typeof window !== 'undefined') {
-  (window as any).__getAccessToken = () => useAuthStore.getState().accessToken;
-  (window as any).__refreshAccessToken = () => useAuthStore.getState().refreshAccessToken();
+  (window as unknown).__getAccessToken = () => useAuthStore.getState().accessToken;
+  (window as unknown).__refreshAccessToken = () => useAuthStore.getState().refreshAccessToken();
 }
 
 // Auto-refresh token before expiration

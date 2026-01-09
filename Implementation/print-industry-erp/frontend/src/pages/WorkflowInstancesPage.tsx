@@ -338,7 +338,7 @@ const WorkflowInstancesPage: React.FC = () => {
                       <TableCell>
                         <Chip
                           label={t(`workflow.instances.${instance.status.toLowerCase()}`)}
-                          color={getStatusColor(instance.status) as any}
+                          color={getStatusColor(instance.status) as unknown}
                           size="small"
                         />
                       </TableCell>

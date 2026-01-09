@@ -52,15 +52,15 @@ export const DimensionValidationDisplay: React.FC<DimensionValidationDisplayProp
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
             <span className="text-gray-600">Length:</span>
-            <span className="ml-2 font-semibold">{itemDimensions.lengthInches.toFixed(1)}"</span>
+            <span className="ml-2 font-semibold">{itemDimensions.lengthInches.toFixed(1)}&quot;</span>
           </div>
           <div>
             <span className="text-gray-600">Width:</span>
-            <span className="ml-2 font-semibold">{itemDimensions.widthInches.toFixed(1)}"</span>
+            <span className="ml-2 font-semibold">{itemDimensions.widthInches.toFixed(1)}&quot;</span>
           </div>
           <div>
             <span className="text-gray-600">Height:</span>
-            <span className="ml-2 font-semibold">{itemDimensions.heightInches.toFixed(1)}"</span>
+            <span className="ml-2 font-semibold">{itemDimensions.heightInches.toFixed(1)}&quot;</span>
           </div>
         </div>
         {itemDimensions.cubicFeet && (
@@ -116,9 +116,9 @@ export const DimensionValidationDisplay: React.FC<DimensionValidationDisplayProp
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center space-x-2">
             <span className="text-gray-600 w-20">Length:</span>
-            <span className="font-semibold">{itemDimensions.lengthInches.toFixed(1)}"</span>
+            <span className="font-semibold">{itemDimensions.lengthInches.toFixed(1)}&quot;</span>
             <span className="text-gray-400">≤</span>
-            <span className="font-semibold">{binDimensions.lengthInches.toFixed(1)}"</span>
+            <span className="font-semibold">{binDimensions.lengthInches.toFixed(1)}&quot;</span>
           </div>
           {itemDimensions.lengthInches <= binDimensions.lengthInches ? (
             <CheckCircle className="h-4 w-4 text-success-600" />
@@ -131,9 +131,9 @@ export const DimensionValidationDisplay: React.FC<DimensionValidationDisplayProp
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center space-x-2">
             <span className="text-gray-600 w-20">Width:</span>
-            <span className="font-semibold">{itemDimensions.widthInches.toFixed(1)}"</span>
+            <span className="font-semibold">{itemDimensions.widthInches.toFixed(1)}&quot;</span>
             <span className="text-gray-400">≤</span>
-            <span className="font-semibold">{binDimensions.widthInches.toFixed(1)}"</span>
+            <span className="font-semibold">{binDimensions.widthInches.toFixed(1)}&quot;</span>
           </div>
           {itemDimensions.widthInches <= binDimensions.widthInches ? (
             <CheckCircle className="h-4 w-4 text-success-600" />
@@ -146,9 +146,9 @@ export const DimensionValidationDisplay: React.FC<DimensionValidationDisplayProp
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center space-x-2">
             <span className="text-gray-600 w-20">Height:</span>
-            <span className="font-semibold">{itemDimensions.heightInches.toFixed(1)}"</span>
+            <span className="font-semibold">{itemDimensions.heightInches.toFixed(1)}&quot;</span>
             <span className="text-gray-400">≤</span>
-            <span className="font-semibold">{binDimensions.heightInches.toFixed(1)}"</span>
+            <span className="font-semibold">{binDimensions.heightInches.toFixed(1)}&quot;</span>
           </div>
           {itemDimensions.heightInches <= binDimensions.heightInches ? (
             <CheckCircle className="h-4 w-4 text-success-600" />

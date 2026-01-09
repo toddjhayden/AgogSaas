@@ -206,12 +206,12 @@ const SupplierPerformanceDashboard: React.FC = () => {
             type="line"
             data={{
               labels: trends.map(
-                (t: any) => `${t.year}-${String(t.month).padStart(2, '0')}`
+                (t: unknown) => `${t.year}-${String(t.month).padStart(2, '0')}`
               ),
               datasets: [
                 {
                   label: t('supplierPortal.performance.onTimeDelivery'),
-                  data: trends.map((t: any) => t.onTimeDeliveryPercentage),
+                  data: trends.map((t: unknown) => t.onTimeDeliveryPercentage),
                   borderColor: 'rgb(59, 130, 246)',
                   backgroundColor: 'rgba(59, 130, 246, 0.1)',
                   tension: 0.4,
@@ -237,12 +237,12 @@ const SupplierPerformanceDashboard: React.FC = () => {
             type="line"
             data={{
               labels: trends.map(
-                (t: any) => `${t.year}-${String(t.month).padStart(2, '0')}`
+                (t: unknown) => `${t.year}-${String(t.month).padStart(2, '0')}`
               ),
               datasets: [
                 {
                   label: t('supplierPortal.performance.qualityAcceptance'),
-                  data: trends.map((t: any) => t.qualityAcceptancePercentage),
+                  data: trends.map((t: unknown) => t.qualityAcceptancePercentage),
                   borderColor: 'rgb(34, 197, 94)',
                   backgroundColor: 'rgba(34, 197, 94, 0.1)',
                   tension: 0.4,

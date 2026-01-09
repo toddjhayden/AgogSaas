@@ -409,7 +409,7 @@ export const OrchestratorDashboard = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                workflowsData?.activeWorkflows?.map((workflow: any) => (
+                workflowsData?.activeWorkflows?.map((workflow: unknown) => (
                   <TableRow key={workflow.reqNumber}>
                     <TableCell>{workflow.reqNumber}</TableCell>
                     <TableCell>{workflow.title}</TableCell>
@@ -478,7 +478,7 @@ export const OrchestratorDashboard = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                decisionsData?.strategicDecisions?.map((decision: any) => (
+                decisionsData?.strategicDecisions?.map((decision: unknown) => (
                   <TableRow key={decision.decision_id}>
                     <TableCell>{decision.req_number}</TableCell>
                     <TableCell>{decision.strategic_agent}</TableCell>

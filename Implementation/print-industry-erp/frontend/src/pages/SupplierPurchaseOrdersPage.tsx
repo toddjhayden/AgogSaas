@@ -78,7 +78,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
 
   // Filter purchase orders by search term
   const filteredPOs = searchTerm
-    ? purchaseOrders.filter((po: any) =>
+    ? purchaseOrders.filter((po: unknown) =>
         po.poNumber.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : purchaseOrders;
@@ -96,7 +96,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'poNumber',
       label: t('supplierPortal.purchaseOrders.poNumber'),
-      render: (row: any) => (
+      render: (row: unknown) => (
         <button
           onClick={() => navigate(`/supplier/purchase-orders/${row.poNumber}`)}
           className="text-blue-600 hover:text-blue-800 font-medium"
@@ -108,12 +108,12 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'poDate',
       label: t('supplierPortal.purchaseOrders.date'),
-      render: (row: any) => new Date(row.poDate).toLocaleDateString(),
+      render: (row: unknown) => new Date(row.poDate).toLocaleDateString(),
     },
     {
       id: 'requestedDeliveryDate',
       label: t('supplierPortal.purchaseOrders.deliveryDate'),
-      render: (row: any) =>
+      render: (row: unknown) =>
         row.requestedDeliveryDate
           ? new Date(row.requestedDeliveryDate).toLocaleDateString()
           : 'N/A',
@@ -121,14 +121,14 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'lineCount',
       label: t('supplierPortal.purchaseOrders.lineCount'),
-      render: (row: any) => (
+      render: (row: unknown) => (
         <span className="text-gray-900">{row.lineCount} lines</span>
       ),
     },
     {
       id: 'totalAmount',
       label: t('supplierPortal.purchaseOrders.amount'),
-      render: (row: any) => (
+      render: (row: unknown) => (
         <span className="font-medium text-gray-900">
           {formatCurrency(row.totalAmount, row.currency)}
         </span>
@@ -137,7 +137,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'status',
       label: t('common.status'),
-      render: (row: any) => (
+      render: (row: unknown) => (
         <span
           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
             row.status
@@ -150,7 +150,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'acknowledged',
       label: t('supplierPortal.purchaseOrders.acknowledged'),
-      render: (row: any) =>
+      render: (row: unknown) =>
         row.isAcknowledged ? (
           <CheckCircle className="h-5 w-5 text-green-500" />
         ) : (
@@ -160,7 +160,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'asn',
       label: t('supplierPortal.asn.title'),
-      render: (row: any) =>
+      render: (row: unknown) =>
         row.hasASN ? (
           <Package className="h-5 w-5 text-blue-500" />
         ) : (
@@ -170,7 +170,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'actions',
       label: t('common.actions'),
-      render: (row: any) => (
+      render: (row: unknown) => (
         <div className="flex items-center space-x-2">
           {!row.isAcknowledged && (
             <button
@@ -347,7 +347,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
               </p>
               <p className="text-2xl font-bold text-gray-900">
                 {
-                  purchaseOrders.filter((po: any) => !po.isAcknowledged).length
+                  purchaseOrders.filter((po: unknown) => !po.isAcknowledged).length
                 }
               </p>
             </div>
@@ -361,7 +361,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
                 {t('supplierPortal.purchaseOrders.acknowledged')}
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                {purchaseOrders.filter((po: any) => po.isAcknowledged).length}
+                {purchaseOrders.filter((po: unknown) => po.isAcknowledged).length}
               </p>
             </div>
           </div>
@@ -374,7 +374,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
                 {t('supplierPortal.asn.withASN')}
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                {purchaseOrders.filter((po: any) => po.hasASN).length}
+                {purchaseOrders.filter((po: unknown) => po.hasASN).length}
               </p>
             </div>
           </div>

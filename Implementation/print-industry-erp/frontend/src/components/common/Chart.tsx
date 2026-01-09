@@ -15,6 +15,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+// Recharts data point type
+type RechartsDataPoint = Record<string, string | number>;
+
 // Chart.js format data interface
 interface ChartJsData {
   labels?: string[];
@@ -24,13 +27,13 @@ interface ChartJsData {
     backgroundColor?: string | string[];
     borderColor?: string | string[];
     borderWidth?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   }>;
 }
 
 export interface ChartProps {
   type: 'line' | 'bar' | 'pie';
-  data: any[] | ChartJsData; // Support both recharts array and Chart.js format
+  data: RechartsDataPoint[] | ChartJsData; // Support both recharts array and Chart.js format
   xKey?: string;
   yKey?: string | string[];
   yKeys?: string[]; // Alias for yKey when it's an array
@@ -39,7 +42,7 @@ export interface ChartProps {
   colors?: string[];
   title?: string;
   height?: number;
-  options?: Record<string, any>; // For extended configuration
+  options?: Record<string, unknown>; // For extended configuration
   labels?: string[]; // For pie chart labels
   series?: Array<{ dataKey: string; color: string; name: string }>; // For multi-series charts
 }
@@ -68,15 +71,15 @@ export const Chart: React.FC<ChartProps> = ({
   const effectiveColors = series ? series.map(s => s.color) : colors;
 
   // Helper to check if data is in Chart.js format
-  const isChartJsFormat = (d: any): d is ChartJsData => {
+  const isChartJsFormat = (d: RechartsDataPoint[] | ChartJsData): d is ChartJsData => {
     return d && typeof d === 'object' && !Array.isArray(d) && ('labels' in d || 'datasets' in d);
   };
 
   // Convert Chart.js format to recharts format
-  const convertToRechartsFormat = (chartJsData: ChartJsData): any[] => {
+  const convertToRechartsFormat = (chartJsData: ChartJsData): RechartsDataPoint[] => {
     if (!chartJsData.labels || !chartJsData.datasets) return [];
     return chartJsData.labels.map((label, index) => {
-      const point: Record<string, any> = { name: label };
+      const point: Record<string, string | number> = { name: label };
       chartJsData.datasets?.forEach((dataset) => {
         const key = dataset.label || 'value';
         point[key] = dataset.data?.[index] ?? 0;

@@ -26,23 +26,27 @@ module.exports = {
     },
   },
   rules: {
-    // Downgraded to warn to allow CI to pass - these should be fixed over time
-    '@typescript-eslint/no-explicit-any': 'warn',
-    '@typescript-eslint/no-unused-vars': ['warn', {
+    // Type safety rules - enforced as errors
+    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/no-require-imports': 'error',
+    '@typescript-eslint/no-empty-object-type': 'error',
+    '@typescript-eslint/no-unused-vars': ['error', {
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_',
     }],
-    '@typescript-eslint/no-require-imports': 'warn',
-    '@typescript-eslint/no-empty-object-type': 'warn',
+    'prefer-const': 'error',
+
+    // React rules
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'off',
-    'react/no-unescaped-entities': 'warn',
+    'react/no-unescaped-entities': 'error',
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
+
     // Disable React Compiler rules - too strict for existing code
     'react-hooks/purity': 'off',
     'react-hooks/set-state-in-effect': 'off',
     'react-hooks/preserve-manual-memoization': 'off',
-    'prefer-const': 'warn',
+    'react-hooks/incompatible-library': 'off',
   },
 };

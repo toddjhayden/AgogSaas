@@ -25,7 +25,7 @@ export const AgentActivityCard = ({ lastRefresh }: AgentActivityCardProps) => {
     <Card>
       <CardContent>
         <Grid container spacing={2}>
-          {agents.map((agent: any) => (
+          {agents.map((agent: unknown) => (
             <Grid item xs={12} sm={6} md={4} key={agent.agentId}>
               <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                 <Typography variant="subtitle1" gutterBottom>{agent.agentName}</Typography>

@@ -21,7 +21,7 @@ interface StripeCardPaymentFormProps {
   amount: number;
   currencyCode: string;
   facilityId?: string;
-  onSuccess: (paymentResult: any) => void;
+  onSuccess: (paymentResult: unknown) => void;
   onError: (error: Error) => void;
   onCancel: () => void;
 }

@@ -42,7 +42,7 @@ export function validateTenantAccess(tenantId: string): void {
  * @param variables - The GraphQL query variables
  * @returns Updated variables with tenant ID
  */
-export function injectTenantId<T extends Record<string, any>>(
+export function injectTenantId<T extends Record<string, unknown>>(
   variables: T
 ): T & { tenantId: string } {
   const tenantId = getCurrentTenantId();
@@ -117,6 +117,6 @@ export function setupAuthorizationErrorHandler(
   onError: (error: { message: string; path?: any }) => void
 ) {
   if (typeof window !== 'undefined') {
-    (window as any).__notifyAuthorizationError = onError;
+    (window as unknown).__notifyAuthorizationError = onError;
   }
 }

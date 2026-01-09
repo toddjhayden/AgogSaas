@@ -476,7 +476,7 @@ const DeploymentApprovalPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {approvals.map((approval: any) => (
+              {approvals.map((approval: unknown) => (
                 <TableRow
                   key={approval.deploymentId}
                   sx={{

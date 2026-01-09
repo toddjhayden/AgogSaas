@@ -1,10 +1,20 @@
-import { ApolloClient, InMemoryCache, HttpLink, from, split } from '@apollo/client';
+import { ApolloClient, InMemoryCache, HttpLink, from, split, Observable } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 import { fromPromise } from '@apollo/client/link/utils';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
+
+// Extend Window interface for global auth accessors
+declare global {
+  interface Window {
+    __getAccessToken?: () => string | null;
+    __refreshAccessToken?: () => Promise<boolean>;
+    __getTenantId?: () => string | null;
+    __notifyAuthorizationError?: (error: { message: string; path?: readonly unknown[] }) => void;
+  }
+}
 
 const httpLink = new HttpLink({
   uri: import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql',
@@ -16,8 +26,8 @@ const wsLink = new GraphQLWsLink(
     url: import.meta.env.VITE_GRAPHQL_WS_URL || 'ws://localhost:4000/graphql',
     connectionParams: () => {
       // Get access token from global accessor
-      const token = (window as any).__getAccessToken?.();
-      const tenantId = (window as any).__getTenantId?.();
+      const token = window.__getAccessToken?.();
+      const tenantId = window.__getTenantId?.();
 
       return {
         authToken: token,
@@ -37,10 +47,10 @@ const wsLink = new GraphQLWsLink(
 // Auth link - inject Bearer token and tenant context
 const authLink = setContext((_, { headers }) => {
   // Get access token from global accessor (set by auth store)
-  const token = (window as any).__getAccessToken?.();
+  const token = window.__getAccessToken?.();
 
   // Get tenant ID from global accessor (set by app store)
-  const tenantId = (window as any).__getTenantId?.();
+  const tenantId = window.__getTenantId?.();
 
   return {
     headers: {
@@ -55,7 +65,7 @@ const authLink = setContext((_, { headers }) => {
 // Error link - handle 401, 403, and token refresh
 const errorLink = onError(({ graphQLErrors, operation, forward }) => {
   if (graphQLErrors) {
-    for (let err of graphQLErrors) {
+    for (const err of graphQLErrors) {
       const errorCode = err.extensions?.code as string;
 
       // Handle authentication errors (401)
@@ -65,7 +75,7 @@ const errorLink = onError(({ graphQLErrors, operation, forward }) => {
 
         if (retryCount >= 2) {
           // Max retries exceeded, clear auth and redirect
-          const refreshFn = (window as any).__refreshAccessToken;
+          const refreshFn = window.__refreshAccessToken;
           if (refreshFn) {
             refreshFn().then((success: boolean) => {
               if (!success) {
@@ -80,7 +90,7 @@ const errorLink = onError(({ graphQLErrors, operation, forward }) => {
         operation.setContext({ retryCount: retryCount + 1 });
 
         // Attempt token refresh
-        const refreshFn = (window as any).__refreshAccessToken;
+        const refreshFn = window.__refreshAccessToken;
         if (refreshFn) {
           return fromPromise(
             refreshFn().then((success: boolean) => {
@@ -95,7 +105,7 @@ const errorLink = onError(({ graphQLErrors, operation, forward }) => {
             if (success) {
               return forward(operation);
             }
-            return null as any;
+            return Observable.of();
           });
         }
       }
@@ -105,7 +115,7 @@ const errorLink = onError(({ graphQLErrors, operation, forward }) => {
         console.error('Tenant isolation violation:', err.message);
 
         // Notify user of authorization failure
-        const notifyFn = (window as any).__notifyAuthorizationError;
+        const notifyFn = window.__notifyAuthorizationError;
         if (notifyFn) {
           notifyFn({
             message: err.message,
@@ -165,10 +175,10 @@ export const apolloClient = new ApolloClient({
 // Setup global accessors for auth and tenant context (to avoid circular dependency)
 // These will be initialized by the auth store and app store
 if (typeof window !== 'undefined') {
-  (window as any).__getAccessToken = () => null;
-  (window as any).__refreshAccessToken = async () => false;
-  (window as any).__getTenantId = () => null;
-  (window as any).__notifyAuthorizationError = (error: { message: string; path?: any }) => {
+  window.__getAccessToken = () => null;
+  window.__refreshAccessToken = async () => false;
+  window.__getTenantId = () => null;
+  window.__notifyAuthorizationError = (error: { message: string; path?: readonly unknown[] }) => {
     console.error('Authorization error:', error);
   };
 }

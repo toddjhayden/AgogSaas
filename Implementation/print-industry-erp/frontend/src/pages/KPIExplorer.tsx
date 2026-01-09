@@ -171,23 +171,24 @@ const mockKPIs: KPIData[] = [
   // More KPIs would be added here to reach 119 total
 ];
 
-const categories = [
-  'All',
-  'Operations',
-  'Quality',
-  'Finance',
-  'Delivery & Logistics',
-  'Maintenance',
-  'Safety',
-  'HR & Training',
-  'Customer Service',
+// Category keys for translation
+const categoryKeys = [
+  'all',
+  'operations',
+  'quality',
+  'finance',
+  'deliveryLogistics',
+  'maintenance',
+  'safety',
+  'hrTraining',
+  'customerService',
 ];
 
 export const KPIExplorer: React.FC = () => {
   const { t } = useTranslation();
-  const { kpiFavorites, addKPIFavorite, removeKPIFavorite, preferences } = useAppStore();
+  const { kpiFavorites, addKPIFavorite, removeKPIFavorite } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const isFavorite = (kpiId: string) =>
@@ -207,7 +208,7 @@ export const KPIExplorer: React.FC = () => {
 
   const filteredKPIs = mockKPIs.filter((kpi) => {
     const matchesSearch = kpi.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || true; // In production, KPIs would have category field
+    const matchesCategory = selectedCategory === 'all' || true; // In production, KPIs would have category field
     const matchesFavorites = !showFavoritesOnly || isFavorite(kpi.id);
     return matchesSearch && matchesCategory && matchesFavorites;
   });
@@ -295,9 +296,9 @@ export const KPIExplorer: React.FC = () => {
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 className="appearance-none bg-gray-100 border-0 rounded-lg px-4 py-2 pr-10 font-medium text-gray-700 focus:ring-primary-500"
               >
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
+                {categoryKeys.map((catKey) => (
+                  <option key={catKey} value={catKey}>
+                    {t(`kpis.categories.${catKey}`)}
                   </option>
                 ))}
               </select>
@@ -333,7 +334,7 @@ export const KPIExplorer: React.FC = () => {
                 <button
                   onClick={() => toggleFavorite(kpi)}
                   className="absolute top-4 right-4 z-10 p-2 hover:bg-gray-100 rounded-full transition-colors"
-                  title={isFavorite(kpi.id) ? 'Remove from favorites' : 'Add to favorites'}
+                  title={isFavorite(kpi.id) ? t('kpis.tooltips.removeFromFavorites') : t('kpis.tooltips.addToFavorites')}
                 >
                   {isFavorite(kpi.id) ? (
                     <Star className="h-5 w-5 text-warning-500 fill-warning-500" />
@@ -362,12 +363,10 @@ export const KPIExplorer: React.FC = () => {
           </div>
           <div>
             <h3 className="text-sm font-medium text-blue-900">
-              {preferences.language === 'en' ? 'Bilingual KPI Support' : '双语KPI支持'}
+              {t('kpis.bilingualSupport.title')}
             </h3>
             <p className="mt-1 text-sm text-blue-700">
-              {preferences.language === 'en'
-                ? 'All 119 KPIs are available in both English and Mandarin Chinese. Use the language switcher in the header to toggle between languages.'
-                : '所有119个KPI均提供英文和中文版本。使用页眉中的语言切换器在语言之间切换。'}
+              {t('kpis.bilingualSupport.description')}
             </p>
           </div>
         </div>

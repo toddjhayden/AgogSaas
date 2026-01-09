@@ -34,7 +34,7 @@ const SupplierCreateASNPage: React.FC = () => {
       // Initialize lines from PO
       if (data?.supplierPurchaseOrder?.lines) {
         setLines(
-          data.supplierPurchaseOrder.lines.map((line: any) => ({
+          data.supplierPurchaseOrder.lines.map((line: unknown) => ({
             poLineId: line.id,
             quantityShipped: line.quantityRemaining || 0,
             lotNumber: '',

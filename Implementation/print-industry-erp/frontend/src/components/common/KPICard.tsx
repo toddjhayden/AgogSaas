@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 export interface KPIData {
@@ -38,6 +39,7 @@ export interface KPICardProps {
 
 export const KPICard: React.FC<KPICardProps> = (props) => {
   const { kpi, size = 'md', onClick, icon: _IconComponent, color: _color } = props;
+  const { t } = useTranslation();
   // Note: icon and color props are reserved for future use
 
   // Support both kpi object and direct props (including aliases)
@@ -107,7 +109,7 @@ export const KPICard: React.FC<KPICardProps> = (props) => {
           <button className="p-1 hover:bg-gray-100 rounded group relative">
             <Info className="h-4 w-4 text-gray-400" />
             <div className="absolute hidden group-hover:block right-0 top-full mt-2 w-64 bg-gray-900 text-white text-xs rounded-lg p-3 z-10">
-              <strong>Formula:</strong> {formula}
+              <strong>{t('kpis.card.formulaLabel')}:</strong> {formula}
             </div>
           </button>
         )}
@@ -115,7 +117,7 @@ export const KPICard: React.FC<KPICardProps> = (props) => {
 
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm text-gray-600">
-          Target: <span className="font-medium">{targetValue.toLocaleString()} {unit}</span>
+          {t('kpis.card.target')}: <span className="font-medium">{targetValue.toLocaleString()} {unit}</span>
         </div>
         <div className={clsx('flex items-center space-x-1', textColorClasses[statusColor])}>
           <TrendIcon className="h-4 w-4" />
@@ -141,7 +143,7 @@ export const KPICard: React.FC<KPICardProps> = (props) => {
 
       <div className="mt-3 pt-3 border-t border-gray-200">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">Performance</span>
+          <span className="text-gray-500">{t('kpis.card.performance')}</span>
           <span className={clsx('font-semibold', textColorClasses[statusColor])}>
             {performancePercent.toFixed(1)}%
           </span>
