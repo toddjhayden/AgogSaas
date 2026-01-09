@@ -101,7 +101,7 @@ export function AIChatPanel({ onOpenSettings, onClose }: AIChatPanelProps) {
   };
 
   return (
-    <div className="w-96 border-l border-slate-200 bg-white flex flex-col h-full shadow-lg">
+    <div className="w-full md:w-96 border-l border-slate-200 bg-white flex flex-col h-full shadow-lg">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100">
         <div className="flex items-center gap-2">

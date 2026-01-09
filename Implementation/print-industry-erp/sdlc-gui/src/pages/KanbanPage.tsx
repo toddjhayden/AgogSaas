@@ -161,34 +161,34 @@ export default function KanbanPage() {
   }
 
   return (
-    <div className="p-6 h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-6 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 md:mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-800">Kanban Board</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">Kanban Board</h1>
           <FilterActiveBadge />
         </div>
         <button
           onClick={() => fetchKanban()}
           disabled={kanbanLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm md:text-base"
         >
           <RefreshCw size={16} className={kanbanLoading ? 'animate-spin' : ''} />
-          Refresh
+          <span className="hidden sm:inline">Refresh</span>
         </button>
       </div>
 
       {/* Global Filter Bar */}
       <FilterBar showSearch={true} showStatus={true} showPriority={true} />
 
-      <div className="flex-1 overflow-x-auto">
-        <div className="flex gap-4 h-full min-w-max">
+      <div className="flex-1 overflow-x-auto -webkit-overflow-scrolling-touch pb-4">
+        <div className="flex gap-3 md:gap-4 h-full min-w-max px-1">
           {filteredColumns.map((column) => {
             const isOverLimit = column.wipLimit && column.count > column.wipLimit;
 
             return (
               <div
                 key={column.phaseCode}
-                className={`phase-column w-80 flex flex-col ${
+                className={`phase-column w-72 md:w-80 flex-shrink-0 flex flex-col ${
                   isOverLimit ? 'over-limit' : ''
                 }`}
               >

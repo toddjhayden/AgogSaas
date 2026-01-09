@@ -318,22 +318,22 @@ export default function RequestsPage() {
             <div className="text-slate-500">No requests found matching your filters</div>
           </div>
         ) : (
-          <div className="overflow-auto h-full">
-            <table className="w-full text-sm">
+          <div className="overflow-auto h-full -webkit-overflow-scrolling-touch">
+            <table className="w-full text-sm min-w-[640px] md:min-w-0">
               <thead className="bg-slate-50 sticky top-0">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-slate-600 w-8"></th>
+                  <th className="px-2 md:px-4 py-3 text-left font-medium text-slate-600 w-8"></th>
                   <th
-                    className="px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100"
+                    className="px-2 md:px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100"
                     onClick={() => toggleSort('title')}
                   >
                     <div className="flex items-center gap-1">
                       Request <SortIcon field="title" />
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-600">Type</th>
+                  <th className="px-2 md:px-4 py-3 text-left font-medium text-slate-600 hidden sm:table-cell">Type</th>
                   <th
-                    className="px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100"
+                    className="px-2 md:px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100"
                     onClick={() => toggleSort('priority')}
                   >
                     <div className="flex items-center gap-1">
@@ -341,16 +341,16 @@ export default function RequestsPage() {
                     </div>
                   </th>
                   <th
-                    className="px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100"
+                    className="px-2 md:px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100"
                     onClick={() => toggleSort('currentPhase')}
                   >
                     <div className="flex items-center gap-1">
                       Phase <SortIcon field="currentPhase" />
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-600">BU</th>
+                  <th className="px-2 md:px-4 py-3 text-left font-medium text-slate-600 hidden lg:table-cell">BU</th>
                   <th
-                    className="px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100"
+                    className="px-2 md:px-4 py-3 text-left font-medium text-slate-600 cursor-pointer hover:bg-slate-100 hidden md:table-cell"
                     onClick={() => toggleSort('createdAt')}
                   >
                     <div className="flex items-center gap-1">
@@ -369,18 +369,26 @@ export default function RequestsPage() {
                       }`}
                       onClick={() => setExpandedId(expandedId === req.id ? null : req.id)}
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-2 md:px-4 py-3">
                         {expandedId === req.id ? (
                           <ChevronUp size={16} className="text-slate-400" />
                         ) : (
                           <ChevronDown size={16} className="text-slate-400" />
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800">{req.title}</div>
+                      <td className="px-2 md:px-4 py-3">
+                        <div className="font-medium text-slate-800 line-clamp-2">{req.title}</div>
                         <div className="text-xs text-slate-500">{req.reqNumber}</div>
+                        {/* Show type inline on mobile */}
+                        <span
+                          className={`inline-block px-2 py-0.5 text-xs rounded mt-1 sm:hidden ${
+                            CATEGORY_COLORS[req.category] || 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {req.category}
+                        </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 md:px-4 py-3 hidden sm:table-cell">
                         <span
                           className={`inline-block px-2 py-1 text-xs rounded ${
                             CATEGORY_COLORS[req.category] || 'bg-gray-100 text-gray-700'
@@ -389,7 +397,7 @@ export default function RequestsPage() {
                           {req.category}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 md:px-4 py-3">
                         <span
                           className={`inline-block px-2 py-1 text-xs rounded border ${
                             PRIORITY_COLORS[req.priority] || 'bg-gray-100 text-gray-700'
@@ -398,7 +406,7 @@ export default function RequestsPage() {
                           {req.priority}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 md:px-4 py-3">
                         <span
                           className={`inline-block px-2 py-1 text-xs rounded ${
                             PHASE_COLORS[req.currentPhase] || 'bg-gray-100 text-gray-700'
@@ -407,8 +415,8 @@ export default function RequestsPage() {
                           {req.currentPhase.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{req.primaryBu || '-'}</td>
-                      <td className="px-4 py-3 text-slate-500">
+                      <td className="px-2 md:px-4 py-3 text-slate-600 hidden lg:table-cell">{req.primaryBu || '-'}</td>
+                      <td className="px-2 md:px-4 py-3 text-slate-500 hidden md:table-cell">
                         <div className="flex items-center gap-1">
                           <Clock size={12} />
                           {formatDate(req.createdAt)}
@@ -417,8 +425,8 @@ export default function RequestsPage() {
                     </tr>
                     {expandedId === req.id && (
                       <tr key={`${req.id}-expanded`} className="bg-slate-50 border-t">
-                        <td colSpan={7} className="px-4 py-4">
-                          <div className="grid grid-cols-2 gap-4">
+                        <td colSpan={7} className="px-2 md:px-4 py-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <h4 className="font-medium text-slate-700 mb-2">Description</h4>
                               <div className="text-sm text-slate-600 whitespace-pre-wrap bg-white p-3 rounded border max-h-48 overflow-auto">
@@ -456,6 +464,17 @@ export default function RequestsPage() {
                                     <span className="text-slate-500">Updated:</span>{' '}
                                     <span className="text-slate-700">{formatDate(req.updatedAt)}</span>
                                   </div>
+                                  {/* Show hidden columns info on mobile */}
+                                  <div className="md:hidden">
+                                    <span className="text-slate-500">Created:</span>{' '}
+                                    <span className="text-slate-700">{formatDate(req.createdAt)}</span>
+                                  </div>
+                                  {req.primaryBu && (
+                                    <div className="lg:hidden">
+                                      <span className="text-slate-500">Business Unit:</span>{' '}
+                                      <span className="text-slate-700">{req.primaryBu}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>

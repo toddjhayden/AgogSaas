@@ -175,17 +175,17 @@ export function FilterBar({ showSearch = true, showStatus = true, showPriority =
   if (!isEnabled) return null;
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="bg-white rounded-lg shadow p-3 md:p-4 mb-3 md:mb-4">
+      <div className="flex flex-wrap items-center gap-2 md:gap-4">
         {/* Type Filter */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">Type:</span>
+          <span className="text-xs md:text-sm text-slate-500 hidden sm:inline">Type:</span>
           <div className="flex gap-1">
             {(['ALL', 'REQ', 'REC'] as FilterType[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setType(t)}
-                className={`px-3 py-1 text-sm rounded transition-colors ${
+                className={`px-2 md:px-3 py-1 text-xs md:text-sm rounded transition-colors ${
                   type === t
                     ? 'bg-blue-600 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -199,14 +199,14 @@ export function FilterBar({ showSearch = true, showStatus = true, showPriority =
 
         {/* Status Filter */}
         {showStatus && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Status:</span>
+          <div className="flex items-center gap-1 md:gap-2">
+            <span className="text-xs md:text-sm text-slate-500 hidden md:inline">Status:</span>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as FilterStatus)}
-              className="px-3 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 md:px-3 py-1 text-xs md:text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All</option>
+              <option value="all">All Status</option>
               <option value="backlog">Backlog</option>
               <option value="pending">Pending</option>
               <option value="in_progress">In Progress</option>
@@ -219,14 +219,14 @@ export function FilterBar({ showSearch = true, showStatus = true, showPriority =
 
         {/* Priority Filter */}
         {showPriority && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Priority:</span>
+          <div className="flex items-center gap-1 md:gap-2">
+            <span className="text-xs md:text-sm text-slate-500 hidden md:inline">Priority:</span>
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as FilterPriority)}
-              className="px-3 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 md:px-3 py-1 text-xs md:text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All</option>
+              <option value="all">All Priority</option>
               <option value="catastrophic">Catastrophic</option>
               <option value="critical">Critical</option>
               <option value="high">High</option>
@@ -238,15 +238,15 @@ export function FilterBar({ showSearch = true, showStatus = true, showPriority =
 
         {/* Search */}
         {showSearch && (
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-[120px] sm:min-w-[200px] order-first sm:order-none w-full sm:w-auto">
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-8 md:pl-9 pr-3 py-1.5 text-xs md:text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -254,13 +254,13 @@ export function FilterBar({ showSearch = true, showStatus = true, showPriority =
 
         {/* Focused Item Indicator */}
         {focusedItem && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded">
-            <span className="text-sm text-blue-700">
+          <div className="flex items-center gap-2 px-2 md:px-3 py-1 md:py-1.5 bg-blue-50 border border-blue-200 rounded w-full sm:w-auto">
+            <span className="text-xs md:text-sm text-blue-700 truncate">
               Focus: <span className="font-mono">{focusedItem}</span>
             </span>
             <button
               onClick={clearFocus}
-              className="text-blue-500 hover:text-blue-700"
+              className="text-blue-500 hover:text-blue-700 flex-shrink-0"
             >
               <X size={14} />
             </button>
