@@ -3,7 +3,7 @@
  * Interactive drag-and-drop Kanban board for managing recommendation workflow
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useSDLCStore } from '@/stores/useSDLCStore';
 import type { RecommendationStatus, Recommendation } from '@/api/sdlc-client';
@@ -17,6 +17,8 @@ import {
   Lightbulb,
   User,
 } from 'lucide-react';
+import { useFilterStore } from '@/stores/useFilterStore';
+import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
 
 // Kanban column configuration
 const KANBAN_COLUMNS: {
@@ -304,6 +306,16 @@ export default function RecommendationsKanbanPage() {
     moveRecommendation,
   } = useSDLCStore();
 
+  // Global filters
+  const {
+    isEnabled: globalFiltersEnabled,
+    type: globalType,
+    status: globalStatus,
+    priority: globalPriority,
+    searchTerm: globalSearchTerm,
+    focusedItem,
+  } = useFilterStore();
+
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     type: 'approve' | 'reject' | 'move';
@@ -321,6 +333,44 @@ export default function RecommendationsKanbanPage() {
     fetchRecommendations();
   }, [fetchRecommendations]);
 
+  // Filter recommendations based on global filters
+  const filteredRecommendations = useMemo(() => {
+    if (!globalFiltersEnabled) return recommendations;
+
+    // If type is set to REQ only, return empty (this page is for recommendations)
+    if (globalType === 'REQ') return [];
+
+    let filtered = [...recommendations];
+
+    // Status filter (map recommendation statuses)
+    if (globalStatus !== 'all') {
+      filtered = filtered.filter((rec) => rec.status.toLowerCase() === globalStatus);
+    }
+
+    // Priority/urgency filter (recommendations use "urgency" not "priority")
+    if (globalPriority !== 'all') {
+      filtered = filtered.filter((rec) => rec.urgency.toLowerCase() === globalPriority);
+    }
+
+    // Search filter
+    if (globalSearchTerm) {
+      const term = globalSearchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (rec) =>
+          rec.title.toLowerCase().includes(term) ||
+          rec.recNumber.toLowerCase().includes(term) ||
+          rec.description?.toLowerCase().includes(term)
+      );
+    }
+
+    // Focus filter
+    if (focusedItem) {
+      filtered = filtered.filter((rec) => rec.recNumber === focusedItem);
+    }
+
+    return filtered;
+  }, [recommendations, globalFiltersEnabled, globalType, globalStatus, globalPriority, globalSearchTerm, focusedItem]);
+
   // Group recommendations by status
   const groupedRecommendations = useCallback(() => {
     const grouped: Record<RecommendationStatus, Recommendation[]> = {
@@ -332,7 +382,7 @@ export default function RecommendationsKanbanPage() {
       failed: [],
     };
 
-    recommendations.forEach((rec) => {
+    filteredRecommendations.forEach((rec) => {
       const status = rec.status as RecommendationStatus;
       if (grouped[status]) {
         grouped[status].push(rec);
@@ -342,7 +392,7 @@ export default function RecommendationsKanbanPage() {
     });
 
     return grouped;
-  }, [recommendations]);
+  }, [filteredRecommendations]);
 
   // Handle drag end
   const handleDragEnd = (result: DropResult) => {
@@ -439,12 +489,36 @@ export default function RecommendationsKanbanPage() {
     );
   }
 
+  // Show message if global filter is set to requests only
+  if (globalFiltersEnabled && globalType === 'REQ') {
+    return (
+      <div className="p-6 h-full flex flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">Recommendations Board</h1>
+            <FilterActiveBadge />
+          </div>
+        </div>
+        <FilterBar showSearch={true} showStatus={true} showPriority={true} />
+        <div className="flex items-center justify-center h-64 text-slate-500">
+          <div className="text-center">
+            <p>Global filter is set to show Requests only.</p>
+            <p className="text-sm mt-1">This board displays Recommendations. Switch to "All" or "REC" type to see content.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 h-full flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Recommendations Board</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">Recommendations Board</h1>
+            <FilterActiveBadge />
+          </div>
           <p className="text-sm text-slate-500 mt-1">
             Drag and drop to change status. Click approve/reject for pending items.
           </p>
@@ -458,6 +532,9 @@ export default function RecommendationsKanbanPage() {
           Refresh
         </button>
       </div>
+
+      {/* Global Filter Bar */}
+      <FilterBar showSearch={true} showStatus={true} showPriority={true} />
 
       {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto">
@@ -476,11 +553,19 @@ export default function RecommendationsKanbanPage() {
           </div>
         </DragDropContext>
 
-        {recommendations.length === 0 && (
+        {filteredRecommendations.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 text-slate-500">
             <AlertTriangle size={48} className="mb-4 text-slate-400" />
-            <h3 className="text-lg font-medium">No Recommendations</h3>
-            <p className="text-sm">Recommendations will appear here when created by the SDLC system.</p>
+            <h3 className="text-lg font-medium">
+              {globalFiltersEnabled && recommendations.length > 0
+                ? 'No Matching Recommendations'
+                : 'No Recommendations'}
+            </h3>
+            <p className="text-sm">
+              {globalFiltersEnabled && recommendations.length > 0
+                ? 'Try adjusting the global filters to see more items.'
+                : 'Recommendations will appear here when created by the SDLC system.'}
+            </p>
           </div>
         )}
       </div>

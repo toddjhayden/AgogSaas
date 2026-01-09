@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
 import { AIChatPanel, ChatButton } from '@/components/AIChatPanel';
+import { GlobalFilterToggle } from '@/components/GlobalFilterBar';
 
 // Pages
 import DashboardPage from '@/pages/DashboardPage';
@@ -94,6 +95,11 @@ function Sidebar() {
             <div>Columns: {health.columnCount}</div>
           </div>
         )}
+      </div>
+
+      {/* Global Filters */}
+      <div className="px-4">
+        <GlobalFilterToggle />
       </div>
 
       {/* Settings */}

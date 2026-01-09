@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   RefreshCw, AlertTriangle, CheckCircle, ArrowRight, X,
   ThumbsUp, ThumbsDown, AlertCircle as AlertIcon, ChevronDown,
@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
 import type { RequestItem, DeepestUnblockedRequest } from '@/api/sdlc-client';
+import { useFilterStore } from '@/stores/useFilterStore';
+import { FilterActiveBadge } from '@/components/GlobalFilterBar';
 
 interface RequestWithBlockers extends RequestItem {
   blockedBy: string[];
@@ -110,6 +112,47 @@ export default function BlockerGraphPage() {
   });
   const [actionNotes, setActionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Global filters
+  const {
+    isEnabled: globalFiltersEnabled,
+    type: globalType,
+    priority: globalPriority,
+    searchTerm: globalSearchTerm,
+    focusedItem,
+  } = useFilterStore();
+
+  // Filter deepest unblocked based on global filters
+  const filteredDeepestUnblocked = useMemo(() => {
+    if (!globalFiltersEnabled) return deepestUnblocked;
+
+    // If type is set to REC only, return empty (this page is for requests)
+    if (globalType === 'REC') return [];
+
+    let filtered = [...deepestUnblocked];
+
+    // Priority filter
+    if (globalPriority !== 'all') {
+      filtered = filtered.filter((req) => req.priority.toLowerCase() === globalPriority);
+    }
+
+    // Search filter
+    if (globalSearchTerm) {
+      const term = globalSearchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (req) =>
+          req.title.toLowerCase().includes(term) ||
+          req.reqNumber.toLowerCase().includes(term)
+      );
+    }
+
+    // Focus filter
+    if (focusedItem) {
+      filtered = filtered.filter((req) => req.reqNumber === focusedItem);
+    }
+
+    return filtered;
+  }, [deepestUnblocked, globalFiltersEnabled, globalType, globalPriority, globalSearchTerm, focusedItem]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -294,7 +337,10 @@ export default function BlockerGraphPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Request Dependency Graph</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">Request Dependency Graph</h1>
+            <FilterActiveBadge />
+          </div>
           <p className="text-slate-500 mt-1">Manage blocking relationships and dependencies</p>
         </div>
         <button
@@ -318,15 +364,24 @@ export default function BlockerGraphPage() {
             Complete these to unblock the most downstream work
           </p>
 
-          {deepestUnblocked.length === 0 ? (
+          {filteredDeepestUnblocked.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
               <CheckCircle size={40} className="mx-auto mb-2 text-green-400" />
-              <p>No blocking chains found</p>
-              <p className="text-sm mt-1">All requests are unblocked!</p>
+              {globalFiltersEnabled && deepestUnblocked.length > 0 ? (
+                <>
+                  <p>No matching items</p>
+                  <p className="text-sm mt-1">Try adjusting the global filters</p>
+                </>
+              ) : (
+                <>
+                  <p>No blocking chains found</p>
+                  <p className="text-sm mt-1">All requests are unblocked!</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {deepestUnblocked.map((req, idx) => {
+              {filteredDeepestUnblocked.map((req, idx) => {
                 const isExpanded = expandedPriority === req.reqNumber;
                 const fullRequest = requests.find(r => r.reqNumber === req.reqNumber);
 

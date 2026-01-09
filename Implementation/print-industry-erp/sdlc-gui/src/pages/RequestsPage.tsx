@@ -2,8 +2,10 @@ import { useEffect, useState, useMemo } from 'react';
 import { RefreshCw, Search, Filter, ChevronDown, ChevronUp, Clock, AlertCircle } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
 import type { RequestItem } from '@/api/sdlc-client';
+import { useFilterStore } from '@/stores/useFilterStore';
+import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
 
-type FilterType = 'all' | 'request' | 'recommendation';
+type LocalFilterType = 'all' | 'request' | 'recommendation';
 type SortField = 'createdAt' | 'priority' | 'title' | 'currentPhase';
 type SortDir = 'asc' | 'desc';
 
@@ -51,13 +53,27 @@ export default function RequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters and sorting
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<FilterType>('all');
-  const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [filterPhase, setFilterPhase] = useState<string>('all');
+  // Global filters
+  const {
+    isEnabled: globalFiltersEnabled,
+    type: globalType,
+    status: globalStatus,
+    priority: globalPriority,
+    searchTerm: globalSearchTerm,
+    focusedItem,
+  } = useFilterStore();
+
+  // Local filters and sorting
+  const [localSearchTerm, setLocalSearchTerm] = useState('');
+  const [localFilterType, setLocalFilterType] = useState<LocalFilterType>('all');
+  const [localFilterPriority, setLocalFilterPriority] = useState<string>('all');
+  const [localFilterPhase, setLocalFilterPhase] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  // Effective filters (global takes precedence when enabled)
+  const effectiveSearchTerm = globalFiltersEnabled && globalSearchTerm ? globalSearchTerm : localSearchTerm;
+  const effectivePriority = globalFiltersEnabled && globalPriority !== 'all' ? globalPriority : localFilterPriority;
 
   // Expanded row
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -90,9 +106,31 @@ export default function RequestsPage() {
   const filteredRequests = useMemo(() => {
     let filtered = [...requests];
 
-    // Search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    // Global filters (when enabled)
+    if (globalFiltersEnabled) {
+      // Type filter from global
+      if (globalType !== 'ALL') {
+        filtered = filtered.filter((r) => {
+          if (globalType === 'REQ') return r.category === 'request';
+          if (globalType === 'REC') return r.category === 'recommendation';
+          return true;
+        });
+      }
+
+      // Status filter from global
+      if (globalStatus !== 'all') {
+        filtered = filtered.filter((r) => r.currentPhase.toLowerCase() === globalStatus);
+      }
+
+      // Focus filter - show only focused item
+      if (focusedItem) {
+        filtered = filtered.filter((r) => r.reqNumber === focusedItem);
+      }
+    }
+
+    // Search filter (use effective search term)
+    if (effectiveSearchTerm) {
+      const term = effectiveSearchTerm.toLowerCase();
       filtered = filtered.filter(
         (r) =>
           r.title.toLowerCase().includes(term) ||
@@ -101,19 +139,21 @@ export default function RequestsPage() {
       );
     }
 
-    // Type filter
-    if (filterType !== 'all') {
-      filtered = filtered.filter((r) => r.category === filterType);
+    // Local type filter (only if global type not set)
+    if (!globalFiltersEnabled || globalType === 'ALL') {
+      if (localFilterType !== 'all') {
+        filtered = filtered.filter((r) => r.category === localFilterType);
+      }
     }
 
-    // Priority filter
-    if (filterPriority !== 'all') {
-      filtered = filtered.filter((r) => r.priority === filterPriority);
+    // Priority filter (use effective priority)
+    if (effectivePriority !== 'all') {
+      filtered = filtered.filter((r) => r.priority === effectivePriority);
     }
 
-    // Phase filter
-    if (filterPhase !== 'all') {
-      filtered = filtered.filter((r) => r.currentPhase === filterPhase);
+    // Phase filter (local only - doesn't conflict with global status)
+    if (localFilterPhase !== 'all' && (!globalFiltersEnabled || globalStatus === 'all')) {
+      filtered = filtered.filter((r) => r.currentPhase === localFilterPhase);
     }
 
     // Sort
@@ -137,7 +177,7 @@ export default function RequestsPage() {
     });
 
     return filtered;
-  }, [requests, searchTerm, filterType, filterPriority, filterPhase, sortField, sortDir]);
+  }, [requests, globalFiltersEnabled, globalType, globalStatus, globalPriority, focusedItem, effectiveSearchTerm, effectivePriority, localFilterType, localFilterPhase, sortField, sortDir]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -167,7 +207,10 @@ export default function RequestsPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">All Requests</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">All Requests</h1>
+            <FilterActiveBadge />
+          </div>
           {summary && (
             <p className="text-sm text-slate-500 mt-1">
               {summary.totalRequests} requests, {summary.totalRecommendations} recommendations
@@ -184,28 +227,33 @@ export default function RequestsPage() {
         </button>
       </div>
 
-      {/* Filters */}
+      {/* Global Filter Bar */}
+      <FilterBar showSearch={true} showStatus={true} showPriority={true} />
+
+      {/* Page-Level Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-wrap items-center gap-4">
-          {/* Search */}
+          {/* Search (disabled when global search is active) */}
           <div className="relative flex-1 min-w-[200px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Search by title, REQ number, or description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={localSearchTerm}
+              onChange={(e) => setLocalSearchTerm(e.target.value)}
+              disabled={globalFiltersEnabled && !!globalSearchTerm}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
             />
           </div>
 
-          {/* Type Filter */}
+          {/* Type Filter (disabled when global type is set) */}
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-slate-400" />
             <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value as FilterType)}
-              className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={localFilterType}
+              onChange={(e) => setLocalFilterType(e.target.value as LocalFilterType)}
+              disabled={globalFiltersEnabled && globalType !== 'ALL'}
+              className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
             >
               <option value="all">All Types</option>
               <option value="request">Requests</option>
@@ -213,11 +261,12 @@ export default function RequestsPage() {
             </select>
           </div>
 
-          {/* Priority Filter */}
+          {/* Priority Filter (disabled when global priority is set) */}
           <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={localFilterPriority}
+            onChange={(e) => setLocalFilterPriority(e.target.value)}
+            disabled={globalFiltersEnabled && globalPriority !== 'all'}
+            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
           >
             <option value="all">All Priorities</option>
             <option value="critical">Critical</option>
@@ -226,11 +275,12 @@ export default function RequestsPage() {
             <option value="low">Low</option>
           </select>
 
-          {/* Phase Filter */}
+          {/* Phase Filter (disabled when global status is set) */}
           <select
-            value={filterPhase}
-            onChange={(e) => setFilterPhase(e.target.value)}
-            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={localFilterPhase}
+            onChange={(e) => setLocalFilterPhase(e.target.value)}
+            disabled={globalFiltersEnabled && globalStatus !== 'all'}
+            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
           >
             <option value="all">All Phases</option>
             {uniquePhases.map((phase) => (
