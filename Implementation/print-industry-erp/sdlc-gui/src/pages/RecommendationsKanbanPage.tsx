@@ -251,7 +251,7 @@ function KanbanColumn({
   updatingId: string | null;
 }) {
   return (
-    <div className="flex flex-col w-80 flex-shrink-0">
+    <div className="flex flex-col w-72 md:w-80 flex-shrink-0">
       {/* Column Header */}
       <div className={`flex items-center justify-between p-3 rounded-t-lg ${column.bgColor} border-b-2 ${column.borderColor}`}>
         <h2 className={`font-semibold ${column.color}`}>{column.title}</h2>
@@ -511,25 +511,25 @@ export default function RecommendationsKanbanPage() {
   }
 
   return (
-    <div className="p-6 h-full flex flex-col">
+    <div className="p-4 md:p-6 h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 md:mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">Recommendations Board</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800">Recommendations Board</h1>
             <FilterActiveBadge />
           </div>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs md:text-sm text-slate-500 mt-1">
             Drag and drop to change status. Click approve/reject for pending items.
           </p>
         </div>
         <button
           onClick={() => fetchRecommendations()}
           disabled={recommendationsLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm md:text-base"
         >
-          <RefreshCw size={18} className={recommendationsLoading ? 'animate-spin' : ''} />
-          Refresh
+          <RefreshCw size={16} className={recommendationsLoading ? 'animate-spin' : ''} />
+          <span className="hidden sm:inline">Refresh</span>
         </button>
       </div>
 
@@ -537,9 +537,9 @@ export default function RecommendationsKanbanPage() {
       <FilterBar showSearch={true} showStatus={true} showPriority={true} />
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto">
+      <div className="flex-1 overflow-x-auto -webkit-overflow-scrolling-touch">
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 h-full min-w-max pb-4">
+          <div className="flex gap-3 md:gap-4 h-full min-w-max pb-4 px-1">
             {KANBAN_COLUMNS.map((column) => (
               <KanbanColumn
                 key={column.id}
