@@ -1,11 +1,17 @@
 import { useEffect, useMemo } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
-import { Clock, AlertCircle, RefreshCw } from 'lucide-react';
+import { Clock, AlertCircle, RefreshCw, MousePointerClick } from 'lucide-react';
 import type { OwnerRequest } from '@/types';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
 
-function RequestCard({ request }: { request: OwnerRequest }) {
+interface RequestCardProps {
+  request: OwnerRequest;
+  onFocus: (reqNumber: string) => void;
+  isFocused: boolean;
+}
+
+function RequestCard({ request, onFocus, isFocused }: RequestCardProps) {
   const priorityColors = {
     critical: 'border-l-red-500 bg-red-50',
     high: 'border-l-orange-500 bg-orange-50',
@@ -15,10 +21,28 @@ function RequestCard({ request }: { request: OwnerRequest }) {
 
   return (
     <div
-      className={`kanban-card border-l-4 ${priorityColors[request.priority] || 'border-l-gray-300'}`}
+      className={`kanban-card border-l-4 ${priorityColors[request.priority] || 'border-l-gray-300'} ${
+        isFocused ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+      }`}
     >
       <div className="flex justify-between items-start mb-2">
-        <span className="text-xs font-mono text-slate-500">{request.reqNumber}</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-mono text-slate-500">{request.reqNumber}</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onFocus(request.reqNumber);
+            }}
+            className={`p-0.5 rounded transition-colors ${
+              isFocused
+                ? 'text-blue-600 bg-blue-100'
+                : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+            }`}
+            title={isFocused ? 'Currently focused' : 'Focus on this item across all pages'}
+          >
+            <MousePointerClick size={12} />
+          </button>
+        </div>
         <span
           className={`text-xs px-2 py-0.5 rounded-full ${
             request.priority === 'critical'
@@ -80,6 +104,7 @@ export default function KanbanPage() {
     priority: globalPriority,
     searchTerm: globalSearchTerm,
     focusedItem,
+    focusOnReq,
   } = useFilterStore();
 
   useEffect(() => {
@@ -212,7 +237,12 @@ export default function KanbanPage() {
                 <div className="flex-1 overflow-y-auto">
                   {column.requests && column.requests.length > 0 ? (
                     column.requests.map((request) => (
-                      <RequestCard key={request.id} request={request} />
+                      <RequestCard
+                        key={request.id}
+                        request={request}
+                        onFocus={focusOnReq}
+                        isFocused={focusedItem === request.reqNumber}
+                      />
                     ))
                   ) : (
                     <div className="text-center text-slate-400 py-8">

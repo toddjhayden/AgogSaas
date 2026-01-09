@@ -2,12 +2,12 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   RefreshCw, AlertTriangle, CheckCircle, ArrowRight, X,
   ThumbsUp, ThumbsDown, AlertCircle as AlertIcon, ChevronDown,
-  ChevronUp, Target, Zap, Info
+  ChevronUp, Target, Zap, Info, MousePointerClick
 } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
 import type { RequestItem, DeepestUnblockedRequest } from '@/api/sdlc-client';
 import { useFilterStore } from '@/stores/useFilterStore';
-import { FilterActiveBadge } from '@/components/GlobalFilterBar';
+import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
 
 interface RequestWithBlockers extends RequestItem {
   blockedBy: string[];
@@ -120,6 +120,7 @@ export default function BlockerGraphPage() {
     priority: globalPriority,
     searchTerm: globalSearchTerm,
     focusedItem,
+    focusOnReq,
   } = useFilterStore();
 
   // Filter deepest unblocked based on global filters
@@ -353,6 +354,9 @@ export default function BlockerGraphPage() {
         </button>
       </div>
 
+      {/* Global Filter Bar */}
+      <FilterBar showSearch={true} showStatus={false} showPriority={true} />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Priority Work - Deepest Unblocked (Expanded) */}
         <div className="bg-white rounded-lg shadow p-6">
@@ -402,6 +406,20 @@ export default function BlockerGraphPage() {
                           <div>
                             <div className="font-medium text-sm flex items-center gap-2">
                               {req.reqNumber}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  focusOnReq(req.reqNumber);
+                                }}
+                                className={`p-0.5 rounded transition-colors ${
+                                  focusedItem === req.reqNumber
+                                    ? 'text-blue-600 bg-blue-100'
+                                    : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                }`}
+                                title={focusedItem === req.reqNumber ? 'Currently focused' : 'Focus on this item across all pages'}
+                              >
+                                <MousePointerClick size={12} />
+                              </button>
                               {req.priority === 'critical' || req.priority === 'catastrophic' ? (
                                 <Zap size={14} className="text-red-500" />
                               ) : null}
@@ -511,11 +529,27 @@ export default function BlockerGraphPage() {
                         className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
                           selectedReq === blocker.reqNumber
                             ? 'border-blue-500 bg-blue-100'
+                            : focusedItem === blocker.reqNumber
+                            ? 'border-blue-400 bg-amber-50 ring-2 ring-blue-400'
                             : 'border-amber-400 bg-amber-50 hover:bg-amber-100'
                         }`}
                       >
                         <div className="w-2 h-2 bg-amber-500 rounded-full" />
                         <span className="font-medium text-sm">{blocker.reqNumber}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            focusOnReq(blocker.reqNumber);
+                          }}
+                          className={`p-0.5 rounded transition-colors ${
+                            focusedItem === blocker.reqNumber
+                              ? 'text-blue-600 bg-blue-100'
+                              : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                          }`}
+                          title={focusedItem === blocker.reqNumber ? 'Currently focused' : 'Focus on this item across all pages'}
+                        >
+                          <MousePointerClick size={12} />
+                        </button>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${getPhaseColor(blocker.currentPhase)}`}>
                           {blocker.currentPhase}
                         </span>
@@ -545,6 +579,20 @@ export default function BlockerGraphPage() {
                                 >
                                   <div className="w-2 h-2 bg-red-500 rounded-full" />
                                   <span className="font-medium text-sm">{blockedReq}</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      focusOnReq(blockedReq);
+                                    }}
+                                    className={`p-0.5 rounded transition-colors ${
+                                      focusedItem === blockedReq
+                                        ? 'text-blue-600 bg-blue-100'
+                                        : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                    }`}
+                                    title={focusedItem === blockedReq ? 'Currently focused' : 'Focus on this item across all pages'}
+                                  >
+                                    <MousePointerClick size={12} />
+                                  </button>
                                   {blockedInfo && (
                                     <span className={`text-xs px-1.5 py-0.5 rounded ${getPhaseColor(blockedInfo.currentPhase)}`}>
                                       {blockedInfo.currentPhase}

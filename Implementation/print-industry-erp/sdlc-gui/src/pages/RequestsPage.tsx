@@ -4,6 +4,7 @@ import * as api from '@/api/sdlc-client';
 import type { RequestItem } from '@/api/sdlc-client';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
+import { MousePointerClick } from 'lucide-react';
 
 type LocalFilterType = 'all' | 'request' | 'recommendation';
 type SortField = 'createdAt' | 'priority' | 'title' | 'currentPhase';
@@ -61,6 +62,8 @@ export default function RequestsPage() {
     priority: globalPriority,
     searchTerm: globalSearchTerm,
     focusedItem,
+    focusOnReq,
+    focusOnRec,
   } = useFilterStore();
 
   // Local filters and sorting
@@ -202,6 +205,16 @@ export default function RequestsPage() {
     });
   };
 
+  // Handle click to focus on a specific item
+  const handleFocusClick = (e: React.MouseEvent, req: RequestItem) => {
+    e.stopPropagation();
+    if (req.category === 'request') {
+      focusOnReq(req.reqNumber);
+    } else {
+      focusOnRec(req.reqNumber);
+    }
+  };
+
   return (
     <div className="p-6 h-full flex flex-col">
       {/* Header */}
@@ -230,67 +243,65 @@ export default function RequestsPage() {
       {/* Global Filter Bar */}
       <FilterBar showSearch={true} showStatus={true} showPriority={true} />
 
-      {/* Page-Level Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Search (disabled when global search is active) */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by title, REQ number, or description..."
-              value={localSearchTerm}
-              onChange={(e) => setLocalSearchTerm(e.target.value)}
-              disabled={globalFiltersEnabled && !!globalSearchTerm}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
-            />
-          </div>
+      {/* Page-Level Filters - Only show when global filters are disabled */}
+      {!globalFiltersEnabled && (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by title, REQ number, or description..."
+                value={localSearchTerm}
+                onChange={(e) => setLocalSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-          {/* Type Filter (disabled when global type is set) */}
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-slate-400" />
+            {/* Type Filter */}
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-slate-400" />
+              <select
+                value={localFilterType}
+                onChange={(e) => setLocalFilterType(e.target.value as LocalFilterType)}
+                className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Types</option>
+                <option value="request">Requests</option>
+                <option value="recommendation">Recommendations</option>
+              </select>
+            </div>
+
+            {/* Priority Filter */}
             <select
-              value={localFilterType}
-              onChange={(e) => setLocalFilterType(e.target.value as LocalFilterType)}
-              disabled={globalFiltersEnabled && globalType !== 'ALL'}
-              className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+              value={localFilterPriority}
+              onChange={(e) => setLocalFilterPriority(e.target.value)}
+              className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Types</option>
-              <option value="request">Requests</option>
-              <option value="recommendation">Recommendations</option>
+              <option value="all">All Priorities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+
+            {/* Phase Filter */}
+            <select
+              value={localFilterPhase}
+              onChange={(e) => setLocalFilterPhase(e.target.value)}
+              className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Phases</option>
+              {uniquePhases.map((phase) => (
+                <option key={phase} value={phase}>
+                  {phase.replace(/_/g, ' ')}
+                </option>
+              ))}
             </select>
           </div>
-
-          {/* Priority Filter (disabled when global priority is set) */}
-          <select
-            value={localFilterPriority}
-            onChange={(e) => setLocalFilterPriority(e.target.value)}
-            disabled={globalFiltersEnabled && globalPriority !== 'all'}
-            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
-          >
-            <option value="all">All Priorities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-
-          {/* Phase Filter (disabled when global status is set) */}
-          <select
-            value={localFilterPhase}
-            onChange={(e) => setLocalFilterPhase(e.target.value)}
-            disabled={globalFiltersEnabled && globalStatus !== 'all'}
-            className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
-          >
-            <option value="all">All Phases</option>
-            {uniquePhases.map((phase) => (
-              <option key={phase} value={phase}>
-                {phase.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
         </div>
-      </div>
+      )}
 
       {/* Results count */}
       <div className="text-sm text-slate-500 mb-2">
@@ -357,6 +368,9 @@ export default function RequestsPage() {
                       Created <SortIcon field="createdAt" />
                     </div>
                   </th>
+                  <th className="px-2 py-3 text-center font-medium text-slate-600 w-10" title="Focus filter">
+                    <MousePointerClick size={14} className="mx-auto text-slate-400" />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -422,10 +436,23 @@ export default function RequestsPage() {
                           {formatDate(req.createdAt)}
                         </div>
                       </td>
+                      <td className="px-2 py-3 text-center">
+                        <button
+                          onClick={(e) => handleFocusClick(e, req)}
+                          className={`p-1.5 rounded transition-colors ${
+                            focusedItem === req.reqNumber
+                              ? 'bg-blue-100 text-blue-600'
+                              : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                          }`}
+                          title={focusedItem === req.reqNumber ? 'Currently focused' : 'Focus on this item across all pages'}
+                        >
+                          <MousePointerClick size={14} />
+                        </button>
+                      </td>
                     </tr>
                     {expandedId === req.id && (
                       <tr key={`${req.id}-expanded`} className="bg-slate-50 border-t">
-                        <td colSpan={7} className="px-2 md:px-4 py-4">
+                        <td colSpan={8} className="px-2 md:px-4 py-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <h4 className="font-medium text-slate-700 mb-2">Description</h4>

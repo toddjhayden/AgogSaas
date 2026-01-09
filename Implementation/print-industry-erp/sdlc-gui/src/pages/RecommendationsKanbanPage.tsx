@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Lightbulb,
   User,
+  MousePointerClick,
 } from 'lucide-react';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
@@ -115,12 +116,16 @@ function RecommendationCard({
   onApprove,
   onReject,
   isUpdating,
+  onFocus,
+  isFocused,
 }: {
   recommendation: Recommendation;
   index: number;
   onApprove: (rec: Recommendation) => void;
   onReject: (rec: Recommendation) => void;
   isUpdating: boolean;
+  onFocus: (recNumber: string) => void;
+  isFocused: boolean;
 }) {
   const urgencyColors: Record<string, string> = {
     critical: 'bg-red-100 text-red-700 border-red-200',
@@ -146,11 +151,27 @@ function RecommendationCard({
           {...provided.dragHandleProps}
           className={`bg-white rounded-lg shadow-sm border p-4 mb-3 transition-shadow ${
             snapshot.isDragging ? 'shadow-lg ring-2 ring-blue-400' : 'hover:shadow-md'
-          } ${isUpdating ? 'opacity-60' : ''}`}
+          } ${isUpdating ? 'opacity-60' : ''} ${isFocused ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
         >
           {/* Header */}
           <div className="flex justify-between items-start mb-2">
-            <span className="text-xs font-mono text-slate-500">{recommendation.recNumber}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-mono text-slate-500">{recommendation.recNumber}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocus(recommendation.recNumber);
+                }}
+                className={`p-0.5 rounded transition-colors ${
+                  isFocused
+                    ? 'text-blue-600 bg-blue-100'
+                    : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                }`}
+                title={isFocused ? 'Currently focused' : 'Focus on this item across all pages'}
+              >
+                <MousePointerClick size={12} />
+              </button>
+            </div>
             <div className="flex gap-1.5">
               <span className={`text-xs px-2 py-0.5 rounded border ${urgencyColors[recommendation.urgency] || 'bg-slate-100'}`}>
                 {recommendation.urgency}
@@ -243,12 +264,16 @@ function KanbanColumn({
   onApprove,
   onReject,
   updatingId,
+  onFocus,
+  focusedItem,
 }: {
   column: typeof KANBAN_COLUMNS[0];
   recommendations: Recommendation[];
   onApprove: (rec: Recommendation) => void;
   onReject: (rec: Recommendation) => void;
   updatingId: string | null;
+  onFocus: (recNumber: string) => void;
+  focusedItem: string | null;
 }) {
   return (
     <div className="flex flex-col w-72 md:w-80 flex-shrink-0">
@@ -279,6 +304,8 @@ function KanbanColumn({
                   onApprove={onApprove}
                   onReject={onReject}
                   isUpdating={updatingId === rec.id}
+                  onFocus={onFocus}
+                  isFocused={focusedItem === rec.recNumber}
                 />
               ))
             ) : (
@@ -314,6 +341,7 @@ export default function RecommendationsKanbanPage() {
     priority: globalPriority,
     searchTerm: globalSearchTerm,
     focusedItem,
+    focusOnRec,
   } = useFilterStore();
 
   const [dialogState, setDialogState] = useState<{
@@ -548,6 +576,8 @@ export default function RecommendationsKanbanPage() {
                 onApprove={handleApproveClick}
                 onReject={handleRejectClick}
                 updatingId={recommendationUpdating}
+                onFocus={focusOnRec}
+                focusedItem={focusedItem}
               />
             ))}
           </div>
