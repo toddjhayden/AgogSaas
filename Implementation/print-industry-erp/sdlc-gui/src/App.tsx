@@ -17,6 +17,7 @@ import {
 import { useEffect, useState, useCallback } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
 import { AIChatPanel, ChatButton } from '@/components/AIChatPanel';
+import { AIComparePanel } from '@/components/AIComparePanel';
 import { GlobalFilterToggle } from '@/components/GlobalFilterBar';
 
 // Pages
@@ -190,10 +191,12 @@ function AppContent() {
   const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
 
   const handleOpenSettings = () => {
     navigate('/settings');
     setIsChatOpen(false);
+    setIsCompareOpen(false);
   };
 
   const handleToggleChat = () => {
@@ -202,6 +205,15 @@ function AppContent() {
 
   const handleCloseChat = () => {
     setIsChatOpen(false);
+  };
+
+  const handleOpenCompare = () => {
+    setIsCompareOpen(true);
+    setIsChatOpen(false);
+  };
+
+  const handleCloseCompare = () => {
+    setIsCompareOpen(false);
   };
 
   const handleOpenSidebar = useCallback(() => {
@@ -252,8 +264,17 @@ function AppContent() {
           <AIChatPanel
             onOpenSettings={handleOpenSettings}
             onClose={handleCloseChat}
+            onOpenCompare={handleOpenCompare}
           />
         </div>
+      )}
+
+      {/* Comparison Panel - Full screen modal */}
+      {isCompareOpen && (
+        <AIComparePanel
+          onClose={handleCloseCompare}
+          onOpenSettings={handleOpenSettings}
+        />
       )}
 
       {/* Floating Chat Button - Always visible */}

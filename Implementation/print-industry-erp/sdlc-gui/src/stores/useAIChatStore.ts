@@ -15,6 +15,17 @@ import type {
 } from '../types/ai-providers';
 import { AI_PROVIDERS as PROVIDERS } from '../types/ai-providers';
 
+// Comparison response type
+interface ComparisonResponse {
+  providerId: string;
+  providerName: string;
+  content: string;
+  model: string;
+  timestamp: Date;
+  isLoading: boolean;
+  error?: string;
+}
+
 interface AIChatStore {
   // Provider state
   providers: AIProviderConfig[];
@@ -26,6 +37,11 @@ interface AIChatStore {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
+
+  // Comparison mode state
+  comparisonMode: boolean;
+  comparisonResponses: ComparisonResponse[];
+  comparisonQuery: string;
 
   // SDLC Context
   sdlcContext: SDLCContextOptions;
@@ -44,6 +60,11 @@ interface AIChatStore {
   newSession: () => void;
   loadSession: (sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
+
+  // Comparison actions
+  setComparisonMode: (enabled: boolean) => void;
+  sendComparisonMessage: (content: string, providerIds: string[]) => Promise<void>;
+  clearComparison: () => void;
 
   // SDLC Context actions
   updateSDLCContext: (options: Partial<SDLCContextOptions>) => void;
@@ -225,6 +246,9 @@ export const useAIChatStore = create<AIChatStore>()(
       messages: [],
       isLoading: false,
       error: null,
+      comparisonMode: false,
+      comparisonResponses: [],
+      comparisonQuery: '',
       sdlcContext: DEFAULT_SDLC_CONTEXT,
       contextData: null,
 
@@ -522,6 +546,116 @@ export const useAIChatStore = create<AIChatStore>()(
         } catch (error) {
           console.error('Failed to fetch SDLC context:', error);
         }
+      },
+
+      // Comparison actions
+      setComparisonMode: (enabled: boolean) => {
+        set({ comparisonMode: enabled });
+        if (!enabled) {
+          set({ comparisonResponses: [], comparisonQuery: '' });
+        }
+      },
+
+      sendComparisonMessage: async (content: string, providerIds: string[]) => {
+        const { providers, sdlcContext, contextData } = get();
+        const selectedProviders = providers.filter(p => providerIds.includes(p.id) && p.apiKey);
+
+        if (selectedProviders.length === 0) {
+          set({ error: 'No valid providers selected for comparison' });
+          return;
+        }
+
+        // Initialize comparison responses with loading state
+        const initialResponses: ComparisonResponse[] = selectedProviders.map(p => ({
+          providerId: p.id,
+          providerName: p.name,
+          content: '',
+          model: p.model,
+          timestamp: new Date(),
+          isLoading: true,
+        }));
+
+        set({
+          comparisonResponses: initialResponses,
+          comparisonQuery: content,
+          error: null,
+        });
+
+        // Build system prompt with SDLC context
+        let systemPrompt = 'You are a helpful AI assistant integrated into an SDLC (Software Development Lifecycle) management tool. Help users with their development workflow, code questions, and project management tasks.';
+
+        if (contextData) {
+          const contextParts: string[] = [];
+
+          if (sdlcContext.includeEntities && contextData.entities?.length) {
+            contextParts.push(`\n\nEntities in the system:\n${contextData.entities.slice(0, sdlcContext.maxContextItems).map(e => `- ${e.name} (${e.type}, ${e.status})`).join('\n')}`);
+          }
+
+          if (sdlcContext.includeRequests && contextData.requests?.length) {
+            contextParts.push(`\n\nActive Requests:\n${contextData.requests.slice(0, sdlcContext.maxContextItems).map(r => `- [${r.priority}] ${r.title} (${r.status})`).join('\n')}`);
+          }
+
+          if (contextParts.length > 0) {
+            systemPrompt += '\n\nCurrent SDLC Context:' + contextParts.join('');
+          }
+        }
+
+        // Send requests to all providers in parallel
+        const promises = selectedProviders.map(async (provider) => {
+          try {
+            const request = buildProviderRequest(provider, [{ id: 'user-1', role: 'user', content, timestamp: new Date() }], systemPrompt);
+            let response = await fetch(request.url, request.options);
+
+            // Fallback for GitHub Copilot
+            if (!response.ok && provider.type === 'github-copilot') {
+              response = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${provider.apiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: provider.model,
+                  messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content },
+                  ],
+                }),
+              });
+            }
+
+            if (!response.ok) {
+              throw new Error(`API request failed: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const assistantContent = request.parseResponse(data);
+
+            // Update this provider's response
+            set(state => ({
+              comparisonResponses: state.comparisonResponses.map(r =>
+                r.providerId === provider.id
+                  ? { ...r, content: assistantContent, isLoading: false }
+                  : r
+              ),
+            }));
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to get response';
+            set(state => ({
+              comparisonResponses: state.comparisonResponses.map(r =>
+                r.providerId === provider.id
+                  ? { ...r, error: message, isLoading: false }
+                  : r
+              ),
+            }));
+          }
+        });
+
+        await Promise.all(promises);
+      },
+
+      clearComparison: () => {
+        set({ comparisonResponses: [], comparisonQuery: '' });
       },
 
       // Utility

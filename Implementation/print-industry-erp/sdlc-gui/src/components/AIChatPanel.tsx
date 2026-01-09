@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   X, Send, Trash2, Settings, Bot, User, Loader2, AlertCircle,
-  MessageSquare, History, Plus, ChevronDown, Key,
+  MessageSquare, History, Plus, ChevronDown, Key, Columns,
   Github, Sparkles, Search, Gem, Cloud, Database
 } from 'lucide-react';
 import { useAIChatStore } from '../stores/useAIChatStore';
@@ -25,9 +25,10 @@ const providerIcons: Record<AIProviderType, typeof Github> = {
 interface AIChatPanelProps {
   onOpenSettings: () => void;
   onClose: () => void;
+  onOpenCompare?: () => void;
 }
 
-export function AIChatPanel({ onOpenSettings, onClose }: AIChatPanelProps) {
+export function AIChatPanel({ onOpenSettings, onClose, onOpenCompare }: AIChatPanelProps) {
   const [input, setInput] = useState('');
   const [showSessions, setShowSessions] = useState(false);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
@@ -101,14 +102,14 @@ export function AIChatPanel({ onOpenSettings, onClose }: AIChatPanelProps) {
   };
 
   return (
-    <div className="w-full md:w-96 border-l border-slate-200 bg-white flex flex-col h-full shadow-lg">
+    <div className="w-full md:w-96 md:border-l border-slate-200 bg-white flex flex-col h-full shadow-lg">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-100 rounded-lg">
+      <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 safe-top">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="p-1.5 bg-blue-100 rounded-lg flex-shrink-0">
             <Bot size={18} className="text-blue-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="font-semibold text-slate-800">AI Chat</span>
             {hasProviders && activeProvider && (
               <button
@@ -119,44 +120,53 @@ export function AIChatPanel({ onOpenSettings, onClose }: AIChatPanelProps) {
                   const Icon = getProviderIcon(activeProvider.type);
                   return <Icon size={10} />;
                 })()}
-                {activeProvider.name}
+                <span className="truncate max-w-[80px] md:max-w-none">{activeProvider.name}</span>
                 <ChevronDown size={10} />
               </button>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
           <button
             onClick={handleNewChat}
-            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            className="p-2 md:p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
             title="New chat"
           >
-            <Plus size={16} />
+            <Plus size={18} className="md:w-4 md:h-4" />
           </button>
+          {onOpenCompare && providers.length > 1 && (
+            <button
+              onClick={onOpenCompare}
+              className="p-2 md:p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+              title="Compare providers"
+            >
+              <Columns size={18} className="md:w-4 md:h-4" />
+            </button>
+          )}
           <button
             onClick={() => setShowSessions(!showSessions)}
-            className={`p-1.5 rounded transition-colors ${
+            className={`p-2 md:p-1.5 rounded transition-colors ${
               showSessions
                 ? 'text-blue-600 bg-blue-50'
                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
             }`}
             title="Chat history"
           >
-            <History size={16} />
+            <History size={18} className="md:w-4 md:h-4" />
           </button>
           <button
             onClick={onOpenSettings}
-            className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded transition-colors"
+            className="p-2 md:p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded transition-colors"
             title="Settings"
           >
-            <Settings size={16} />
+            <Settings size={18} className="md:w-4 md:h-4" />
           </button>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded transition-colors"
+            className="p-2 md:p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded transition-colors"
             title="Close"
           >
-            <X size={16} />
+            <X size={18} className="md:w-4 md:h-4" />
           </button>
         </div>
       </div>
@@ -384,7 +394,7 @@ export function AIChatPanel({ onOpenSettings, onClose }: AIChatPanelProps) {
           </div>
 
           {/* Input area */}
-          <div className="border-t border-slate-200 p-4 bg-slate-50">
+          <div className="border-t border-slate-200 p-3 md:p-4 bg-slate-50 safe-bottom">
             <form onSubmit={handleSubmit} className="flex gap-2">
               <div className="flex-1 relative">
                 <textarea
@@ -393,20 +403,20 @@ export function AIChatPanel({ onOpenSettings, onClose }: AIChatPanelProps) {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={activeProvider ? `Message ${activeProvider.name}...` : 'Message AI assistant...'}
-                  className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 pr-14 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   rows={1}
                   disabled={isLoading || !hasProviders}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading || !hasProviders}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 md:p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
                 >
-                  <Send size={16} />
+                  <Send size={18} className="md:w-4 md:h-4" />
                 </button>
               </div>
             </form>
-            <p className="text-xs text-slate-400 mt-2 text-center">
+            <p className="text-xs text-slate-400 mt-2 text-center hidden md:block">
               Press Enter to send, Shift+Enter for new line
             </p>
           </div>
@@ -427,10 +437,10 @@ export function ChatButton({ onClick, isOpen, hasUnread }: ChatButtonProps) {
   return (
     <button
       onClick={onClick}
-      className={`fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all z-50 ${
+      className={`fixed bottom-4 right-4 md:bottom-6 md:right-6 w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg flex items-center justify-center transition-all z-50 safe-bottom-button ${
         isOpen
           ? 'bg-slate-700 text-white rotate-0'
-          : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105'
+          : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 active:scale-95'
       }`}
       title={isOpen ? 'Close AI Chat' : 'Open AI Chat'}
     >

@@ -60,3 +60,28 @@ body {
 .phase-column.over-limit {
   @apply bg-red-50 border-2 border-red-300;
 }
+
+/* Safe area utilities for mobile devices */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-bottom-button {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Mobile touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .kanban-card {
+    @apply cursor-pointer;
+  }
+
+  /* Prevent text selection on touch devices during interactions */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
