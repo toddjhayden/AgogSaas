@@ -43,11 +43,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: |
             Implementation/print-industry-erp/backend/package-lock.json
             Implementation/print-industry-erp/frontend/package-lock.json
+            Implementation/print-industry-erp/agent-backend/package-lock.json
 
       - name: Install backend dependencies
         working-directory: Implementation/print-industry-erp/backend
@@ -55,6 +56,10 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: Implementation/print-industry-erp/frontend
+        run: npm ci
+
+      - name: Install agent-backend dependencies
+        working-directory: Implementation/print-industry-erp/agent-backend
         run: npm ci
 
       - name: Lint backend
@@ -69,6 +74,10 @@ jobs:
         working-directory: Implementation/print-industry-erp/frontend
         run: npm run build
 
+      - name: Build agent-backend
+        working-directory: Implementation/print-industry-erp/agent-backend
+        run: npm run build
+
       - name: Run backend tests
         working-directory: Implementation/print-industry-erp/backend
         run: npm test || echo "No tests configured yet"
@@ -79,17 +88,24 @@ jobs:
           # Add smoke test commands here
 
       - name: Upload backend build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backend-dist
           path: Implementation/print-industry-erp/backend/dist
           retention-days: 1
 
       - name: Upload frontend build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: Implementation/print-industry-erp/frontend/dist
+          retention-days: 1
+
+      - name: Upload agent-backend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-backend-dist
+          path: Implementation/print-industry-erp/agent-backend/dist
           retention-days: 1
 
   # =============================================================================

@@ -50,7 +50,7 @@ jobs:
           npm audit --json > frontend-audit.json || true
 
       - name: Upload audit results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: npm-audit-results
           path: |
@@ -79,7 +79,7 @@ jobs:
             --enableExperimental
 
       - name: Upload OWASP results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: owasp-dependency-check-report
           path: reports
@@ -121,7 +121,7 @@ jobs:
 
       - name: Upload gitleaks report
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gitleaks-report
           path: gitleaks-report.json
@@ -205,7 +205,7 @@ jobs:
 
       - name: Upload Trivy reports
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-reports
           path: |
@@ -247,7 +247,7 @@ jobs:
 
       - name: Upload ESLint results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: eslint-results
           path: |
@@ -290,7 +290,7 @@ jobs:
           license-checker --summary || true
 
       - name: Upload license reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: license-reports
           path: |
@@ -308,7 +308,7 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Generate security summary
         run: |

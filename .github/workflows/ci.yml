@@ -15,6 +15,7 @@ env:
   NODE_VERSION: '20'
   BACKEND_DIR: Implementation/print-industry-erp/backend
   FRONTEND_DIR: Implementation/print-industry-erp/frontend
+  AGENT_BACKEND_DIR: Implementation/print-industry-erp/agent-backend
 
 jobs:
   # =============================================================================
@@ -66,6 +67,7 @@ jobs:
           cache-dependency-path: |
             ${{ env.BACKEND_DIR }}/package-lock.json
             ${{ env.FRONTEND_DIR }}/package-lock.json
+            ${{ env.AGENT_BACKEND_DIR }}/package-lock.json
 
       - name: Install backend dependencies
         working-directory: ${{ env.BACKEND_DIR }}
@@ -73,6 +75,10 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm ci
+
+      - name: Install agent-backend dependencies
+        working-directory: ${{ env.AGENT_BACKEND_DIR }}
         run: npm ci
 
       - name: Lint backend
@@ -89,6 +95,10 @@ jobs:
 
       - name: TypeScript check frontend
         working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run build
+
+      - name: TypeScript check agent-backend
+        working-directory: ${{ env.AGENT_BACKEND_DIR }}
         run: npm run build
 
   # =============================================================================
@@ -146,6 +156,7 @@ jobs:
           cache-dependency-path: |
             ${{ env.BACKEND_DIR }}/package-lock.json
             ${{ env.FRONTEND_DIR }}/package-lock.json
+            ${{ env.AGENT_BACKEND_DIR }}/package-lock.json
 
       - name: Install backend dependencies
         working-directory: ${{ env.BACKEND_DIR }}
@@ -153,6 +164,10 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm ci
+
+      - name: Install agent-backend dependencies
+        working-directory: ${{ env.AGENT_BACKEND_DIR }}
         run: npm ci
 
       - name: Setup test database
@@ -176,14 +191,14 @@ jobs:
         run: npm test -- --coverage
 
       - name: Upload backend coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ${{ env.BACKEND_DIR }}/coverage/lcov.info
           flags: backend
           name: backend-coverage
 
       - name: Upload frontend coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ${{ env.FRONTEND_DIR }}/coverage/lcov.info
           flags: frontend
