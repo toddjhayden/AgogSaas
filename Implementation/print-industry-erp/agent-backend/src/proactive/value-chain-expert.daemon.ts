@@ -36,6 +36,30 @@ export class ValueChainExpertDaemon {
   private isRunning = false;
   private evaluationCount = 0;
 
+  // Sasha - Workflow Infrastructure Support
+  // For workflow rule questions or infrastructure issues, contact Sasha via NATS
+  private readonly SASHA_RULES_TOPIC = 'agog.agent.requests.sasha-rules';
+
+  /**
+   * Request Sasha for workflow rule guidance
+   * Use this when encountering situations that may violate WORKFLOW_RULES.md
+   */
+  private async askSashaForGuidance(question: string, context: string): Promise<void> {
+    if (!this.nc) return;
+    try {
+      const request = {
+        requestingAgent: 'value-chain-expert',
+        question,
+        context,
+        timestamp: new Date().toISOString()
+      };
+      this.nc.publish(this.SASHA_RULES_TOPIC, Buffer.from(JSON.stringify(request)));
+      console.log(`[ValueChainExpert] 📨 Asked Sasha: ${question}`);
+    } catch (error: any) {
+      console.error(`[ValueChainExpert] Failed to ask Sasha: ${error.message}`);
+    }
+  }
+
   async initialize(): Promise<void> {
     const natsUrl = process.env.NATS_URL || 'nats://localhost:4223';
     const user = process.env.NATS_USER;

@@ -15,6 +15,7 @@ dotenv.config();
 
 import { connect, NatsConnection, StringCodec, Subscription } from 'nats';
 import { Pool } from 'pg';
+import { SDLCApiClient, SDLCApiClientConfig, CreateRequestInput } from '../api/sdlc-api.client';
 
 const sc = StringCodec();
 
@@ -29,6 +30,9 @@ const CONFIG = {
   requestSubject: 'agog.agent.requests.sam-audit', // Request to Host Listener
   responseSubject: 'agog.agent.responses.sam-audit', // Response from Host Listener
   resultSubject: 'agog.audit.sam.result',
+  // Sasha - Workflow Infrastructure Support
+  // For workflow rule questions or infrastructure issues, contact Sasha via NATS
+  sashaRulesTopic: 'agog.agent.requests.sasha-rules',
 };
 
 interface AuditResult {
@@ -45,13 +49,51 @@ interface AuditResult {
 class SeniorAuditorDaemon {
   private nc: NatsConnection | null = null;
   private db: Pool | null = null;
+  private sdlcClient: SDLCApiClient | null = null;
   private isRunning = false;
   private dailyTimer: NodeJS.Timeout | null = null;
   private responseSubscription: Subscription | null = null;
   private pendingAudits: Map<string, { auditType: string; startTime: number; resolve: (result: AuditResult) => void }> = new Map();
 
+  /**
+   * Request Sasha for workflow rule guidance
+   * Use this when encountering situations that may violate WORKFLOW_RULES.md
+   */
+  private async askSashaForGuidance(question: string, context: string): Promise<void> {
+    if (!this.nc) return;
+    try {
+      const request = {
+        requestingAgent: 'sam-auditor',
+        question,
+        context,
+        timestamp: new Date().toISOString()
+      };
+      this.nc.publish(CONFIG.sashaRulesTopic, sc.encode(JSON.stringify(request)));
+      console.log(`[Sam] 📨 Asked Sasha: ${question}`);
+    } catch (error: any) {
+      console.error(`[Sam] Failed to ask Sasha: ${error.message}`);
+    }
+  }
+
   async start(): Promise<void> {
     console.log('[Sam] Senior Auditor Daemon starting...');
+
+    // Connect to SDLC API (REQUIRED - Sam creates REQs in SDLC)
+    const sdlcApiUrl = process.env.SDLC_API_URL;
+    if (sdlcApiUrl) {
+      this.sdlcClient = new SDLCApiClient({
+        baseUrl: sdlcApiUrl,
+        agentId: process.env.SDLC_AGENT_ID || 'sam-auditor',
+      });
+      const healthy = await this.sdlcClient.healthCheck();
+      if (healthy) {
+        console.log(`[Sam] Connected to SDLC API at ${sdlcApiUrl}`);
+      } else {
+        console.warn('[Sam] SDLC API health check failed - REQs may not sync properly');
+      }
+    } else {
+      console.warn('[Sam] No SDLC_API_URL configured - REQs will only be created locally');
+    }
 
     // Connect to agent_memory database (REQUIRED - Sam stores audit results here)
     this.db = new Pool({
@@ -200,25 +242,152 @@ class SeniorAuditorDaemon {
       this.pendingAudits.set(reqNumber, { auditType, startTime, resolve });
 
       // Set timeout for audit completion
-      setTimeout(() => {
+      setTimeout(async () => {
         if (this.pendingAudits.has(reqNumber)) {
-          console.warn(`[Sam] Audit ${reqNumber} timed out after ${CONFIG.auditTimeout / 1000 / 60} minutes`);
+          const durationMinutes = Math.round((Date.now() - startTime) / 1000 / 60);
+          console.warn(`[Sam] 🚨 AUDIT TIMEOUT: ${reqNumber} timed out after ${durationMinutes} minutes (limit: ${CONFIG.auditTimeout / 1000 / 60}min)`);
           this.pendingAudits.delete(reqNumber);
+
+          // Create P0 manual review REQ for timeout investigation
+          await this.createManualReviewREQ(reqNumber, auditType, durationMinutes);
 
           // Return a default timeout result
           resolve({
             agent: 'sam',
             audit_type: auditType as 'startup' | 'daily' | 'manual',
             timestamp: new Date().toISOString(),
-            duration_minutes: Math.round((Date.now() - startTime) / 1000 / 60),
+            duration_minutes: durationMinutes,
             overall_status: 'WARNING',
             deployment_blocked: false,
             block_reasons: [],
-            recommendations: ['Audit timed out - manual review required'],
+            recommendations: [
+              `CRITICAL: Audit timed out after ${durationMinutes} minutes - manual review required`,
+              'System audit may have encountered long-running queries or infrastructure issues',
+              'Check agent-backend/logs for audit process errors',
+              'Review database query performance and connection health'
+            ],
           });
         }
       }, CONFIG.auditTimeout);
     });
+  }
+
+  /**
+   * Create a P0 manual review REQ when an audit times out
+   * This ensures timeout scenarios are investigated and resolved
+   */
+  private async createManualReviewREQ(
+    auditReqNumber: string,
+    auditType: string,
+    durationMinutes: number
+  ): Promise<void> {
+    if (!this.nc) {
+      console.error('[Sam] No NATS connection, cannot create manual review REQ');
+      return;
+    }
+
+    const reqNumber = `REQ-P0-AUDIT-TIMEOUT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const title = `Audit timed out - manual review required (${auditReqNumber})`;
+    const description = `
+## P0 Audit Timeout - Manual Review Required
+
+**Severity:** catastrophic - IMMEDIATE INVESTIGATION REQUIRED
+**Original Audit:** ${auditReqNumber}
+**Audit Type:** ${auditType}
+**Timeout After:** ${durationMinutes} minutes (limit: ${CONFIG.auditTimeout / 1000 / 60}min)
+**Created:** ${new Date().toISOString()}
+
+### Problem
+The system-wide audit initiated by Sam (Senior Auditor) timed out after ${durationMinutes} minutes.
+This indicates either:
+1. Long-running database queries in security audit service
+2. Infrastructure performance issues
+3. Agent process hung or crashed
+4. Network connectivity problems to database or NATS
+
+### Impact
+- System health status unknown
+- Potential security vulnerabilities undetected
+- Deployment confidence reduced
+- Automated quality gates bypassed
+
+### Investigation Steps
+1. Check agent-backend logs for errors during audit window
+2. Review database query logs for slow queries (>10s)
+3. Verify NATS message broker connectivity and health
+4. Check system resource usage (CPU, memory, disk) during audit
+5. Manually re-run audit to determine if issue persists
+
+### Acceptance Criteria
+- [ ] Root cause of timeout identified and documented
+- [ ] Infrastructure issue resolved (if applicable)
+- [ ] Audit timeout threshold adjusted if needed (${CONFIG.auditTimeout}ms)
+- [ ] Manual audit completed successfully
+- [ ] Preventive measures implemented
+
+### Files to Review
+- \`agent-backend/src/proactive/senior-auditor.daemon.ts\` (timeout config: line 26)
+- \`backend/src/modules/security/services/security-audit.service.ts\` (query timeouts)
+- \`agent-backend/logs/host-listener-*.log\` (audit spawn logs)
+- \`backend/audit-reports/\` (previous audit results)
+
+### Recommended Actions
+1. Increase audit timeout if audits consistently need >2 hours
+2. Optimize slow database queries in security audit service
+3. Add query timeout monitoring and alerting
+4. Implement audit checkpointing for long-running audits
+5. Add audit progress reporting to prevent silent timeouts
+    `.trim();
+
+    // STEP 1: Create REQ in SDLC first (source of truth)
+    if (this.sdlcClient) {
+      const sdlcInput: CreateRequestInput = {
+        reqNumber,
+        title,
+        description,
+        requestType: 'bug',
+        priority: 'catastrophic',
+        primaryBu: 'core-infra',
+        assignedTo: 'marcus',
+        source: 'sam-audit-timeout',
+        tags: ['p0', 'audit', 'timeout', auditType],
+      };
+
+      const created = await this.sdlcClient.createRequest(sdlcInput);
+      if (created) {
+        console.log(`[Sam] ✅ Created timeout REQ in SDLC: ${reqNumber}`);
+      } else {
+        console.error(`[Sam] ❌ Failed to create timeout REQ in SDLC: ${reqNumber}`);
+        // Continue anyway - still publish to NATS for visibility
+      }
+    }
+
+    // STEP 2: Publish P0 manual review REQ to NATS
+    const reqPayload = {
+      req_number: reqNumber,
+      title,
+      priority: 'catastrophic',
+      source: 'sam-audit-timeout',
+      audit_type: auditType,
+      assigned_to: 'marcus',
+      status: 'NEW',
+      created_at: new Date().toISOString(),
+      description,
+    };
+
+    this.nc!.publish('agog.requirements.p0.new', sc.encode(JSON.stringify(reqPayload)));
+    console.log(`[Sam] 🚨 Created P0 manual review REQ: ${reqNumber} for audit timeout`);
+
+    // Also publish to orchestrator timeout stream for visibility
+    this.nc!.publish('agog.orchestrator.timeout', JSON.stringify({
+      eventType: 'audit.timeout',
+      auditReqNumber,
+      manualReviewReqNumber: reqNumber,
+      auditType,
+      durationMinutes,
+      timestamp: new Date().toISOString(),
+      severity: 'P0',
+    }));
   }
 
   private async handleAuditResponse(msg: any): Promise<void> {
@@ -303,11 +472,12 @@ class SeniorAuditorDaemon {
       return;
     }
 
+    // Map audit priority labels to SDLC priority values
     const priorityMap: Record<string, string> = {
-      CRITICAL: 'critical',
-      HIGH: 'high',
-      MEDIUM: 'medium',
-      LOW: 'low',
+      CRITICAL: 'catastrophic',  // CRITICAL = catastrophic (highest priority)
+      HIGH: 'critical',
+      MEDIUM: 'high',
+      LOW: 'medium',
     };
 
     let createdCount = 0;
@@ -315,47 +485,171 @@ class SeniorAuditorDaemon {
     for (const recommendation of result.recommendations || []) {
       // Parse priority from recommendation (e.g., "CRITICAL: Fix...")
       const priorityMatch = recommendation.match(/^(CRITICAL|HIGH|MEDIUM|LOW):/i);
-      const priority = priorityMatch ? priorityMap[priorityMatch[1].toUpperCase()] : 'medium';
+      const priority = priorityMatch ? priorityMap[priorityMatch[1].toUpperCase()] : 'high';
       const title = priorityMatch ? recommendation.replace(/^(CRITICAL|HIGH|MEDIUM|LOW):\s*/i, '') : recommendation;
 
-      const reqNumber = `REQ-AUDIT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const metadata = {
-        priority,
-        source: 'sam-audit',
-        audit_type: result.audit_type,
-        description: `
-## Issue Found by Sam (Senior Auditor)
+      // Determine agent assignment based on issue type
+      const assignedAgent = this.getAgentForIssue(title);
 
+      const reqNumber = `REQ-P0-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const description = `
+## P0 Issue Found by Sam (Senior Auditor)
+
+**Severity:** ${priority} - HIGHEST PRIORITY
 **Audit Type:** ${result.audit_type}
 **Audit Date:** ${result.timestamp}
-**Priority:** ${priority.toUpperCase()}
+**Assigned To:** ${assignedAgent}
 
 ### Problem
 ${recommendation}
 
 ### Source
-This requirement was automatically created by Sam during a system-wide audit.
+This P0 requirement was automatically created by Sam during a system-wide audit.
+P0 issues BLOCK ALL OTHER WORK until resolved.
 
 ### Acceptance Criteria
 - [ ] Issue is resolved
+- [ ] Build passes: npm run build exits with code 0
 - [ ] Verified by re-running Sam audit
-        `.trim(),
-      };
+      `.trim();
 
-      // Publish to NATS for orchestrator to pick up and route
-      this.nc!.publish('agog.requirements.new', sc.encode(JSON.stringify({
+      // STEP 1: Create REQ in SDLC first (source of truth)
+      if (this.sdlcClient) {
+        const sdlcInput: CreateRequestInput = {
+          reqNumber,
+          title: title.slice(0, 200),
+          description,
+          requestType: 'bug',
+          priority,
+          primaryBu: 'core-infra',
+          assignedTo: assignedAgent,
+          source: 'sam-audit',
+          tags: ['p0', 'audit', result.audit_type],
+        };
+
+        const created = await this.sdlcClient.createRequest(sdlcInput);
+        if (created) {
+          console.log(`[Sam] ✅ Created REQ in SDLC: ${reqNumber}`);
+        } else {
+          console.error(`[Sam] ❌ Failed to create REQ in SDLC: ${reqNumber} - skipping`);
+          continue; // Don't publish to NATS if SDLC creation failed
+        }
+      } else {
+        console.warn(`[Sam] No SDLC client - REQ ${reqNumber} will only exist locally`);
+      }
+
+      // STEP 2: Publish to NATS for orchestrator
+      const reqPayload = {
         req_number: reqNumber,
         title: title.slice(0, 200),
-        ...metadata,
-      })));
-      console.log(`[Sam] Published REQ: ${reqNumber} - ${title.slice(0, 50)}...`);
+        priority,
+        source: 'sam-audit',
+        audit_type: result.audit_type,
+        assigned_to: assignedAgent,
+        status: 'NEW',
+        created_at: new Date().toISOString(),
+        description,
+      };
+
+      if (priority === 'catastrophic') {
+        this.nc!.publish('agog.requirements.p0.new', sc.encode(JSON.stringify(reqPayload)));
+        console.log(`[Sam] 🚨 Published P0 REQ: ${reqNumber} - ${title.slice(0, 50)}...`);
+
+        // IMMEDIATELY spawn agent to fix P0 issue
+        await this.spawnAgentForP0(assignedAgent, reqNumber, description);
+      } else {
+        this.nc!.publish('agog.requirements.new', sc.encode(JSON.stringify(reqPayload)));
+        console.log(`[Sam] Published REQ: ${reqNumber} - ${title.slice(0, 50)}...`);
+      }
+
       createdCount++;
 
       // Small delay between creating REQs to avoid flooding
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    console.log(`[Sam] Created ${createdCount} requirements for issues`);
+    console.log(`[Sam] Created ${createdCount} requirements for issues (P0s spawn agents immediately)`);
+  }
+
+  /**
+   * Determine which agent should fix the issue based on the issue type
+   */
+  private getAgentForIssue(title: string): string {
+    const lowered = title.toLowerCase();
+
+    // Backend issues
+    if (lowered.includes('backend') || lowered.includes('typescript') && lowered.includes('backend') ||
+        lowered.includes('api') || lowered.includes('graphql resolver') ||
+        lowered.includes('database') || lowered.includes('migration') ||
+        lowered.includes('npm audit') && lowered.includes('backend') ||
+        lowered.includes('.service.ts') || lowered.includes('.resolver.ts')) {
+      return 'roy';
+    }
+
+    // Frontend issues
+    if (lowered.includes('frontend') || lowered.includes('react') ||
+        lowered.includes('component') || lowered.includes('page') ||
+        lowered.includes('route') || lowered.includes('ui') ||
+        lowered.includes('.tsx') || lowered.includes('vite')) {
+      return 'jen';
+    }
+
+    // Security issues
+    if (lowered.includes('security') || lowered.includes('vulnerability') ||
+        lowered.includes('xss') || lowered.includes('sql injection') ||
+        lowered.includes('secrets') || lowered.includes('rls')) {
+      return 'vic';
+    }
+
+    // Test issues
+    if (lowered.includes('test') || lowered.includes('e2e') ||
+        lowered.includes('playwright') || lowered.includes('jest')) {
+      return 'billy';
+    }
+
+    // i18n issues
+    if (lowered.includes('i18n') || lowered.includes('translation') ||
+        lowered.includes('locale')) {
+      return 'jen';  // Frontend handles i18n
+    }
+
+    // Documentation issues
+    if (lowered.includes('documentation') || lowered.includes('readme') ||
+        lowered.includes('guide')) {
+      return 'tim';
+    }
+
+    // Default to Roy for backend (most issues are backend-related)
+    return 'roy';
+  }
+
+  /**
+   * Immediately spawn an agent to fix a P0 issue
+   * P0 issues don't wait in queue - they get worked on NOW
+   */
+  private async spawnAgentForP0(agent: string, reqNumber: string, context: string): Promise<void> {
+    if (!this.nc) {
+      console.error('[Sam] No NATS connection, cannot spawn agent');
+      return;
+    }
+
+    const spawnRequest = {
+      agent,
+      req_number: reqNumber,
+      priority: 'P0',
+      model: 'opus',  // Use Opus for complex P0 fixes
+      context: {
+        issue: context,
+        source: 'sam-audit',
+        urgency: 'IMMEDIATE - P0 issue blocks all other work',
+      },
+      spawned_by: 'sam-senior-auditor',
+      timestamp: new Date().toISOString(),
+    };
+
+    // Publish spawn request to host listener
+    this.nc!.publish('agog.spawn.request', sc.encode(JSON.stringify(spawnRequest)));
+    console.log(`[Sam] 🚀 Spawned ${agent} to fix P0: ${reqNumber}`);
   }
 
   /**

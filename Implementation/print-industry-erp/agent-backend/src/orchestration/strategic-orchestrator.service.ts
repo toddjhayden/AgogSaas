@@ -22,6 +22,10 @@ const PHASE_TO_STATUS: Record<string, string> = {
   'staging': 'IN_PROGRESS',
   'done': 'COMPLETE',
   'cancelled': 'CANCELLED',
+  // Unified model phases (approval workflow)
+  'pending_approval': 'PENDING_APPROVAL',  // Not actionable - requires human approval
+  'rejected': 'CANCELLED',
+  'deferred': 'BLOCKED',
 };
 
 const STATUS_TO_PHASE: Record<string, string> = {
@@ -31,6 +35,7 @@ const STATUS_TO_PHASE: Record<string, string> = {
   'BLOCKED': 'blocked',
   'COMPLETE': 'done',
   'CANCELLED': 'cancelled',
+  'PENDING_APPROVAL': 'pending_approval',
 };
 
 interface StrategicDecision {
@@ -71,6 +76,32 @@ export class StrategicOrchestratorService {
 
   // Gap Fix #12: Concurrency limit
   private readonly MAX_CONCURRENT_WORKFLOWS = 5;
+
+  // Sasha - Workflow Infrastructure Support
+  // For workflow rule questions or infrastructure issues, contact Sasha via NATS:
+  // Topic: agog.agent.requests.sasha-rules
+  // Format: { requestingAgent: "orchestrator", question: "...", context: "..." }
+  // Response: agog.agent.responses.sasha-rules
+  private readonly SASHA_RULES_TOPIC = 'agog.agent.requests.sasha-rules';
+
+  /**
+   * Request Sasha for workflow rule guidance
+   * Use this when encountering situations that may violate WORKFLOW_RULES.md
+   */
+  private async askSashaForGuidance(question: string, context: string): Promise<void> {
+    try {
+      const request = {
+        requestingAgent: 'strategic-orchestrator',
+        question,
+        context,
+        timestamp: new Date().toISOString()
+      };
+      await this.nc.publish(this.SASHA_RULES_TOPIC, Buffer.from(JSON.stringify(request)));
+      console.log(`[StrategicOrchestrator] 📨 Asked Sasha: ${question}`);
+    } catch (error: any) {
+      console.error(`[StrategicOrchestrator] Failed to ask Sasha: ${error.message}`);
+    }
+  }
 
   async initialize(): Promise<void> {
     // Connect to NATS with authentication
@@ -737,11 +768,15 @@ export class StrategicOrchestratorService {
     try {
       if (this.useCloudApi && this.apiClient) {
         // Cloud mode - use HTTP API
+        // Use first affected_bu as primaryBu (main business unit)
+        const primaryBu = rec.affected_bus && rec.affected_bus.length > 0 ? rec.affected_bus[0] : undefined;
+
         const newRequest = await this.apiClient.createRequest({
           reqNumber,
           title: rec.title,
           description: rec.description,
           priority,
+          primaryBu,
           assignedTo,
           source: 'recommendation',
           sourceReference: rec.rec_number,
@@ -754,10 +789,10 @@ export class StrategicOrchestratorService {
           return null;
         }
 
-        // Update recommendation with conversion info
+        // Update recommendation with conversion info - mark as 'converted' so it doesn't show in UI
         await this.apiClient.updateRecommendationStatus(
           rec.id,
-          'in_progress',
+          'converted',
           undefined,
           newRequest.id
         );
@@ -796,12 +831,12 @@ export class StrategicOrchestratorService {
 
         const newRequest = insertResult.rows[0];
 
-        // 2. Update recommendation with conversion info
+        // 2. Update recommendation with conversion info - mark as 'converted' so it doesn't show in UI
         await client.query(
           `UPDATE recommendations
            SET converted_to_request_id = $1,
                converted_at = NOW(),
-               status = 'in_progress'
+               status = 'converted'
            WHERE id = $2`,
           [newRequest.id, rec.id]
         );
@@ -1021,29 +1056,98 @@ export class StrategicOrchestratorService {
       console.log(`[StrategicOrchestrator] Concurrency limit reached: ${activeWorkflows}/${this.MAX_CONCURRENT_WORKFLOWS} workflows active - skipping new starts`);
     }
 
-    // PRIORITY SORTING: Put blocker requests first (they unblock other work)
-    // Then sort by priority within each group
+    // PRIORITY ORDER: catastrophic > critical > high > medium > low
+    const priorityOrder: Record<string, number> = {
+      catastrophic: 0,  // Building on fire - everything stops
+      critical: 1,
+      high: 2,
+      medium: 3,
+      low: 4
+    };
+
+    // Check for catastrophic REQs - they get absolute priority
+    // CRITICAL: Include ALL catastrophic REQs, even BLOCKED ones
+    // When catastrophic is blocked, we must prioritize its blockers to unblock it
+    const catastrophicReqs = mappedRequests.filter(r =>
+      r.priority === 'catastrophic'
+    );
+    const hasCatastrophic = catastrophicReqs.length > 0;
+    const blockedCatastrophicReqs = catastrophicReqs.filter(r => r.status === 'BLOCKED');
+
+    if (hasCatastrophic) {
+      console.log(`[StrategicOrchestrator] 🚨 CATASTROPHIC priority detected: ${catastrophicReqs.map(r => r.reqNumber).join(', ')}`);
+      if (blockedCatastrophicReqs.length > 0) {
+        console.log(`[StrategicOrchestrator] 🚨 BLOCKED CATASTROPHIC REQs: ${blockedCatastrophicReqs.map(r => r.reqNumber).join(', ')} - MUST unblock these first!`);
+      }
+    }
+
+    // PRIORITY SORTING:
+    // 1. Catastrophic REQs first (absolute priority)
+    // 2. REQs that block catastrophic REQs (must unblock the catastrophic)
+    // 3. Other blockers (unblock more work)
+    // 4. By priority level
     const sortedRequests = [...mappedRequests].sort((a, b) => {
+      const aIsCatastrophic = a.priority === 'catastrophic';
+      const bIsCatastrophic = b.priority === 'catastrophic';
+
+      // Catastrophic always first
+      if (aIsCatastrophic && !bIsCatastrophic) return -1;
+      if (!aIsCatastrophic && bIsCatastrophic) return 1;
+
       const aIsBlocker = blockerReqNumbers.has(a.reqNumber);
       const bIsBlocker = blockerReqNumbers.has(b.reqNumber);
 
-      // Blockers come first
+      // Check if blocking a catastrophic REQ (highest priority after catastrophic itself)
+      const aBlocksCatastrophic = blockers.find(bl => bl.reqNumber === a.reqNumber)?.blocksCount || 0;
+      const bBlocksCatastrophic = blockers.find(bl => bl.reqNumber === b.reqNumber)?.blocksCount || 0;
+
+      // Blockers come next (especially those blocking catastrophic)
       if (aIsBlocker && !bIsBlocker) return -1;
       if (!aIsBlocker && bIsBlocker) return 1;
 
-      // If both are blockers, sort by how many they block (from blockers list)
+      // If both are blockers, sort by how many they block
       if (aIsBlocker && bIsBlocker) {
-        const aBlocker = blockers.find(bl => bl.reqNumber === a.reqNumber);
-        const bBlocker = blockers.find(bl => bl.reqNumber === b.reqNumber);
-        return (bBlocker?.blocksCount || 0) - (aBlocker?.blocksCount || 0);
+        return bBlocksCatastrophic - aBlocksCatastrophic;
       }
 
       // Otherwise, maintain priority order
-      const priorityOrder: Record<string, number> = { critical: 1, high: 2, medium: 3, low: 4 };
       return (priorityOrder[a.priority] || 5) - (priorityOrder[b.priority] || 5);
     });
 
-    for (const { reqNumber, title, status, assignedTo } of sortedRequests) {
+    // Check if any catastrophic REQ is currently in progress
+    const catastrophicInProgress = mappedRequests.some(r =>
+      r.priority === 'catastrophic' && r.status === 'IN_PROGRESS'
+    );
+
+    // Build set of requests that SPECIFICALLY block catastrophic REQs
+    // Only these should be allowed through when catastrophic is pending/in-progress
+    const blockersOfCatastrophic = new Set<string>();
+    if (hasCatastrophic && this.useCloudApi && this.apiClient) {
+      for (const catReq of catastrophicReqs) {
+        try {
+          const blockerInfo = await this.apiClient.getBlockers(catReq.reqNumber);
+          if (blockerInfo?.blockedBy && blockerInfo.blockedBy.length > 0) {
+            // blockedBy is string[] - each string is a REQ number that blocks this catastrophic REQ
+            for (const blockingReqNumber of blockerInfo.blockedBy) {
+              blockersOfCatastrophic.add(blockingReqNumber);
+            }
+          }
+        } catch (error: any) {
+          console.warn(`[StrategicOrchestrator] Failed to get blockers for ${catReq.reqNumber}: ${error.message}`);
+        }
+      }
+      if (blockersOfCatastrophic.size > 0) {
+        console.log(`[StrategicOrchestrator] 🚨 Requests blocking catastrophic: ${[...blockersOfCatastrophic].join(', ')}`);
+      }
+    }
+
+    for (const { reqNumber, title, status, assignedTo, priority } of sortedRequests) {
+      // Skip requests pending human approval (unified model)
+      if (status === 'PENDING_APPROVAL') {
+        console.log(`[StrategicOrchestrator] ⏳ Skipping ${reqNumber} - pending human approval`);
+        continue;
+      }
+
       // Only process NEW, PENDING, or REJECTED requests
       if (status !== 'NEW' && status !== 'PENDING' && status !== 'REJECTED') {
         continue;
@@ -1052,10 +1156,24 @@ export class StrategicOrchestratorService {
       // Check if this is a blocker request (for logging)
       const isBlocker = blockerReqNumbers.has(reqNumber);
       const blockerInfo = isBlocker ? blockers.find(b => b.reqNumber === reqNumber) : null;
+      const isCatastrophic = priority === 'catastrophic';
+      const thisBlocksCatastrophic = blockersOfCatastrophic.has(reqNumber);
+
+      // CATASTROPHIC PRIORITY RULE: When catastrophic exists (pending OR in progress), ONLY work on:
+      // 1. Catastrophic REQs themselves
+      // 2. REQs that SPECIFICALLY block catastrophic REQs (to unblock them)
+      // NOTE: Generic blockers that don't block catastrophic work are NOT allowed through
+      if (hasCatastrophic && !isCatastrophic) {
+        if (!thisBlocksCatastrophic) {
+          console.log(`[StrategicOrchestrator] ⏸️ Skipping ${reqNumber} - catastrophic priority pending, focus on catastrophic work only`);
+          continue;
+        }
+        console.log(`[StrategicOrchestrator] 🔓 ${reqNumber} blocks a catastrophic REQ - allowing through`);
+      }
 
       // Gap Fix #12: Enforce concurrency limit - don't start new workflows if at max
-      // BUT: Blockers get priority even at concurrency limit (they unblock other work)
-      if (status === 'NEW' && !isBlocker) {
+      // BUT: Catastrophic and blockers OF catastrophic bypass concurrency limit
+      if (status === 'NEW' && !thisBlocksCatastrophic && !isCatastrophic) {
         const currentActive = sortedRequests.filter(r => r.status === 'IN_PROGRESS').length;
         if (currentActive >= this.MAX_CONCURRENT_WORKFLOWS) {
           console.log(`[StrategicOrchestrator] Skipping ${reqNumber} - at concurrency limit (${currentActive}/${this.MAX_CONCURRENT_WORKFLOWS})`);
@@ -1365,7 +1483,7 @@ export class StrategicOrchestratorService {
             blockerList.push(event.blockedBy);
           }
           if (event.blockers && Array.isArray(event.blockers)) {
-            blockerList.push(...event.blockers.filter((b: string) => b && b.startsWith('REQ-')));
+            blockerList.push(...event.blockers.filter((b: unknown) => typeof b === 'string' && b.startsWith('REQ-')));
           }
 
           for (const blockingReq of blockerList) {
