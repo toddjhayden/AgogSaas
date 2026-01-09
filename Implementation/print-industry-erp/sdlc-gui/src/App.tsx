@@ -11,12 +11,10 @@ import {
   List,
   Lightbulb,
   Network,
-  MessageSquare,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
-import { useGitHubStore } from '@/stores/useGitHubStore';
-import { GitHubChat } from '@/components/GitHubChat';
+import { GitHubChatPanel, ChatButton } from '@/components/GitHubChat';
 
 // Pages
 import DashboardPage from '@/pages/DashboardPage';
@@ -44,7 +42,6 @@ const navItems = [
 
 function Sidebar() {
   const { health, fetchHealth } = useSDLCStore();
-  const { isEnabled, isPanelOpen, isAuthenticated, togglePanel } = useGitHubStore();
 
   useEffect(() => {
     fetchHealth();
@@ -99,26 +96,6 @@ function Sidebar() {
         )}
       </div>
 
-      {/* AI Chat Toggle */}
-      {isEnabled && (
-        <div className="px-4 pb-2">
-          <button
-            onClick={togglePanel}
-            className={`flex items-center gap-3 px-3 py-2 w-full rounded-lg transition-colors ${
-              isPanelOpen
-                ? 'bg-blue-600 text-white'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <MessageSquare size={20} />
-            <span>AI Chat</span>
-            {isAuthenticated && (
-              <span className="ml-auto w-2 h-2 bg-green-400 rounded-full" />
-            )}
-          </button>
-        </div>
-      )}
-
       {/* Settings */}
       <div className="p-4 border-t border-slate-700">
         <NavLink
@@ -141,16 +118,25 @@ function Sidebar() {
 
 function AppContent() {
   const navigate = useNavigate();
-  const { isEnabled, isPanelOpen } = useGitHubStore();
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const handleOpenSettings = () => {
     navigate('/settings');
+    setIsChatOpen(false);
+  };
+
+  const handleToggleChat = () => {
+    setIsChatOpen(!isChatOpen);
+  };
+
+  const handleCloseChat = () => {
+    setIsChatOpen(false);
   };
 
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-slate-100">
+      <main className={`flex-1 overflow-auto bg-slate-100 transition-all ${isChatOpen ? 'mr-96' : ''}`}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/requests" element={<RequestsPage />} />
@@ -164,9 +150,22 @@ function AppContent() {
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
-      {isEnabled && isPanelOpen && (
-        <GitHubChat onOpenSettings={handleOpenSettings} />
+
+      {/* Chat Panel - Fixed to right side */}
+      {isChatOpen && (
+        <div className="fixed top-0 right-0 h-full z-40">
+          <GitHubChatPanel
+            onOpenSettings={handleOpenSettings}
+            onClose={handleCloseChat}
+          />
+        </div>
       )}
+
+      {/* Floating Chat Button - Always visible */}
+      <ChatButton
+        onClick={handleToggleChat}
+        isOpen={isChatOpen}
+      />
     </div>
   );
 }
