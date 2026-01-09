@@ -1,6 +1,6 @@
 /**
  * Settings Page
- * Configuration for GitHub AI Chat and other settings
+ * Configuration for AI Providers and SDLC Context integration
  */
 
 import { useState } from 'react';
@@ -10,218 +10,400 @@ import {
   Bot,
   Key,
   Check,
-  X,
-  AlertCircle,
   ExternalLink,
-  LogOut,
-  RefreshCw,
+  Trash2,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  Database,
+  Sparkles,
+  Cloud,
+  Search,
+  Gem,
 } from 'lucide-react';
-import { useGitHubStore } from '../stores/useGitHubStore';
+import { useAIChatStore } from '../stores/useAIChatStore';
+import { AI_PROVIDERS, type AIProviderType } from '../types/ai-providers';
+
+// Icon mapping for providers
+const providerIcons: Record<AIProviderType, typeof Github> = {
+  'github-copilot': Github,
+  'anthropic': Bot,
+  'openai': Sparkles,
+  'google-gemini': Gem,
+  'deepseek': Search,
+  'azure-openai': Cloud,
+};
 
 export function SettingsPage() {
-  const [tokenInput, setTokenInput] = useState('');
-  const [showToken, setShowToken] = useState(false);
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+  const [newProviderType, setNewProviderType] = useState<AIProviderType | null>(null);
+  const [newProviderToken, setNewProviderToken] = useState('');
+  const [showNewToken, setShowNewToken] = useState(false);
 
   const {
-    user,
-    isAuthenticated,
-    isLoading,
-    error,
-    isEnabled,
-    settings,
-    setToken,
-    logout,
-    toggleEnabled,
-    updateSettings,
-  } = useGitHubStore();
+    providers,
+    activeProviderId,
+    sdlcContext,
+    addProvider,
+    updateProvider,
+    removeProvider,
+    setActiveProvider,
+    setDefaultProvider,
+    updateSDLCContext,
+    fetchSDLCContext,
+  } = useAIChatStore();
 
-  const handleSaveToken = async () => {
-    if (tokenInput.trim()) {
-      await setToken(tokenInput.trim());
-      setTokenInput('');
+  const handleAddProvider = () => {
+    if (newProviderType && newProviderToken.trim()) {
+      addProvider(newProviderType, newProviderToken.trim());
+      setNewProviderType(null);
+      setNewProviderToken('');
+      setShowNewToken(false);
     }
   };
 
-  const models = [
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and efficient' },
-    { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable' },
-    { id: 'o1-mini', name: 'o1-mini', description: 'Reasoning optimized' },
-    { id: 'o1-preview', name: 'o1-preview', description: 'Advanced reasoning' },
-    { id: 'claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', description: 'Anthropic model' },
-  ] as const;
+  const getProviderMeta = (type: AIProviderType) => {
+    return AI_PROVIDERS.find(p => p.type === type);
+  };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <Settings size={28} className="text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
       </div>
 
-      {/* GitHub AI Chat Section */}
+      {/* AI Providers Section */}
       <div className="bg-white rounded-lg shadow-md mb-6">
         <div className="px-6 py-4 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-slate-100 rounded-lg">
-              <Github size={24} className="text-slate-700" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg">
+                <Bot size={24} className="text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">AI Providers</h2>
+                <p className="text-sm text-slate-500">Connect multiple AI services for chat assistance</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-800">GitHub AI Chat</h2>
-              <p className="text-sm text-slate-500">Connect GitHub for AI-powered assistance</p>
-            </div>
+            <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+              {providers.length} configured
+            </span>
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Connection Status */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-slate-700 font-medium">Connection Status</span>
-              {isAuthenticated ? (
-                <span className="flex items-center gap-1 text-green-600 text-sm bg-green-50 px-2 py-1 rounded">
-                  <Check size={14} />
-                  Connected
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-slate-500 text-sm bg-slate-100 px-2 py-1 rounded">
-                  <X size={14} />
-                  Not connected
-                </span>
-              )}
-            </div>
-            {isAuthenticated && user && (
-              <div className="flex items-center gap-2">
-                <img
-                  src={user.avatar_url}
-                  alt={user.login}
-                  className="w-8 h-8 rounded-full"
-                />
-                <span className="text-slate-700">{user.login}</span>
-                <button
-                  onClick={logout}
-                  className="ml-2 p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                  title="Disconnect"
-                >
-                  <LogOut size={16} />
-                </button>
-              </div>
-            )}
-          </div>
+        <div className="p-6 space-y-4">
+          {/* Configured Providers */}
+          {providers.map((provider) => {
+            const meta = getProviderMeta(provider.type);
+            const Icon = providerIcons[provider.type];
+            const isExpanded = expandedProvider === provider.id;
 
-          {/* Token Input */}
-          {!isAuthenticated && (
-            <div className="space-y-3">
-              <label className="block">
-                <span className="text-slate-700 font-medium flex items-center gap-2">
-                  <Key size={16} />
-                  GitHub Personal Access Token
-                </span>
-                <p className="text-sm text-slate-500 mt-1">
-                  Create a token with <code className="bg-slate-100 px-1 rounded">copilot</code> or <code className="bg-slate-100 px-1 rounded">read:user</code> scope
-                </p>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type={showToken ? 'text' : 'password'}
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  onClick={() => setShowToken(!showToken)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-                >
-                  {showToken ? 'Hide' : 'Show'}
-                </button>
-                <button
-                  onClick={handleSaveToken}
-                  disabled={!tokenInput.trim() || isLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                  {isLoading ? (
-                    <RefreshCw size={16} className="animate-spin" />
-                  ) : (
-                    <Check size={16} />
-                  )}
-                  Connect
-                </button>
-              </div>
-              {error && (
-                <div className="flex items-center gap-2 text-red-600 text-sm">
-                  <AlertCircle size={16} />
-                  {error}
-                </div>
-              )}
-              <a
-                href="https://github.com/settings/tokens/new?scopes=copilot,read:user&description=SDLC%20GUI%20AI%20Chat"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-blue-600 hover:underline text-sm"
-              >
-                Create a new token
-                <ExternalLink size={14} />
-              </a>
-            </div>
-          )}
-
-          {/* Chat Enable Toggle */}
-          <div className="flex items-center justify-between py-3 border-t border-slate-200">
-            <div className="flex items-center gap-3">
-              <Bot size={20} className="text-slate-600" />
-              <div>
-                <span className="text-slate-700 font-medium">Enable AI Chat Panel</span>
-                <p className="text-sm text-slate-500">Show chat panel in sidebar</p>
-              </div>
-            </div>
-            <button
-              onClick={toggleEnabled}
-              disabled={!isAuthenticated}
-              className={`relative w-12 h-6 rounded-full transition-colors ${
-                isEnabled ? 'bg-blue-600' : 'bg-slate-300'
-              } ${!isAuthenticated ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <span
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                  isEnabled ? 'translate-x-7' : 'translate-x-1'
+            return (
+              <div
+                key={provider.id}
+                className={`border rounded-lg transition-all ${
+                  provider.id === activeProviderId
+                    ? 'border-blue-300 bg-blue-50'
+                    : 'border-slate-200'
                 }`}
-              />
-            </button>
-          </div>
-
-          {/* Model Selection */}
-          {isAuthenticated && (
-            <div className="py-3 border-t border-slate-200">
-              <label className="block mb-3">
-                <span className="text-slate-700 font-medium">AI Model</span>
-                <p className="text-sm text-slate-500">Select the model for chat responses</p>
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                {models.map((model) => (
-                  <button
-                    key={model.id}
-                    onClick={() => updateSettings({ model: model.id })}
-                    className={`flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
-                      settings.model === model.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="text-left">
-                      <span className="font-medium text-slate-800">{model.name}</span>
-                      <p className="text-sm text-slate-500">{model.description}</p>
+              >
+                <div
+                  className="flex items-center justify-between p-4 cursor-pointer"
+                  onClick={() => setExpandedProvider(isExpanded ? null : provider.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      provider.id === activeProviderId ? 'bg-blue-200' : 'bg-slate-100'
+                    }`}>
+                      <Icon size={20} className={
+                        provider.id === activeProviderId ? 'text-blue-700' : 'text-slate-600'
+                      } />
                     </div>
-                    {settings.model === model.id && (
-                      <Check size={20} className="text-blue-600" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-800">{provider.name}</span>
+                        {provider.isDefault && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                            Default
+                          </span>
+                        )}
+                        {provider.id === activeProviderId && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm text-slate-500">{provider.model}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${
+                      provider.apiKey ? 'bg-green-500' : 'bg-slate-300'
+                    }`} />
+                    {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 space-y-4 border-t border-slate-200 pt-4">
+                    {/* Model Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Model
+                      </label>
+                      <select
+                        value={provider.model}
+                        onChange={(e) => updateProvider(provider.id, { model: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {meta?.availableModels.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.name} - {model.description}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Custom Endpoint (for Azure) */}
+                    {provider.type === 'azure-openai' && (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Endpoint URL
+                        </label>
+                        <input
+                          type="text"
+                          value={provider.endpoint || ''}
+                          onChange={(e) => updateProvider(provider.id, { endpoint: e.target.value })}
+                          placeholder="https://your-resource.openai.azure.com/..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
                     )}
-                  </button>
-                ))}
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-2">
+                        {!provider.isDefault && (
+                          <button
+                            onClick={() => setDefaultProvider(provider.id)}
+                            className="text-sm text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded hover:bg-blue-50"
+                          >
+                            Set as Default
+                          </button>
+                        )}
+                        {provider.id !== activeProviderId && (
+                          <button
+                            onClick={() => setActiveProvider(provider.id)}
+                            className="text-sm text-slate-600 hover:text-slate-700 px-3 py-1.5 rounded hover:bg-slate-100"
+                          >
+                            Use for Chat
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeProvider(provider.id)}
+                        className="text-sm text-red-600 hover:text-red-700 px-3 py-1.5 rounded hover:bg-red-50 flex items-center gap-1"
+                      >
+                        <Trash2 size={14} />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
+            );
+          })}
+
+          {/* Add New Provider */}
+          {!newProviderType ? (
+            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6">
+              <p className="text-sm text-slate-600 mb-4 text-center">
+                Add a new AI provider to use for chat
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {AI_PROVIDERS.map((providerMeta) => {
+                  const Icon = providerIcons[providerMeta.type];
+                  const isConfigured = providers.some(p => p.type === providerMeta.type);
+
+                  return (
+                    <button
+                      key={providerMeta.type}
+                      onClick={() => !isConfigured && setNewProviderType(providerMeta.type)}
+                      disabled={isConfigured}
+                      className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+                        isConfigured
+                          ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                          : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                      }`}
+                    >
+                      <Icon size={20} />
+                      <span className="text-sm font-medium">{providerMeta.displayName}</span>
+                      {isConfigured && <Check size={14} className="ml-auto text-green-500" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="border border-blue-300 bg-blue-50 rounded-lg p-6">
+              {(() => {
+                const meta = getProviderMeta(newProviderType);
+                const Icon = providerIcons[newProviderType];
+                return (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-blue-200 rounded-lg">
+                        <Icon size={20} className="text-blue-700" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-slate-800">{meta?.displayName}</h3>
+                        <p className="text-sm text-slate-500">{meta?.description}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block">
+                        <span className="text-slate-700 font-medium flex items-center gap-2">
+                          <Key size={16} />
+                          API Key
+                        </span>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type={showNewToken ? 'text' : 'password'}
+                          value={newProviderToken}
+                          onChange={(e) => setNewProviderToken(e.target.value)}
+                          placeholder={meta?.tokenPlaceholder}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                        <button
+                          onClick={() => setShowNewToken(!showNewToken)}
+                          className="px-3 py-2 border border-slate-300 rounded-lg hover:bg-white transition-colors"
+                        >
+                          {showNewToken ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+
+                      <a
+                        href={meta?.tokenHelpUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-600 hover:underline text-sm"
+                      >
+                        Get an API key
+                        <ExternalLink size={14} />
+                      </a>
+
+                      <div className="flex items-center justify-end gap-2 pt-2">
+                        <button
+                          onClick={() => {
+                            setNewProviderType(null);
+                            setNewProviderToken('');
+                            setShowNewToken(false);
+                          }}
+                          className="px-4 py-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleAddProvider}
+                          disabled={!newProviderToken.trim()}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <Plus size={16} />
+                          Add Provider
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
       </div>
 
-      {/* Additional Settings Section (placeholder for future) */}
+      {/* SDLC Context Integration */}
+      <div className="bg-white rounded-lg shadow-md mb-6">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Database size={24} className="text-green-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">SDLC Context</h2>
+              <p className="text-sm text-slate-500">Include project data in AI conversations</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-slate-600">
+            When enabled, AI providers will receive context about your SDLC data to provide more relevant assistance.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { key: 'includeEntities', label: 'Entities', desc: 'Tables, views, and data models' },
+              { key: 'includeColumns', label: 'Columns', desc: 'Column definitions and metadata' },
+              { key: 'includeRequests', label: 'Requests', desc: 'Active feature requests and bugs' },
+              { key: 'includeRecommendations', label: 'Recommendations', desc: 'AI recommendations and suggestions' },
+              { key: 'includeBlockers', label: 'Blockers', desc: 'Current blockers and dependencies' },
+            ].map(({ key, label, desc }) => (
+              <div
+                key={key}
+                className="flex items-center justify-between p-3 border border-slate-200 rounded-lg"
+              >
+                <div>
+                  <span className="font-medium text-slate-800">{label}</span>
+                  <p className="text-xs text-slate-500">{desc}</p>
+                </div>
+                <button
+                  onClick={() => updateSDLCContext({ [key]: !sdlcContext[key as keyof typeof sdlcContext] })}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${
+                    sdlcContext[key as keyof typeof sdlcContext] ? 'bg-green-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                      sdlcContext[key as keyof typeof sdlcContext] ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Max Context Items
+              </label>
+              <p className="text-xs text-slate-500">Limit items sent to AI per category</p>
+            </div>
+            <select
+              value={sdlcContext.maxContextItems}
+              onChange={(e) => updateSDLCContext({ maxContextItems: parseInt(e.target.value) })}
+              className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={10}>10 items</option>
+              <option value={20}>20 items</option>
+              <option value={50}>50 items</option>
+              <option value={100}>100 items</option>
+            </select>
+          </div>
+
+          <button
+            onClick={fetchSDLCContext}
+            className="w-full py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+          >
+            Refresh Context Data
+          </button>
+        </div>
+      </div>
+
+      {/* General Settings */}
       <div className="bg-white rounded-lg shadow-md">
         <div className="px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-800">General Settings</h2>

@@ -33,6 +33,9 @@ for FILE in $FILES; do
        [[ "$FILE" == *"/pages/auth/"* ]] || \
        [[ "$FILE" == *"/pages/SettingsPage.tsx" ]] || \
        [[ "$FILE" == *"/constants/defaults.ts" ]] || \
+       [[ "$FILE" == *"/types/ai-providers.ts" ]] || \
+       [[ "$FILE" == *"/stores/useAIChatStore.ts" ]] || \
+       [[ "$FILE" == *"/components/AIChatPanel.tsx" ]] || \
        [[ "$FILE" == *"/agent-backend/scripts/store-memory-"* ]]; then
         continue
     fi

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
-import { GitHubChatPanel, ChatButton } from '@/components/GitHubChat';
+import { AIChatPanel, ChatButton } from '@/components/AIChatPanel';
 
 // Pages
 import DashboardPage from '@/pages/DashboardPage';
@@ -154,7 +154,7 @@ function AppContent() {
       {/* Chat Panel - Fixed to right side */}
       {isChatOpen && (
         <div className="fixed top-0 right-0 h-full z-40">
-          <GitHubChatPanel
+          <AIChatPanel
             onOpenSettings={handleOpenSettings}
             onClose={handleCloseChat}
           />
