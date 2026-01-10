@@ -841,15 +841,54 @@ CREATE INDEX idx_workflow_directives_active ON workflow_directives(is_active) WH
 | `/workflow/pause` | POST | Pause all workflow |
 | `/workflow/resume` | POST | Resume normal workflow |
 
-### Implementation Order
+### Implementation Progress
 
-1. **Database migration** - workflow_directives, workflow_saved_state
-2. **API endpoints** - All workflow status/focus endpoints
-3. **AI functions** - setBlockerChainFocus, setWeekendPush, clearFocus, checkIfNeeded
-4. **Orchestrator changes** - Listen for focus NATS, filter work, auto-restore
-5. **Agent changes** - Respect focus directives
-6. **GUI WorkflowStatusBanner** - Status display with controls
-7. **GUI BlockerGraphPage** - Focus button integration
+| Step | Status | Commit |
+|------|--------|--------|
+| Database migration | ✅ Done | ff07c21 |
+| API endpoints | ✅ Done | ff07c21 |
+| AI functions | ✅ Done | ff07c21 |
+| Orchestrator integration | ⏳ Pending | - |
+| GUI WorkflowStatusBanner | ⏳ Pending | - |
+| Duplicate detection (embeddings) | ⏳ Pending | - |
+
+### Commits
+
+1. `4d73b7b` - AI function calling infrastructure
+2. `9943661` - Store integration and confirmation dialog
+3. `ff07c21` - Workflow directives (migration, API, AI functions)
+
+### Flexible Directive System
+
+Instead of rigid enum types, the system supports ANY directive pattern:
+
+```
+POST /workflow/directive
+{
+  "directiveType": "focus",           // flexible
+  "displayName": "Weekend easy push",  // human readable
+  "targetType": "filter",              // blocker_chain, customer, tag, bu, filter
+  "filterCriteria": {                  // flexible JSONB
+    "maxHours": 2,
+    "unblocked": true
+  },
+  "expiresAt": "2026-01-12T18:00:00Z",
+  "exclusive": true,
+  "autoRestore": true
+}
+```
+
+### Example User Commands Now Working
+
+```
+"Focus on blocker chain 1767507808"
+"Focus on customer Acme Corp"
+"Do easy work this weekend (under 2 hours)"
+"Focus on everything tagged security"
+"Focus on core-infra BU"
+"Return to normal workflow"
+"What's the current workflow status?"
+```
 
 ---
 
