@@ -2,12 +2,13 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   RefreshCw, AlertTriangle, CheckCircle, ArrowRight, X,
   ThumbsUp, ThumbsDown, AlertCircle as AlertIcon, ChevronDown,
-  ChevronUp, Target, Zap, Info, MousePointerClick
+  ChevronUp, Target, Zap, Info, MousePointerClick, GitBranch, List
 } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
 import type { RequestItem, DeepestUnblockedRequest } from '@/api/sdlc-client';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { FilterBar, FilterActiveBadge, FilterStatus, useDoubleClickFilter } from '@/components/GlobalFilterBar';
+import { D3BlockerGraph } from '@/components/D3BlockerGraph';
 
 interface RequestWithBlockers extends RequestItem {
   blockedBy: string[];
@@ -98,12 +99,15 @@ interface BlockerActionState {
   cascadeAffected: string[];
 }
 
+type ViewMode = 'list' | 'graph';
+
 export default function BlockerGraphPage() {
   const [requests, setRequests] = useState<RequestWithBlockers[]>([]);
   const [deepestUnblocked, setDeepestUnblocked] = useState<DeepestUnblockedRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReq, setSelectedReq] = useState<string | null>(null);
   const [expandedPriority, setExpandedPriority] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [actionState, setActionState] = useState<BlockerActionState>({
     type: null,
     blockedReq: '',
@@ -192,6 +196,90 @@ export default function BlockerGraphPage() {
     const connectedItems = getConnectedRequests(focusedItem);
     return requests.filter(req => connectedItems.has(req.reqNumber));
   }, [requests, globalFiltersEnabled, focusedItem, getConnectedRequests]);
+
+  // Prepare D3 graph data
+  const d3GraphData = useMemo(() => {
+    const dataSource = globalFiltersEnabled && focusedItem ? filteredRequests : requests;
+
+    // Create nodes from all requests that have blocking relationships
+    const nodeMap = new Map<string, {
+      id: string;
+      reqNumber: string;
+      title: string;
+      priority: string;
+      phase: string;
+      isBlocked: boolean;
+      blockedByCount: number;
+      blockingCount: number;
+    }>();
+
+    // Add all requests that have blocking relationships
+    dataSource.forEach(req => {
+      if (req.blocking.length > 0 || req.blockedBy.length > 0) {
+        nodeMap.set(req.reqNumber, {
+          id: req.reqNumber,
+          reqNumber: req.reqNumber,
+          title: req.title,
+          priority: req.priority,
+          phase: req.currentPhase,
+          isBlocked: req.isBlocked ?? false,
+          blockedByCount: req.blockedBy.length,
+          blockingCount: req.blocking.length,
+        });
+
+        // Also add referenced requests as nodes if not already present
+        req.blockedBy.forEach(blockerReq => {
+          if (!nodeMap.has(blockerReq)) {
+            const blockerData = requests.find(r => r.reqNumber === blockerReq);
+            nodeMap.set(blockerReq, {
+              id: blockerReq,
+              reqNumber: blockerReq,
+              title: blockerData?.title || blockerReq,
+              priority: blockerData?.priority || 'medium',
+              phase: blockerData?.currentPhase || 'backlog',
+              isBlocked: blockerData?.isBlocked || false,
+              blockedByCount: blockerData?.blockedBy?.length || 0,
+              blockingCount: blockerData?.blocking?.length || 0,
+            });
+          }
+        });
+
+        req.blocking.forEach(blockedReq => {
+          if (!nodeMap.has(blockedReq)) {
+            const blockedData = requests.find(r => r.reqNumber === blockedReq);
+            nodeMap.set(blockedReq, {
+              id: blockedReq,
+              reqNumber: blockedReq,
+              title: blockedData?.title || blockedReq,
+              priority: blockedData?.priority || 'medium',
+              phase: blockedData?.currentPhase || 'backlog',
+              isBlocked: blockedData?.isBlocked || true,
+              blockedByCount: blockedData?.blockedBy?.length || 0,
+              blockingCount: blockedData?.blocking?.length || 0,
+            });
+          }
+        });
+      }
+    });
+
+    // Create links (source blocks target)
+    const links: { source: string; target: string }[] = [];
+    dataSource.forEach(req => {
+      req.blocking.forEach(blockedReq => {
+        if (nodeMap.has(req.reqNumber) && nodeMap.has(blockedReq)) {
+          links.push({
+            source: req.reqNumber,
+            target: blockedReq,
+          });
+        }
+      });
+    });
+
+    return {
+      nodes: Array.from(nodeMap.values()),
+      links,
+    };
+  }, [requests, filteredRequests, globalFiltersEnabled, focusedItem]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -382,14 +470,41 @@ export default function BlockerGraphPage() {
           </div>
           <p className="text-slate-500 mt-1">Manage blocking relationships and dependencies</p>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <List size={16} />
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('graph')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'graph'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <GitBranch size={16} />
+              Graph
+            </button>
+          </div>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Always-visible Filter Status */}
@@ -398,6 +513,40 @@ export default function BlockerGraphPage() {
       {/* Expanded Filter Bar when enabled */}
       <FilterBar showSearch={true} showStatus={false} showPriority={true} />
 
+      {/* D3 Force-Directed Graph View */}
+      {viewMode === 'graph' && (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <GitBranch className="text-blue-600" size={20} />
+              Blocking Relationships Graph
+            </h2>
+            <div className="text-sm text-slate-500">
+              {d3GraphData.nodes.length} nodes · {d3GraphData.links.length} edges
+            </div>
+          </div>
+          {d3GraphData.nodes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-96 text-slate-400">
+              <CheckCircle size={48} className="mb-3 text-green-400" />
+              <p className="font-medium">No blocking relationships</p>
+              <p className="text-sm">All requests are unblocked</p>
+            </div>
+          ) : (
+            <div className="h-[600px]">
+              <D3BlockerGraph
+                nodes={d3GraphData.nodes}
+                links={d3GraphData.links}
+                focusedItem={focusedItem}
+                onNodeClick={(reqNumber) => setSelectedReq(reqNumber)}
+                onNodeDoubleClick={handleDoubleClick}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* List View */}
+      {viewMode === 'list' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Priority Work - Deepest Unblocked (Expanded) */}
         <div className="bg-white rounded-lg shadow p-6">
@@ -740,6 +889,7 @@ export default function BlockerGraphPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Selected Request Details */}
       {selectedRequest && (
