@@ -589,9 +589,27 @@ From sdlc.agog.fyi AI Assist, user wants to be able to say:
 "Create recommendation: Upgrade database before migration"
 ```
 
-### Commit
+### Commits
 
-`4d73b7b` - feat(ai-chat): Add SDLC function calling infrastructure
+1. `4d73b7b` - feat(ai-chat): Add SDLC function calling infrastructure
+2. `9943661` - feat(ai-chat): Integrate function calling into chat store and UI
+
+### Implementation Complete
+
+**Core AI + SDLC function calling is now integrated:**
+- ✅ 19 SDLC functions defined (11 query, 8 mutation)
+- ✅ 10 new API endpoints added to backend
+- ✅ Function executor service with confirmation support
+- ✅ Store integration with function calling
+- ✅ Confirmation dialog for mutation operations
+- ✅ Prompt-based fallback for non-native providers
+
+**To Test:**
+1. Open sdlc.agog.fyi
+2. Connect to an AI provider (GitHub Models, Claude, etc.)
+3. Try: "What's blocking REQ-P0-BUILD-1767507808-DB?"
+4. Try: "Show me unblocked work sorted by easiest first"
+5. Try: "Change priority of REQ-X to catastrophic" (will show confirmation)
 
 ---
 
