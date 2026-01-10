@@ -11,6 +11,18 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 
 ## Work Completed Today
 
+### SDLC API Settings & Health Banner
+- Committed: `d30626f` - API URL settings and health banner
+- New Settings section: SDLC API configuration
+  - Quick-select presets (Production VPS, Local Development)
+  - Custom URL input with save
+  - Health status display (database, NATS connectivity)
+- API Health Banner: Shows at top of app when API unreachable
+  - Auto-retries every 30 seconds
+  - Links to Settings for reconfiguration
+- Created `useSDLCSettingsStore` for API URL persistence
+- Updated `sdlc-client.ts` and `ai-function-executor.ts` to use dynamic URL
+
 ### Blocker Graph: Done Items Feature
 - Committed: `858055b` - Done items visibility and age filter
 - Done REQs/RECs show with light green fill, 60% opacity, dashed border, checkmark
