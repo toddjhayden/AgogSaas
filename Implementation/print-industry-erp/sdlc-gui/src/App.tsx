@@ -277,11 +277,13 @@ function AppContent() {
         />
       )}
 
-      {/* Floating Chat Button - Always visible */}
-      <ChatButton
-        onClick={handleToggleChat}
-        isOpen={isChatOpen}
-      />
+      {/* Floating Chat Button - Hidden when chat is open (close button in panel header is sufficient) */}
+      {!isChatOpen && (
+        <ChatButton
+          onClick={handleToggleChat}
+          isOpen={isChatOpen}
+        />
+      )}
     </div>
   );
 }
