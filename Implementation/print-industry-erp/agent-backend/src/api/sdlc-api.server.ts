@@ -2137,8 +2137,8 @@ export class SDLCApiServer {
           layer.route?.path === '/workflow/directive' && layer.route?.methods?.post
         );
 
-        if (directiveHandler) {
-          return directiveHandler.route.stack[0].handle(req, res);
+        if (directiveHandler?.route?.stack?.[0]?.handle) {
+          return directiveHandler.route.stack[0].handle(req, res, () => {});
         }
 
         res.status(500).json({ success: false, error: 'Could not create directive' });

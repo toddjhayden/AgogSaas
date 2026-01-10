@@ -77,6 +77,14 @@ export class StrategicOrchestratorService {
   // Gap Fix #12: Concurrency limit
   private readonly MAX_CONCURRENT_WORKFLOWS = 5;
 
+  // Active workflow directive (if any) - checked each scan cycle
+  private activeDirective: {
+    id: string;
+    displayName: string;
+    targetReqNumbers: string[];
+    exclusive: boolean;
+  } | null = null;
+
   // Sasha - Workflow Infrastructure Support
   // For workflow rule questions or infrastructure issues, contact Sasha via NATS:
   // Topic: agog.agent.requests.sasha-rules
@@ -998,6 +1006,35 @@ export class StrategicOrchestratorService {
       return;
     }
 
+    // CHECK FOR ACTIVE WORKFLOW DIRECTIVE
+    // If an exclusive directive is active, only work on items in its scope
+    if (this.useCloudApi && this.apiClient) {
+      try {
+        const workflowStatus = await this.apiClient.getWorkflowStatus();
+        if (workflowStatus.hasActiveDirective && workflowStatus.directive) {
+          const directive = workflowStatus.directive;
+          this.activeDirective = {
+            id: directive.id,
+            displayName: directive.displayName,
+            targetReqNumbers: directive.targetReqNumbers || [],
+            exclusive: directive.exclusive,
+          };
+          console.log(`[StrategicOrchestrator] 🎯 ACTIVE DIRECTIVE: ${directive.displayName}`);
+          if (directive.exclusive && directive.targetReqNumbers?.length) {
+            console.log(`[StrategicOrchestrator] 🎯 Exclusive focus on: ${directive.targetReqNumbers.join(', ')}`);
+          }
+        } else {
+          if (this.activeDirective) {
+            console.log('[StrategicOrchestrator] ✅ Workflow directive cleared - returning to normal');
+          }
+          this.activeDirective = null;
+        }
+      } catch (error: any) {
+        console.warn(`[StrategicOrchestrator] Failed to check workflow directive: ${error.message}`);
+        // Continue without directive filtering on error
+      }
+    }
+
     // PRIORITY 1: Check for blocker requests that should be worked first
     // These are requests that block other requests - completing them unblocks more work
     const blockers = await this.getBlockersToWorkFirst();
@@ -1048,6 +1085,21 @@ export class StrategicOrchestratorService {
         assignedTo: r.assigned_to,
         priority: r.priority || 'medium',
       }));
+    }
+
+    // WORKFLOW DIRECTIVE FILTER
+    // If an exclusive directive is active, filter to only items in scope
+    // NOTE: Catastrophic items still take priority WITHIN the filtered set
+    if (this.activeDirective?.exclusive && this.activeDirective.targetReqNumbers.length > 0) {
+      const scopeSet = new Set(this.activeDirective.targetReqNumbers);
+      const beforeCount = mappedRequests.length;
+      mappedRequests = mappedRequests.filter(r => scopeSet.has(r.reqNumber));
+      const afterCount = mappedRequests.length;
+      console.log(`[StrategicOrchestrator] 🎯 Directive filter: ${afterCount}/${beforeCount} requests in scope`);
+
+      if (afterCount === 0) {
+        console.log('[StrategicOrchestrator] 🎯 All directive items complete or out of actionable phases - directive may auto-clear');
+      }
     }
 
     // Gap Fix #12: Check concurrent workflow limit before processing new workflows
