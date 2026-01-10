@@ -168,8 +168,6 @@ export function FilterBar({ showSearch = true, showStatus = true, showPriority =
     setPriority,
     searchTerm,
     setSearchTerm,
-    focusedItem,
-    clearFocus,
   } = useFilterStore();
 
   if (!isEnabled) return null;
@@ -251,36 +249,23 @@ export function FilterBar({ showSearch = true, showStatus = true, showPriority =
             </div>
           </div>
         )}
-
-        {/* Focused Item Indicator */}
-        {focusedItem && (
-          <div className="flex items-center gap-2 px-2 md:px-3 py-1 md:py-1.5 bg-blue-50 border border-blue-200 rounded w-full sm:w-auto">
-            <span className="text-xs md:text-sm text-blue-700 truncate">
-              Focus: <span className="font-mono">{focusedItem}</span>
-            </span>
-            <button
-              onClick={clearFocus}
-              className="text-blue-500 hover:text-blue-700 flex-shrink-0"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        )}
+        {/* Note: Focused item display moved to FilterStatus to avoid redundancy */}
       </div>
     </div>
   );
 }
 
-// Badge to show filter is active
+// Badge to show filter is active (compact, no focus details - FilterStatus handles that)
 export function FilterActiveBadge() {
   const { isEnabled, type, focusedItem } = useFilterStore();
 
   if (!isEnabled) return null;
 
+  // Just show "ON" or type - don't repeat focused item here
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
       <Filter size={10} />
-      {focusedItem ? `Focus: ${focusedItem}` : type !== 'ALL' ? type : 'Filtered'}
+      {type !== 'ALL' ? type : focusedItem ? 'Focused' : 'ON'}
     </span>
   );
 }

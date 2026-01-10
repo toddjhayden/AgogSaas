@@ -13,6 +13,8 @@ import {
   Network,
   Menu,
   X,
+  Zap,
+  Radio,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
@@ -54,10 +56,26 @@ interface SidebarProps {
 
 function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
   const { health, fetchHealth } = useSDLCStore();
+  const [workflowFocus, setWorkflowFocus] = useState<string | null>(null);
 
+  // Fetch health and workflow status every 2 minutes
   useEffect(() => {
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 30000);
+    const fetchAll = async () => {
+      fetchHealth();
+      // Also fetch workflow status for the subtitle hint
+      try {
+        const response = await import('@/api/sdlc-client').then(m => m.getWorkflowStatus());
+        if (response.success && response.data?.hasActiveDirective && response.data.directive) {
+          setWorkflowFocus(response.data.directive.displayName);
+        } else {
+          setWorkflowFocus(null);
+        }
+      } catch {
+        setWorkflowFocus(null);
+      }
+    };
+    fetchAll();
+    const interval = setInterval(fetchAll, 120000); // 2 minutes
     return () => clearInterval(interval);
   }, [fetchHealth]);
 
@@ -89,7 +107,14 @@ function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
         <div className="p-4 border-b border-slate-700 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">SDLC Control</h1>
-            <p className="text-xs text-slate-400 mt-1">Entity DAG | Kanban | Governance</p>
+            {workflowFocus ? (
+              <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                <Zap size={10} />
+                <span className="truncate">{workflowFocus}</span>
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400 mt-1">Entity DAG | Kanban | Governance</p>
+            )}
           </div>
           {/* Close button for mobile */}
           <button
@@ -126,11 +151,21 @@ function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
 
         {/* Health Status */}
         <div className="p-4 border-t border-slate-700">
-          <div className="flex items-center gap-2 text-sm">
-            <Activity size={16} className={health?.database ? 'text-green-400' : 'text-red-400'} />
-            <span className="text-slate-400">
-              {health?.database ? 'Connected' : 'Disconnected'}
-            </span>
+          <div className="space-y-1.5">
+            {/* Database Status */}
+            <div className="flex items-center gap-2 text-sm">
+              <Activity size={14} className={health?.database ? 'text-green-400' : 'text-red-400'} />
+              <span className="text-slate-400 text-xs">
+                DB: {health?.database ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+            {/* NATS Status */}
+            <div className="flex items-center gap-2 text-sm">
+              <Radio size={14} className={health?.nats ? 'text-green-400' : 'text-yellow-400'} />
+              <span className="text-slate-400 text-xs">
+                NATS: {health?.nats ? 'Connected' : 'Not Available'}
+              </span>
+            </div>
           </div>
           {health && (
             <div className="mt-2 text-xs text-slate-500">
