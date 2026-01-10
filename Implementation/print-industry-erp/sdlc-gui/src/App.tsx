@@ -15,6 +15,7 @@ import {
   X,
   Zap,
   Radio,
+  Server,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
@@ -35,6 +36,7 @@ import ColumnRegistryPage from '@/pages/ColumnRegistryPage';
 import ImpactAnalysisPage from '@/pages/ImpactAnalysisPage';
 import RequestsPage from '@/pages/RequestsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import InfrastructureHealthPage from '@/pages/InfrastructureHealthPage';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -46,6 +48,7 @@ const navItems = [
   { path: '/diagrams', label: 'Diagrams', icon: FileText },
   { path: '/columns', label: 'Column Registry', icon: Database },
   { path: '/impact', label: 'Impact Analysis', icon: BarChart3 },
+  { path: '/infrastructure', label: 'Infrastructure', icon: Server },
 ];
 
 interface SidebarProps {
@@ -321,6 +324,7 @@ function AppContent() {
           <Route path="/diagrams" element={<DiagramsPage />} />
           <Route path="/columns" element={<ColumnRegistryPage />} />
           <Route path="/impact" element={<ImpactAnalysisPage />} />
+          <Route path="/infrastructure" element={<InfrastructureHealthPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

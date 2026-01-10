@@ -563,3 +563,84 @@ export async function getBlockerGraph(): Promise<
     data: { requests: enrichedRequests },
   };
 }
+
+// =============================================================================
+// Infrastructure Control Commands
+// =============================================================================
+
+export interface ControlCommand {
+  id: string;
+  component: string;
+  action: string;
+  params?: Record<string, unknown>;
+  status: 'pending' | 'executing' | 'completed' | 'failed';
+  result?: Record<string, unknown>;
+  error_message?: string;
+  requested_by?: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+/**
+ * Queue a control command for a component.
+ * Commands are processed by the orchestrator which forwards them via NATS.
+ */
+export async function sendControlCommand(
+  component: string,
+  action: string,
+  params?: Record<string, unknown>
+): Promise<ApiResponse<ControlCommand>> {
+  return fetchApi<ControlCommand>('/infrastructure/control', {
+    method: 'POST',
+    body: JSON.stringify({ component, action, params, requestedBy: 'sdlc-gui' }),
+  });
+}
+
+/**
+ * Get the status of a control command by ID.
+ * Poll this endpoint to wait for command completion.
+ */
+export async function getControlCommandStatus(id: string): Promise<ApiResponse<ControlCommand>> {
+  return fetchApi<ControlCommand>(`/infrastructure/control/${id}`);
+}
+
+/**
+ * Get recent control command history for a component.
+ */
+export async function getControlCommandHistory(
+  component: string,
+  limit = 20
+): Promise<ApiResponse<ControlCommand[]>> {
+  return fetchApi<ControlCommand[]>(`/infrastructure/control/history/${component}?limit=${limit}`);
+}
+
+/**
+ * Poll a control command until it completes or times out.
+ * @param id Command ID to poll
+ * @param maxWaitMs Maximum time to wait (default 30s)
+ * @param intervalMs Poll interval (default 1s)
+ */
+export async function waitForControlCommand(
+  id: string,
+  maxWaitMs = 30000,
+  intervalMs = 1000
+): Promise<ApiResponse<ControlCommand>> {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const result = await getControlCommandStatus(id);
+    if (!result.success) {
+      return result;
+    }
+
+    if (result.data && (result.data.status === 'completed' || result.data.status === 'failed')) {
+      return result;
+    }
+
+    // Wait before next poll
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+
+  return { success: false, error: 'Command timed out waiting for response' };
+}

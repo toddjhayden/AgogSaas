@@ -299,6 +299,131 @@ export class SDLCApiServer {
     });
 
     // =========================================================================
+    // Infrastructure Control Commands
+    // =========================================================================
+
+    // Queue a control command (GUI calls this)
+    router.post('/infrastructure/control', async (req: Request, res: Response) => {
+      try {
+        const { component, action, params, requestedBy } = req.body;
+
+        if (!component || !action) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: component, action',
+          });
+        }
+
+        // Validate component
+        const validComponents = ['host_listener', 'orchestrator', 'nats', 'ollama', 'agent_db'];
+        if (!validComponents.includes(component)) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid component. Must be one of: ${validComponents.join(', ')}`,
+          });
+        }
+
+        const result = await this.db.query(
+          `INSERT INTO infrastructure_control_commands (component, action, params, requested_by)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, component, action, status, created_at`,
+          [component, action, params || {}, requestedBy || 'gui']
+        );
+
+        res.json({
+          success: true,
+          data: result.rows[0],
+          message: 'Command queued. Poll /infrastructure/control/:id for result.',
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get pending commands (orchestrator polls this)
+    router.get('/infrastructure/control/pending', async (req: Request, res: Response) => {
+      try {
+        const commands = await this.db.query(`SELECT * FROM pending_control_commands LIMIT 10`);
+        res.json({ success: true, data: commands.rows });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Claim a command (orchestrator marks it as executing)
+    router.post('/infrastructure/control/:id/claim', async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const result = await this.db.query(`SELECT claim_control_command($1)`, [id]);
+        const claimed = result.rows[0].claim_control_command;
+
+        if (claimed) {
+          res.json({ success: true, message: 'Command claimed' });
+        } else {
+          res.status(409).json({ success: false, error: 'Command already claimed or not found' });
+        }
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Complete a command (orchestrator reports result)
+    router.post('/infrastructure/control/:id/complete', async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const { result, error } = req.body;
+
+        await this.db.query(
+          `SELECT complete_control_command($1, $2, $3)`,
+          [id, result || {}, error || null]
+        );
+
+        res.json({ success: true, message: 'Command completed' });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get command status/result (GUI polls this)
+    router.get('/infrastructure/control/:id', async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const result = await this.db.query(
+          `SELECT * FROM infrastructure_control_commands WHERE id = $1`,
+          [id]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ success: false, error: 'Command not found' });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get recent commands for a component
+    router.get('/infrastructure/control/history/:component', async (req: Request, res: Response) => {
+      try {
+        const { component } = req.params;
+        const limit = parseInt(req.query.limit as string) || 20;
+
+        const result = await this.db.query(
+          `SELECT * FROM infrastructure_control_commands
+           WHERE component = $1
+           ORDER BY created_at DESC
+           LIMIT $2`,
+          [component, limit]
+        );
+
+        res.json({ success: true, data: result.rows });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
     // Entity Registry
     // =========================================================================
 

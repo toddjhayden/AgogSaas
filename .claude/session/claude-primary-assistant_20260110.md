@@ -1,7 +1,7 @@
 # Claude Primary Assistant Session - January 10, 2026
 
 ## Session Summary
-SDLC GUI improvements for AI Assist and dependency visualization. Identified multiple issues with current implementation. Fixed UI redundancy and NATS status display issues.
+Completed 5 major TODO items for SDLC GUI improvements: infrastructure health publishing, search endpoint fix, Cross-BU Matrix drill-down, Blocker Graph type filter, and Entity Dependency Graph interactive features. All committed and pushed to GitHub.
 
 ## Context from Previous Session (Jan 9)
 - Continued REC/REQ unification architecture planning
@@ -20,6 +20,7 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 6. `6b06f28` - fix(sdlc-api): Move search route before parameterized route
 7. `0ac8bb2` - feat(sdlc-gui): Actionable Cross-BU Matrix with drill-down
 8. `733932a` - fix(sdlc-gui): Apply type filter to Blocker Graph nodes
+9. `c49a6f0` - feat(sdlc-gui): Add interactive features to Entity Dependency Graph
 
 ### SDLC API Settings & Health Banner
 - Committed: `d30626f` - API URL settings and health banner
@@ -111,6 +112,17 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
   - Filter links to only include connections between filtered nodes
 - **Key change**: Maps FilterType ('REQ'/'REC') to itemType ('req'/'rec')
 
+### Entity Dependency Graph Interactive Features (c49a6f0)
+- **Problem**: Graph view had no analysis features - just displayed nodes
+- **Solution**: Added full interactive capabilities to graph view
+  - Sidebar with entity details and execution order (same as list view)
+  - BU filter buttons to show only selected business units
+  - Highlight mode: Upstream (amber), Downstream (blue), Both (purple)
+  - Recursive computation of upstream/downstream entity chains
+  - Clickable dependency lists to navigate between entities
+  - D3EntityGraph updated with `highlightedEntities` prop
+  - Visual dimming of non-highlighted nodes and links when highlighting is active
+
 ### Previous Session Work (Carried Over)
 - `4549253` - RECs added to Blocker Graph with approval status
 - `979ba0f` - D3 Chord Diagram for cross-BU dependencies
@@ -145,6 +157,14 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 ### 5. Agentic Workflow Not Following Focus
 **Problem**: Set focus via AI to blocker chain 1767507808, but agents not working on it
 **Investigation Needed**: Check if workflow directive is being read by orchestrator
+
+**SDLC AI Session Log** (from `Session in SDLC AI.txt`):
+- User focused workflow on `REQ-P0-BUILD-1767507808-DB`
+- Reason: "This breaks building in GitHub Actions"
+- Function `focusOnBlockerChain` executed successfully
+- Created directive ID: `72b39029-9e6e-474c-993d-f0c5e1f6f308`
+- Directive type: "Focus on blocker chain: REQ-P0-BUILD-1767507808-DB"
+- **Status**: Directive created in DB but orchestrator may not be following it
 
 ### 6. NATS Status Display - Architecture Issue
 **Problem**: VPS-hosted GUI cannot check local NATS status (mixed content, wrong localhost)
@@ -198,11 +218,14 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 
 ## Investigation Queue
 
-1. ~Check `BlockerGraphPage.tsx` filter logic for REC handling~ (Checked - see findings)
+1. ~Check `BlockerGraphPage.tsx` filter logic for REC handling~ (Fixed - 733932a)
 2. ~Check if `getWorkflowStatus` function exists in AI function calling~ (Exists)
 3. ~Check strategic orchestrator for directive reading~ (Implemented)
-4. Design better Cross-BU visualization
+4. ~Design better Cross-BU visualization~ (Fixed - 0ac8bb2, table with drill-down)
 5. Test workflow directive actually being applied by orchestrator
+   - Directive `72b39029-9e6e-474c-993d-f0c5e1f6f308` exists in DB
+   - Target: REQ-P0-BUILD-1767507808-DB blocker chain
+   - Need to verify orchestrator is reading and applying it
 6. Test AI workflow status response
 
 ---
@@ -217,7 +240,7 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 - [x] Fix `/api/agent/requests/search` endpoint route order (completed - 6b06f28)
 - [x] Fix Cross-BU Dependency Matrix visualization (completed - 0ac8bb2)
 - [x] Fix filter issue with RECs in Blocker Graph (completed - 733932a)
-- [ ] Entity Dependency Graph needs interactive analysis features
+- [x] Entity Dependency Graph needs interactive analysis features (completed - c49a6f0)
 - [ ] UX: Right-click/drag REQ to insert into chat
 - [ ] Add security to AI experience
 
@@ -256,3 +279,122 @@ CREATE TABLE agent_infrastructure_health (
 - New endpoint: `GET /api/agent/infrastructure/health`
 - Returns all component statuses
 - GUI polls every 2 minutes (same as current health check)
+---
+
+## Infrastructure Control System (Evening Session)
+
+### Overview
+Extended the agentic workflow with full SDLC control capabilities, allowing GUI users to monitor infrastructure health, view sanitized logs, and issue control commands (restart, status, etc.) to components.
+
+### Components Modified
+
+#### 1. Host-Agent-Listener (host-agent-listener.ts)
+- **Concurrency**: 4 → 6 concurrent agents
+- **Publish Timeout**: 5s → 30s with 60s retry for large deliverables
+- **Log Sanitization**: Added patterns for API keys, bearer tokens, passwords, connection strings, file paths, internal IPs, email addresses
+- **Health Heartbeat**: Publishes to SDLC every 60s with:
+  - activeAgents, maxConcurrent
+  - natsConnected, sdlcConnected, ollamaConnected
+  - uptime, pid
+  - recentLogs (last 30 sanitized entries)
+- **NATS Control Channel**: `agog.control.host_listener`
+  - `status`: Get current status and in-memory logs
+  - `restart`: Graceful restart (process.exit(0), bat script restarts)
+  - `get_logs`: Get recent in-memory logs
+  - `get_log_files`: List available log files
+  - `read_log_file`: Read specific log file with sanitization
+  - `tail_log_file`: Tail current day's log
+
+#### 2. Strategic Orchestrator (strategic-orchestrator.service.ts)
+- **Concurrency**: 5 → 10 concurrent workflows
+
+#### 3. Database Migration (V0.0.33__create_infrastructure_control.sql)
+New table for control command queue:
+```sql
+CREATE TABLE infrastructure_control_commands (
+  id UUID PRIMARY KEY,
+  component VARCHAR(50) NOT NULL,
+  action VARCHAR(50) NOT NULL,
+  params JSONB DEFAULT '{}',
+  status VARCHAR(20) DEFAULT 'pending',
+  result JSONB,
+  error_message TEXT,
+  requested_by VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW(),
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP
+);
+```
+Helper functions:
+- `claim_control_command(cmd_id)` - Orchestrator claims
+- `complete_control_command(cmd_id, result, error)` - Report completion
+- `cleanup_old_control_commands()` - Auto-expire after 24h
+
+#### 4. SDLC API (sdlc-api.server.ts)
+New endpoints for infrastructure control:
+- `POST /infrastructure/control` - Queue a command
+- `GET /infrastructure/control/pending` - Orchestrator polls
+- `POST /infrastructure/control/:id/claim` - Mark executing
+- `POST /infrastructure/control/:id/complete` - Report result
+- `GET /infrastructure/control/:id` - Get status (GUI polls)
+- `GET /infrastructure/control/history/:component` - Command history
+
+#### 5. GUI Client (sdlc-client.ts)
+New API functions:
+- `sendControlCommand(component, action, params)` - Queue command
+- `getControlCommandStatus(id)` - Poll for result
+- `getControlCommandHistory(component, limit)` - Get history
+- `waitForControlCommand(id, maxWaitMs, intervalMs)` - Poll until complete
+
+#### 6. Infrastructure Health Page (InfrastructureHealthPage.tsx)
+New GUI page with:
+- Summary cards: Healthy/Degraded/Unavailable/Stale counts
+- Component cards: Status, details, last heartbeat
+- Expandable sections with:
+  - Component details from heartbeat
+  - Recent logs viewer (from heartbeat)
+  - Action buttons: Status, View Logs, Tail Log, Restart
+- Command result display with loading states
+- Help section explaining control flow
+
+#### 7. App.tsx Updates
+- Added `Server` icon import
+- Added `InfrastructureHealthPage` import
+- Added nav item: `/infrastructure` → Infrastructure
+- Added route: `/infrastructure` → `<InfrastructureHealthPage />`
+
+### Control Command Flow
+```
+SDLC GUI → POST /infrastructure/control → DB Queue
+                                             ↓
+Orchestrator polls → claim_control_command() → NATS publish
+                                                    ↓
+Host Listener (or Docker) → Execute → NATS reply
+                                           ↓
+Orchestrator → complete_control_command() → DB Update
+                                             ↓
+GUI polls → GET /infrastructure/control/:id → Display Result
+```
+
+### Files Created
+- `V0.0.33__create_infrastructure_control.sql`
+- `InfrastructureHealthPage.tsx`
+- `.claude/session/intervention/SDLC_REMOTE_CONTROL.md`
+- `.claude/session/intervention/TODO.md`
+
+### Files Modified
+- `host-agent-listener.ts` (major: sanitization, heartbeat, control channel)
+- `strategic-orchestrator.service.ts` (concurrency)
+- `sdlc-api.server.ts` (control endpoints)
+- `sdlc-client.ts` (control API functions)
+- `App.tsx` (route, nav, import)
+
+### Pending Deployment
+1. Run V0.0.33 migration on VPS
+2. Restart agogsaas-agents-backend container
+3. Restart host-agent-listener
+4. Build and deploy sdlc-gui
+
+---
+
+*Session Updated: 2026-01-10 ~23:45 UTC*
