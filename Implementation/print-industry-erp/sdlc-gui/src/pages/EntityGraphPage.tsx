@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, GitBranch, List } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
+import { D3EntityGraph } from '@/components/D3EntityGraph';
+
+type ViewMode = 'list' | 'graph';
 
 export default function EntityGraphPage() {
   const { entities, dependencies, graphLoading, fetchDependencyGraph } = useSDLCStore();
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [executionPlan, setExecutionPlan] = useState<any>(null);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   useEffect(() => {
     fetchDependencyGraph();
@@ -44,20 +48,109 @@ export default function EntityGraphPage() {
     );
   };
 
+  // Prepare D3 graph data
+  const d3GraphData = useMemo(() => {
+    // Create nodes from entities
+    const nodes = entities.map(entity => {
+      const dependencyCount = dependencies.filter(d => d.dependentEntity === entity.entityName).length;
+      const dependentCount = dependencies.filter(d => d.dependsOnEntity === entity.entityName).length;
+
+      return {
+        id: entity.entityName,
+        name: entity.entityName,
+        bu: entity.owningBu,
+        type: entity.entityType || 'entity',
+        dependencyCount,
+        dependentCount,
+      };
+    });
+
+    // Create links from dependencies
+    const links = dependencies.map(dep => ({
+      source: dep.dependentEntity,
+      target: dep.dependsOnEntity,
+      relationshipType: dep.dependencyType,
+    }));
+
+    return { nodes, links };
+  }, [entities, dependencies]);
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Entity Dependency Graph</h1>
-        <button
-          onClick={() => fetchDependencyGraph()}
-          disabled={graphLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={graphLoading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <List size={16} />
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('graph')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'graph'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <GitBranch size={16} />
+              Graph
+            </button>
+          </div>
+          <button
+            onClick={() => fetchDependencyGraph()}
+            disabled={graphLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={graphLoading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
+      {/* D3 Force-Directed Graph View */}
+      {viewMode === 'graph' && (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <GitBranch className="text-blue-600" size={20} />
+              Entity Dependency Network
+            </h2>
+            <div className="text-sm text-slate-500">
+              {d3GraphData.nodes.length} entities · {d3GraphData.links.length} dependencies
+            </div>
+          </div>
+          {d3GraphData.nodes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-96 text-slate-400">
+              <p className="font-medium">No entities registered</p>
+              <p className="text-sm">Register entities to build the dependency graph</p>
+            </div>
+          ) : (
+            <div className="h-[600px]">
+              <D3EntityGraph
+                nodes={d3GraphData.nodes}
+                links={d3GraphData.links}
+                selectedEntity={selectedEntity}
+                onNodeClick={(entityName) => {
+                  setSelectedEntity(entityName);
+                  toggleEntitySelection(entityName);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* List View */}
+      {viewMode === 'list' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Entity List by BU */}
         <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
@@ -257,6 +350,7 @@ export default function EntityGraphPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
