@@ -5,7 +5,7 @@ import {
   ChevronUp, Target, Zap, Info, MousePointerClick, GitBranch, List
 } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
-import type { RequestItem, DeepestUnblockedRequest } from '@/api/sdlc-client';
+import type { RequestItem, DeepestUnblockedRequest, Recommendation } from '@/api/sdlc-client';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { FilterBar, FilterActiveBadge, FilterStatus, useDoubleClickFilter } from '@/components/GlobalFilterBar';
 import { D3BlockerGraph } from '@/components/D3BlockerGraph';
@@ -103,6 +103,7 @@ type ViewMode = 'list' | 'graph';
 
 export default function BlockerGraphPage() {
   const [requests, setRequests] = useState<RequestWithBlockers[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [deepestUnblocked, setDeepestUnblocked] = useState<DeepestUnblockedRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReq, setSelectedReq] = useState<string | null>(null);
@@ -197,11 +198,11 @@ export default function BlockerGraphPage() {
     return requests.filter(req => connectedItems.has(req.reqNumber));
   }, [requests, globalFiltersEnabled, focusedItem, getConnectedRequests]);
 
-  // Prepare D3 graph data
+  // Prepare D3 graph data (includes both REQs and RECs)
   const d3GraphData = useMemo(() => {
     const dataSource = globalFiltersEnabled && focusedItem ? filteredRequests : requests;
 
-    // Create nodes from all requests that have blocking relationships
+    // Create nodes from all requests and recommendations
     const nodeMap = new Map<string, {
       id: string;
       reqNumber: string;
@@ -211,6 +212,8 @@ export default function BlockerGraphPage() {
       isBlocked: boolean;
       blockedByCount: number;
       blockingCount: number;
+      itemType: 'req' | 'rec';
+      status?: string;
     }>();
 
     // Add all requests that have blocking relationships
@@ -225,39 +228,95 @@ export default function BlockerGraphPage() {
           isBlocked: req.isBlocked ?? false,
           blockedByCount: req.blockedBy.length,
           blockingCount: req.blocking.length,
+          itemType: 'req',
         });
 
-        // Also add referenced requests as nodes if not already present
+        // Also add referenced items as nodes if not already present
         req.blockedBy.forEach(blockerReq => {
           if (!nodeMap.has(blockerReq)) {
-            const blockerData = requests.find(r => r.reqNumber === blockerReq);
-            nodeMap.set(blockerReq, {
-              id: blockerReq,
-              reqNumber: blockerReq,
-              title: blockerData?.title || blockerReq,
-              priority: blockerData?.priority || 'medium',
-              phase: blockerData?.currentPhase || 'backlog',
-              isBlocked: blockerData?.isBlocked || false,
-              blockedByCount: blockerData?.blockedBy?.length || 0,
-              blockingCount: blockerData?.blocking?.length || 0,
-            });
+            // Check if it's a REC
+            const recData = recommendations.find(r => r.recNumber === blockerReq);
+            if (recData) {
+              nodeMap.set(blockerReq, {
+                id: blockerReq,
+                reqNumber: blockerReq,
+                title: recData.title,
+                priority: recData.urgency || 'medium',
+                phase: recData.status || 'pending',
+                isBlocked: false,
+                blockedByCount: 0,
+                blockingCount: 1,
+                itemType: 'rec',
+                status: recData.status,
+              });
+            } else {
+              const blockerData = requests.find(r => r.reqNumber === blockerReq);
+              nodeMap.set(blockerReq, {
+                id: blockerReq,
+                reqNumber: blockerReq,
+                title: blockerData?.title || blockerReq,
+                priority: blockerData?.priority || 'medium',
+                phase: blockerData?.currentPhase || 'backlog',
+                isBlocked: blockerData?.isBlocked || false,
+                blockedByCount: blockerData?.blockedBy?.length || 0,
+                blockingCount: blockerData?.blocking?.length || 0,
+                itemType: 'req',
+              });
+            }
           }
         });
 
         req.blocking.forEach(blockedReq => {
           if (!nodeMap.has(blockedReq)) {
-            const blockedData = requests.find(r => r.reqNumber === blockedReq);
-            nodeMap.set(blockedReq, {
-              id: blockedReq,
-              reqNumber: blockedReq,
-              title: blockedData?.title || blockedReq,
-              priority: blockedData?.priority || 'medium',
-              phase: blockedData?.currentPhase || 'backlog',
-              isBlocked: blockedData?.isBlocked || true,
-              blockedByCount: blockedData?.blockedBy?.length || 0,
-              blockingCount: blockedData?.blocking?.length || 0,
-            });
+            // Check if it's a REC
+            const recData = recommendations.find(r => r.recNumber === blockedReq);
+            if (recData) {
+              nodeMap.set(blockedReq, {
+                id: blockedReq,
+                reqNumber: blockedReq,
+                title: recData.title,
+                priority: recData.urgency || 'medium',
+                phase: recData.status || 'pending',
+                isBlocked: true,
+                blockedByCount: 1,
+                blockingCount: 0,
+                itemType: 'rec',
+                status: recData.status,
+              });
+            } else {
+              const blockedData = requests.find(r => r.reqNumber === blockedReq);
+              nodeMap.set(blockedReq, {
+                id: blockedReq,
+                reqNumber: blockedReq,
+                title: blockedData?.title || blockedReq,
+                priority: blockedData?.priority || 'medium',
+                phase: blockedData?.currentPhase || 'backlog',
+                isBlocked: blockedData?.isBlocked || true,
+                blockedByCount: blockedData?.blockedBy?.length || 0,
+                blockingCount: blockedData?.blocking?.length || 0,
+                itemType: 'req',
+              });
+            }
           }
+        });
+      }
+    });
+
+    // Add recommendations that have sourceReq (they block the original request)
+    recommendations.forEach(rec => {
+      if (rec.sourceReq && !nodeMap.has(rec.recNumber)) {
+        // REC blocks its source REQ
+        nodeMap.set(rec.recNumber, {
+          id: rec.recNumber,
+          reqNumber: rec.recNumber,
+          title: rec.title,
+          priority: rec.urgency || 'medium',
+          phase: rec.status || 'pending',
+          isBlocked: false,
+          blockedByCount: 0,
+          blockingCount: 1,
+          itemType: 'rec',
+          status: rec.status,
         });
       }
     });
@@ -275,19 +334,37 @@ export default function BlockerGraphPage() {
       });
     });
 
+    // Add links from RECs to their source REQs (REC blocks source REQ until approved)
+    recommendations.forEach(rec => {
+      if (rec.sourceReq && rec.status !== 'approved' && rec.status !== 'rejected') {
+        if (nodeMap.has(rec.recNumber) && nodeMap.has(rec.sourceReq)) {
+          links.push({
+            source: rec.recNumber,
+            target: rec.sourceReq,
+          });
+        }
+      }
+    });
+
     return {
       nodes: Array.from(nodeMap.values()),
       links,
     };
-  }, [requests, filteredRequests, globalFiltersEnabled, focusedItem]);
+  }, [requests, recommendations, filteredRequests, globalFiltersEnabled, focusedItem]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [requestsRes, deepestRes] = await Promise.all([
+      const [requestsRes, deepestRes, recsRes] = await Promise.all([
         api.getAllRequests(),
         api.getDeepestUnblocked(20),
+        api.getRecommendations(), // Fetch all recommendations
       ]);
+
+      // Store recommendations
+      if (recsRes.success && recsRes.data) {
+        setRecommendations(recsRes.data.recommendations);
+      }
 
       if (requestsRes.success && requestsRes.data) {
         const allRequests = requestsRes.data.requests;

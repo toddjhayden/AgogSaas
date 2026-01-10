@@ -15,6 +15,9 @@ interface BlockerNode {
   isBlocked: boolean;
   blockedByCount: number;
   blockingCount: number;
+  // REC support
+  itemType?: 'req' | 'rec';
+  status?: string; // For RECs: pending, approved, rejected, in_progress, done
 }
 
 interface BlockerLink {
@@ -49,6 +52,15 @@ const phaseColors: Record<string, string> = {
   review: '#f59e0b',
   done: '#22c55e',
   blocked: '#ef4444',
+};
+
+// REC status colors (for border)
+const recStatusColors: Record<string, string> = {
+  approved: '#22c55e',  // green
+  pending: '#f59e0b',   // amber
+  rejected: '#ef4444',  // red
+  in_progress: '#8b5cf6', // purple
+  done: '#22c55e',      // green
 };
 
 export function D3BlockerGraph({
@@ -172,24 +184,75 @@ export function D3BlockerGraph({
           d.fy = null;
         }));
 
-    // Node circles
-    node.append('circle')
-      .attr('r', d => {
-        // Larger nodes for items that block more
-        const baseRadius = 15;
-        return baseRadius + Math.min(d.blockingCount * 3, 15);
-      })
-      .attr('fill', d => priorityColors[d.priority] || '#64748b')
-      .attr('stroke', d => {
-        if (d.reqNumber === focusedItem) return '#3b82f6';
-        if (d.isBlocked) return '#ef4444';
-        return phaseColors[d.phase] || '#94a3b8';
-      })
-      .attr('stroke-width', d => d.reqNumber === focusedItem ? 4 : 2);
+    // Node shapes - circles for REQ, diamonds for REC
+    node.each(function(d) {
+      const g = d3.select(this);
+      const isRec = d.itemType === 'rec';
+      const baseRadius = 15;
+      const radius = baseRadius + Math.min(d.blockingCount * 3, 15);
+
+      // Determine stroke color
+      let strokeColor = phaseColors[d.phase] || '#94a3b8';
+      if (d.reqNumber === focusedItem) {
+        strokeColor = '#3b82f6';
+      } else if (isRec && d.status) {
+        // For RECs, use status color for border
+        strokeColor = recStatusColors[d.status] || '#f59e0b';
+      } else if (d.isBlocked) {
+        strokeColor = '#ef4444';
+      }
+
+      const strokeWidth = d.reqNumber === focusedItem ? 4 : isRec ? 3 : 2;
+
+      if (isRec) {
+        // Diamond shape for recommendations
+        const size = radius * 1.4;
+        g.append('path')
+          .attr('d', `M 0 ${-size} L ${size} 0 L 0 ${size} L ${-size} 0 Z`)
+          .attr('fill', priorityColors[d.priority] || '#64748b')
+          .attr('stroke', strokeColor)
+          .attr('stroke-width', strokeWidth);
+
+        // Add status indicator icon for RECs
+        if (d.status === 'approved') {
+          g.append('text')
+            .text('✓')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '-1.8em')
+            .attr('font-size', '12px')
+            .attr('fill', '#22c55e');
+        } else if (d.status === 'rejected') {
+          g.append('text')
+            .text('✗')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '-1.8em')
+            .attr('font-size', '12px')
+            .attr('fill', '#ef4444');
+        } else if (d.status === 'pending') {
+          g.append('text')
+            .text('?')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '-1.8em')
+            .attr('font-size', '12px')
+            .attr('font-weight', 'bold')
+            .attr('fill', '#f59e0b');
+        }
+      } else {
+        // Circle for requests
+        g.append('circle')
+          .attr('r', radius)
+          .attr('fill', priorityColors[d.priority] || '#64748b')
+          .attr('stroke', strokeColor)
+          .attr('stroke-width', strokeWidth);
+      }
+    });
 
     // Node labels
     node.append('text')
-      .text(d => d.reqNumber.replace('REQ-', '').slice(0, 8))
+      .text(d => {
+        const prefix = d.itemType === 'rec' ? 'REC-' : 'REQ-';
+        return d.reqNumber.replace(prefix, '').replace('REQ-', '').slice(0, 8);
+      })
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
       .attr('font-size', '10px')
@@ -250,9 +313,16 @@ export function D3BlockerGraph({
             top: tooltip.y + 10,
           }}
         >
-          <div className="font-mono text-sm font-bold text-slate-800">{tooltip.node.reqNumber}</div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+              tooltip.node.itemType === 'rec' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+            }`}>
+              {tooltip.node.itemType === 'rec' ? 'REC' : 'REQ'}
+            </span>
+            <span className="font-mono text-sm font-bold text-slate-800">{tooltip.node.reqNumber}</span>
+          </div>
           <div className="text-sm text-slate-600 mt-1 line-clamp-2">{tooltip.node.title}</div>
-          <div className="flex gap-2 mt-2">
+          <div className="flex flex-wrap gap-2 mt-2">
             <span className={`text-xs px-2 py-0.5 rounded ${
               tooltip.node.priority === 'critical' || tooltip.node.priority === 'catastrophic'
                 ? 'bg-red-100 text-red-700'
@@ -265,6 +335,16 @@ export function D3BlockerGraph({
             <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">
               {tooltip.node.phase}
             </span>
+            {tooltip.node.itemType === 'rec' && tooltip.node.status && (
+              <span className={`text-xs px-2 py-0.5 rounded ${
+                tooltip.node.status === 'approved' ? 'bg-green-100 text-green-700' :
+                tooltip.node.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                tooltip.node.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                'bg-slate-100 text-slate-600'
+              }`}>
+                {tooltip.node.status}
+              </span>
+            )}
           </div>
           {(tooltip.node.blockedByCount > 0 || tooltip.node.blockingCount > 0) && (
             <div className="text-xs text-slate-500 mt-2">
@@ -283,18 +363,37 @@ export function D3BlockerGraph({
       {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-white/90 rounded-lg p-3 shadow-sm border border-slate-200">
         <div className="text-xs font-semibold text-slate-600 mb-2">Legend</div>
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          {/* Shapes */}
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-slate-400" />
+            <span className="text-xs text-slate-600">REQ (Request)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rotate-45 bg-slate-400" />
+            <span className="text-xs text-slate-600">REC (Recommendation)</span>
+          </div>
+          {/* Priority */}
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-red-600" />
-            <span className="text-xs text-slate-600">Critical/Catastrophic</span>
+            <span className="text-xs text-slate-600">Critical</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-orange-500" />
-            <span className="text-xs text-slate-600">High Priority</span>
+            <span className="text-xs text-slate-600">High</span>
+          </div>
+          {/* REC Status */}
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rotate-45 border-2 border-green-500 bg-transparent" />
+            <span className="text-xs text-slate-600">Approved</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-500" />
-            <span className="text-xs text-slate-600">Medium Priority</span>
+            <div className="w-3 h-3 rotate-45 border-2 border-amber-500 bg-transparent" />
+            <span className="text-xs text-slate-600">Pending</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rotate-45 border-2 border-red-500 bg-transparent" />
+            <span className="text-xs text-slate-600">Rejected</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full border-2 border-red-500 bg-transparent" />
