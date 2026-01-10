@@ -117,6 +117,104 @@ export class SDLCApiServer {
     });
 
     // =========================================================================
+    // AI Error Log
+    // =========================================================================
+
+    // Log an AI function error
+    router.post('/ai/error-log', async (req: Request, res: Response) => {
+      try {
+        const { functionName, errorMessage, errorCode, context, sessionId, userQuery } = req.body;
+
+        if (!functionName || !errorMessage) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: functionName, errorMessage',
+          });
+        }
+
+        const result = await this.db.query(
+          `SELECT log_ai_error($1, $2, $3, $4, $5, $6) as id`,
+          [functionName, errorMessage, errorCode || null, context || {}, sessionId || null, userQuery || null]
+        );
+
+        res.json({
+          success: true,
+          data: { id: result[0]?.id, logged: true },
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get pending AI errors (not dismissed)
+    router.get('/ai/error-log', async (req: Request, res: Response) => {
+      try {
+        const limit = parseInt(req.query.limit as string) || 50;
+        const includeAll = req.query.all === 'true';
+
+        const query = includeAll
+          ? `SELECT * FROM ai_error_log ORDER BY created_at DESC LIMIT $1`
+          : `SELECT * FROM ai_errors_pending LIMIT $1`;
+
+        const errors = await this.db.query(query, [limit]);
+
+        res.json({
+          success: true,
+          data: errors,
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Dismiss an AI error
+    router.post('/ai/error-log/:id/dismiss', async (req: Request, res: Response) => {
+      try {
+        const errorId = parseInt(req.params.id);
+        const { reason } = req.body;
+
+        const result = await this.db.query(
+          `SELECT dismiss_ai_error($1, $2) as success`,
+          [errorId, reason || null]
+        );
+
+        res.json({
+          success: true,
+          data: { dismissed: result[0]?.success },
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Promote AI error to REQ
+    router.post('/ai/error-log/:id/promote', async (req: Request, res: Response) => {
+      try {
+        const errorId = parseInt(req.params.id);
+        const { reqNumber } = req.body;
+
+        if (!reqNumber) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required field: reqNumber',
+          });
+        }
+
+        const result = await this.db.query(
+          `SELECT promote_ai_error_to_req($1, $2) as success`,
+          [errorId, reqNumber]
+        );
+
+        res.json({
+          success: true,
+          data: { promoted: result[0]?.success, reqNumber },
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
     // Entity Registry
     // =========================================================================
 

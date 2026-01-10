@@ -253,6 +253,16 @@ export async function executeSDLCFunction(call: FunctionCall): Promise<FunctionR
       case 'checkIfNeeded':
         return await fetchAPI(`/requests/${args.reqNumber}/check-needed`);
 
+      // ========== UTILITY FUNCTIONS ==========
+
+      case 'logApiError':
+        return await postAPI('/ai/error-log', {
+          functionName: args.functionName,
+          errorMessage: args.errorMessage,
+          errorCode: args.errorCode,
+          userQuery: args.userQuery
+        });
+
       default:
         return {
           success: false,

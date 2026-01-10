@@ -592,10 +592,44 @@ export const mutationFunctions: SDLCFunction[] = [
 ];
 
 // ============================================================================
+// UTILITY FUNCTIONS (No confirmation required)
+// ============================================================================
+
+export const utilityFunctions: SDLCFunction[] = [
+  {
+    name: 'logApiError',
+    description: 'Log an API error that occurred during function execution. Use this when a function call fails so the SDLC owner can review and fix the issue.',
+    category: 'mutation',
+    parameters: {
+      type: 'object',
+      properties: {
+        functionName: {
+          type: 'string',
+          description: 'The name of the function that failed'
+        },
+        errorMessage: {
+          type: 'string',
+          description: 'The error message returned'
+        },
+        errorCode: {
+          type: 'string',
+          description: 'Error code if available (e.g., 404, 500)'
+        },
+        userQuery: {
+          type: 'string',
+          description: 'The original user query that triggered this function call'
+        }
+      },
+      required: ['functionName', 'errorMessage']
+    }
+  }
+];
+
+// ============================================================================
 // COMBINED FUNCTIONS
 // ============================================================================
 
-export const allSDLCFunctions: SDLCFunction[] = [...queryFunctions, ...workflowFunctions, ...mutationFunctions];
+export const allSDLCFunctions: SDLCFunction[] = [...queryFunctions, ...workflowFunctions, ...mutationFunctions, ...utilityFunctions];
 
 // Function names that require user confirmation before execution
 export const MUTATION_FUNCTION_NAMES = [
