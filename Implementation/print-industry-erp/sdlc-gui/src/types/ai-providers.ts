@@ -42,6 +42,8 @@ export interface AIProviderConfig {
   endpoint?: string; // Custom endpoint for self-hosted or Azure
   enabled: boolean;
   isDefault: boolean;
+  fetchedModels?: DynamicModelInfo[]; // Models fetched from provider API
+  modelsLastFetched?: Date;
 }
 
 // Provider metadata (display info)
@@ -51,9 +53,11 @@ export interface AIProviderMeta {
   description: string;
   iconName: string;
   defaultEndpoint: string;
+  modelsEndpoint?: string; // API endpoint to fetch available models
   tokenPlaceholder: string;
   tokenHelpUrl: string;
-  availableModels: Array<{
+  supportsModelFetching: boolean; // Whether we can dynamically fetch models
+  fallbackModels: Array<{
     id: string;
     name: string;
     description: string;
@@ -130,46 +134,13 @@ export const AI_PROVIDERS: AIProviderMeta[] = [
     description: 'Access to multiple AI models via GitHub',
     iconName: 'Github',
     defaultEndpoint: 'https://models.inference.ai.azure.com/chat/completions',
+    modelsEndpoint: 'https://models.github.ai/catalog/models',
     tokenPlaceholder: 'ghp_xxxxxxxxxxxxxxxxxxxx',
     tokenHelpUrl: 'https://github.com/settings/tokens/new?scopes=copilot,read:user',
-    availableModels: [
-      // OpenAI Models
-      { id: 'gpt-4o', name: 'GPT-4o', description: 'OpenAI - Most capable multimodal' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'OpenAI - Fast and efficient' },
-      { id: 'o1', name: 'o1', description: 'OpenAI - Advanced reasoning' },
-      { id: 'o1-mini', name: 'o1 Mini', description: 'OpenAI - Compact reasoning' },
-      { id: 'o1-preview', name: 'o1 Preview', description: 'OpenAI - Preview reasoning' },
-      { id: 'o3-mini', name: 'o3 Mini', description: 'OpenAI - Latest mini model' },
-      // Anthropic Models via GitHub
-      { id: 'claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', description: 'Anthropic - Balanced' },
-      { id: 'claude-3-5-sonnet-v2', name: 'Claude 3.5 Sonnet v2', description: 'Anthropic - Latest' },
-      // Meta Llama Models
-      { id: 'Meta-Llama-3.1-405B-Instruct', name: 'Llama 3.1 405B', description: 'Meta - Largest open model' },
-      { id: 'Meta-Llama-3.1-70B-Instruct', name: 'Llama 3.1 70B', description: 'Meta - High performance' },
-      { id: 'Meta-Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B', description: 'Meta - Efficient' },
-      { id: 'Llama-3.2-90B-Vision-Instruct', name: 'Llama 3.2 90B Vision', description: 'Meta - Multimodal' },
-      { id: 'Llama-3.2-11B-Vision-Instruct', name: 'Llama 3.2 11B Vision', description: 'Meta - Vision capable' },
-      { id: 'Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B', description: 'Meta - Latest iteration' },
-      // Mistral Models
-      { id: 'Mistral-large-2411', name: 'Mistral Large', description: 'Mistral - Most capable' },
-      { id: 'Mistral-Nemo', name: 'Mistral Nemo', description: 'Mistral - Efficient' },
-      { id: 'Mistral-small', name: 'Mistral Small', description: 'Mistral - Compact' },
-      { id: 'Ministral-3B', name: 'Ministral 3B', description: 'Mistral - Tiny but capable' },
-      // Microsoft Phi Models
-      { id: 'Phi-4', name: 'Phi-4', description: 'Microsoft - Latest Phi model' },
-      { id: 'Phi-3.5-MoE-instruct', name: 'Phi-3.5 MoE', description: 'Microsoft - Mixture of experts' },
-      { id: 'Phi-3.5-mini-instruct', name: 'Phi-3.5 Mini', description: 'Microsoft - Small footprint' },
-      { id: 'Phi-3.5-vision-instruct', name: 'Phi-3.5 Vision', description: 'Microsoft - Vision capable' },
-      { id: 'Phi-3-medium-128k-instruct', name: 'Phi-3 Medium 128K', description: 'Microsoft - Long context' },
-      // Cohere Models
-      { id: 'Cohere-command-r-plus-08-2024', name: 'Command R+', description: 'Cohere - Enterprise RAG' },
-      { id: 'Cohere-command-r-08-2024', name: 'Command R', description: 'Cohere - RAG optimized' },
-      // AI21 Models
-      { id: 'AI21-Jamba-1.5-Large', name: 'Jamba 1.5 Large', description: 'AI21 - Large model' },
-      { id: 'AI21-Jamba-1.5-Mini', name: 'Jamba 1.5 Mini', description: 'AI21 - Efficient' },
-      // DeepSeek via GitHub
-      { id: 'DeepSeek-V3', name: 'DeepSeek V3', description: 'DeepSeek - General purpose' },
-      { id: 'DeepSeek-R1', name: 'DeepSeek R1', description: 'DeepSeek - Reasoning' },
+    supportsModelFetching: true,
+    fallbackModels: [
+      { id: 'gpt-4o', name: 'GPT-4o', description: 'OpenAI - Most capable' },
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'OpenAI - Fast' },
     ],
   },
   {
@@ -180,13 +151,11 @@ export const AI_PROVIDERS: AIProviderMeta[] = [
     defaultEndpoint: 'https://api.anthropic.com/v1/messages',
     tokenPlaceholder: 'sk-ant-xxxxxxxxxxxxxxxxxxxx',
     tokenHelpUrl: 'https://console.anthropic.com/settings/keys',
-    availableModels: [
-      { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Latest flagship model' },
+    supportsModelFetching: false, // Anthropic doesn't have a public models endpoint
+    fallbackModels: [
       { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Balanced performance' },
-      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: 'High capability' },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Fast and capable' },
       { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fastest model' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Previous flagship' },
     ],
   },
   {
@@ -195,18 +164,13 @@ export const AI_PROVIDERS: AIProviderMeta[] = [
     description: 'GPT models from OpenAI',
     iconName: 'Sparkles',
     defaultEndpoint: 'https://api.openai.com/v1/chat/completions',
+    modelsEndpoint: 'https://api.openai.com/v1/models',
     tokenPlaceholder: 'sk-xxxxxxxxxxxxxxxxxxxx',
     tokenHelpUrl: 'https://platform.openai.com/api-keys',
-    availableModels: [
+    supportsModelFetching: true,
+    fallbackModels: [
       { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable multimodal' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and efficient' },
-      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'High performance' },
-      { id: 'o1', name: 'o1', description: 'Advanced reasoning' },
-      { id: 'o1-mini', name: 'o1 Mini', description: 'Compact reasoning' },
-      { id: 'o1-preview', name: 'o1 Preview', description: 'Preview reasoning' },
-      { id: 'o3-mini', name: 'o3 Mini', description: 'Latest reasoning model' },
-      { id: 'gpt-4', name: 'GPT-4', description: 'Original GPT-4' },
-      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and affordable' },
     ],
   },
   {
@@ -215,16 +179,13 @@ export const AI_PROVIDERS: AIProviderMeta[] = [
     description: 'Google\'s Gemini models',
     iconName: 'Gem',
     defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
+    modelsEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
     tokenPlaceholder: 'AIzaSyxxxxxxxxxxxxxxxxxx',
     tokenHelpUrl: 'https://aistudio.google.com/app/apikey',
-    availableModels: [
-      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash Exp', description: 'Experimental - Latest capabilities' },
+    supportsModelFetching: true,
+    fallbackModels: [
       { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Latest fast model' },
-      { id: 'gemini-2.0-flash-thinking-exp', name: 'Gemini 2.0 Thinking', description: 'Experimental - Reasoning' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Most capable' },
-      { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro Latest', description: 'Latest Pro version' },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Fast and efficient' },
-      { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B', description: 'Compact and fast' },
     ],
   },
   {
@@ -233,12 +194,13 @@ export const AI_PROVIDERS: AIProviderMeta[] = [
     description: 'DeepSeek AI models',
     iconName: 'Search',
     defaultEndpoint: 'https://api.deepseek.com/chat/completions',
+    modelsEndpoint: 'https://api.deepseek.com/models',
     tokenPlaceholder: 'sk-xxxxxxxxxxxxxxxxxxxx',
     tokenHelpUrl: 'https://platform.deepseek.com/api_keys',
-    availableModels: [
+    supportsModelFetching: true,
+    fallbackModels: [
       { id: 'deepseek-chat', name: 'DeepSeek V3', description: 'Latest general purpose' },
       { id: 'deepseek-reasoner', name: 'DeepSeek R1', description: 'Advanced reasoning' },
-      { id: 'deepseek-coder', name: 'DeepSeek Coder', description: 'Code specialized' },
     ],
   },
   {
@@ -249,7 +211,8 @@ export const AI_PROVIDERS: AIProviderMeta[] = [
     defaultEndpoint: '',
     tokenPlaceholder: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
     tokenHelpUrl: 'https://portal.azure.com/#blade/Microsoft_Azure_ProjectOxford/CognitiveServicesHub',
-    availableModels: [
+    supportsModelFetching: false, // Requires custom endpoint configuration
+    fallbackModels: [
       { id: 'custom', name: 'Custom Deployment', description: 'Your Azure deployment' },
     ],
   },

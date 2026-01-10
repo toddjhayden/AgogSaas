@@ -20,6 +20,8 @@ import {
   Cloud,
   Search,
   Gem,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { useAIChatStore } from '../stores/useAIChatStore';
 import { AI_PROVIDERS, type AIProviderType } from '../types/ai-providers';
@@ -44,6 +46,7 @@ export function SettingsPage() {
     providers,
     activeProviderId,
     sdlcContext,
+    isLoadingModels,
     addProvider,
     updateProvider,
     removeProvider,
@@ -51,6 +54,7 @@ export function SettingsPage() {
     setDefaultProvider,
     updateSDLCContext,
     fetchSDLCContext,
+    fetchModelsForProvider,
   } = useAIChatStore();
 
   const handleAddProvider = () => {
@@ -152,17 +156,51 @@ export function SettingsPage() {
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Model
                       </label>
-                      <select
-                        value={provider.model}
-                        onChange={(e) => updateProvider(provider.id, { model: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        {meta?.availableModels.map((model) => (
-                          <option key={model.id} value={model.id}>
-                            {model.name} - {model.description}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2">
+                        <select
+                          value={provider.model}
+                          onChange={(e) => updateProvider(provider.id, { model: e.target.value })}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          disabled={isLoadingModels[provider.id]}
+                        >
+                          {/* Use fetched models if available, otherwise fallback models */}
+                          {(provider.fetchedModels && provider.fetchedModels.length > 0
+                            ? provider.fetchedModels
+                            : meta?.fallbackModels || []
+                          ).map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}{model.description ? ` - ${model.description}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {meta?.supportsModelFetching && (
+                          <button
+                            onClick={() => fetchModelsForProvider(provider.id)}
+                            disabled={isLoadingModels[provider.id]}
+                            className="px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                            title="Refresh available models"
+                          >
+                            {isLoadingModels[provider.id] ? (
+                              <Loader2 size={18} className="animate-spin text-slate-500" />
+                            ) : (
+                              <RefreshCw size={18} className="text-slate-500" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      {provider.fetchedModels && provider.fetchedModels.length > 0 && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          {provider.fetchedModels.length} models available
+                          {provider.modelsLastFetched && (
+                            <> · Last updated {new Date(provider.modelsLastFetched).toLocaleDateString()}</>
+                          )}
+                        </p>
+                      )}
+                      {!provider.fetchedModels && meta?.supportsModelFetching && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Click refresh to load available models from {meta.displayName}
+                        </p>
+                      )}
                     </div>
 
                     {/* Custom Endpoint (for Azure) */}

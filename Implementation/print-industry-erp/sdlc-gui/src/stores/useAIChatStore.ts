@@ -12,6 +12,7 @@ import type {
   ChatSession,
   SDLCContextOptions,
   SDLCContextData,
+  DynamicModelInfo,
 } from '../types/ai-providers';
 import { AI_PROVIDERS as PROVIDERS } from '../types/ai-providers';
 
@@ -43,12 +44,16 @@ interface AIChatStore {
   comparisonResponses: ComparisonResponse[];
   comparisonQuery: string;
 
+  // Model fetching state
+  isLoadingModels: Record<string, boolean>;
+
   // SDLC Context
   sdlcContext: SDLCContextOptions;
   contextData: SDLCContextData | null;
 
   // Provider actions
   addProvider: (type: AIProviderType, apiKey: string) => void;
+  fetchModelsForProvider: (providerId: string) => Promise<void>;
   updateProvider: (id: string, updates: Partial<AIProviderConfig>) => void;
   removeProvider: (id: string) => void;
   setActiveProvider: (id: string) => void;
@@ -249,6 +254,7 @@ export const useAIChatStore = create<AIChatStore>()(
       comparisonMode: false,
       comparisonResponses: [],
       comparisonQuery: '',
+      isLoadingModels: {},
       sdlcContext: DEFAULT_SDLC_CONTEXT,
       contextData: null,
 
@@ -262,7 +268,7 @@ export const useAIChatStore = create<AIChatStore>()(
           type,
           name: meta.displayName,
           apiKey,
-          model: meta.availableModels[0]?.id || '',
+          model: meta.fallbackModels[0]?.id || '',
           endpoint: meta.defaultEndpoint,
           enabled: true,
           isDefault: get().providers.length === 0,
@@ -272,6 +278,133 @@ export const useAIChatStore = create<AIChatStore>()(
           providers: [...state.providers, newProvider],
           activeProviderId: state.activeProviderId || newProvider.id,
         }));
+
+        // Auto-fetch models after adding provider
+        setTimeout(() => {
+          get().fetchModelsForProvider(newProvider.id);
+        }, 100);
+      },
+
+      fetchModelsForProvider: async (providerId: string) => {
+        const provider = get().providers.find(p => p.id === providerId);
+        if (!provider || !provider.apiKey) return;
+
+        const meta = PROVIDERS.find(p => p.type === provider.type);
+        if (!meta?.supportsModelFetching || !meta.modelsEndpoint) return;
+
+        set(state => ({
+          isLoadingModels: { ...state.isLoadingModels, [providerId]: true },
+        }));
+
+        try {
+          let models: DynamicModelInfo[] = [];
+
+          if (provider.type === 'github-copilot') {
+            // GitHub Models API
+            const response = await fetch(meta.modelsEndpoint, {
+              headers: {
+                'Authorization': `Bearer ${provider.apiKey}`,
+                'Accept': 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              models = (data || [])
+                .filter((m: { id?: string; name?: string }) => m.id && m.name)
+                .map((m: { id: string; name: string; summary?: string; publisher?: string }) => ({
+                  id: m.id,
+                  name: m.name,
+                  description: m.summary || m.publisher || '',
+                  provider: m.publisher,
+                }));
+            }
+          } else if (provider.type === 'openai') {
+            // OpenAI Models API
+            const response = await fetch(meta.modelsEndpoint, {
+              headers: {
+                'Authorization': `Bearer ${provider.apiKey}`,
+              },
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              // Filter for chat-capable models
+              models = (data.data || [])
+                .filter((m: { id: string }) =>
+                  m.id.includes('gpt') || m.id.includes('o1') || m.id.includes('o3')
+                )
+                .map((m: { id: string; owned_by?: string }) => ({
+                  id: m.id,
+                  name: m.id,
+                  description: m.owned_by || 'OpenAI',
+                  provider: 'OpenAI',
+                }));
+            }
+          } else if (provider.type === 'google-gemini') {
+            // Google Gemini Models API
+            const response = await fetch(`${meta.modelsEndpoint}?key=${provider.apiKey}`);
+
+            if (response.ok) {
+              const data = await response.json();
+              models = (data.models || [])
+                .filter((m: { name?: string; supportedGenerationMethods?: string[] }) =>
+                  m.supportedGenerationMethods?.includes('generateContent')
+                )
+                .map((m: { name: string; displayName?: string; description?: string }) => ({
+                  id: m.name.replace('models/', ''),
+                  name: m.displayName || m.name.replace('models/', ''),
+                  description: m.description || 'Google Gemini',
+                  provider: 'Google',
+                }));
+            }
+          } else if (provider.type === 'deepseek') {
+            // DeepSeek uses OpenAI-compatible API
+            const response = await fetch(meta.modelsEndpoint, {
+              headers: {
+                'Authorization': `Bearer ${provider.apiKey}`,
+              },
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              models = (data.data || [])
+                .map((m: { id: string; owned_by?: string }) => ({
+                  id: m.id,
+                  name: m.id,
+                  description: m.owned_by || 'DeepSeek',
+                  provider: 'DeepSeek',
+                }));
+            }
+          }
+
+          if (models.length > 0) {
+            set(state => ({
+              providers: state.providers.map(p =>
+                p.id === providerId
+                  ? {
+                      ...p,
+                      fetchedModels: models,
+                      modelsLastFetched: new Date(),
+                      // Update model to first fetched if current model not in list
+                      model: models.some(m => m.id === p.model) ? p.model : models[0].id,
+                    }
+                  : p
+              ),
+              isLoadingModels: { ...state.isLoadingModels, [providerId]: false },
+            }));
+          } else {
+            set(state => ({
+              isLoadingModels: { ...state.isLoadingModels, [providerId]: false },
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to fetch models:', error);
+          set(state => ({
+            isLoadingModels: { ...state.isLoadingModels, [providerId]: false },
+          }));
+        }
       },
 
       updateProvider: (id: string, updates: Partial<AIProviderConfig>) => {
