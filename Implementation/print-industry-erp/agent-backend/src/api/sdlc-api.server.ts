@@ -1628,6 +1628,226 @@ export class SDLCApiServer {
       }
     });
 
+    // Get biggest bottleneck - request blocking the most other work
+    router.get('/requests/biggest-bottleneck', async (_req: Request, res: Response) => {
+      try {
+        const result = await this.db.query(`
+          SELECT
+            r.req_number,
+            r.title,
+            r.priority,
+            r.current_phase,
+            r.is_blocked,
+            COUNT(DISTINCT rb.blocked_request_id) as blocks_count,
+            ARRAY_AGG(DISTINCT blocked.req_number) FILTER (WHERE blocked.req_number IS NOT NULL) as blocks_reqs
+          FROM owner_requests r
+          JOIN request_blockers rb ON rb.blocking_request_id = r.id
+          JOIN owner_requests blocked ON blocked.id = rb.blocked_request_id
+          WHERE r.current_phase NOT IN ('done', 'cancelled')
+          GROUP BY r.id, r.req_number, r.title, r.priority, r.current_phase, r.is_blocked
+          ORDER BY blocks_count DESC
+          LIMIT 5
+        `);
+
+        if (result.length === 0) {
+          res.json({
+            success: true,
+            data: {
+              message: 'No bottlenecks found - no requests are blocking other work.',
+              bottleneck: null,
+              topBlockers: []
+            }
+          });
+          return;
+        }
+
+        const biggest = result[0];
+        res.json({
+          success: true,
+          data: {
+            message: `${biggest.req_number} is blocking ${biggest.blocks_count} other items. Completing this will unblock the most work.`,
+            bottleneck: {
+              reqNumber: biggest.req_number,
+              title: biggest.title,
+              priority: biggest.priority,
+              phase: biggest.current_phase,
+              isBlocked: biggest.is_blocked,
+              blocksCount: parseInt(biggest.blocks_count),
+              blocksReqs: biggest.blocks_reqs || []
+            },
+            topBlockers: result.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              blocksCount: parseInt(r.blocks_count)
+            }))
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get highest impact recommendation
+    router.get('/recommendations/highest-impact', async (req: Request, res: Response) => {
+      try {
+        const urgency = req.query.urgency as string;
+
+        let whereClause = "WHERE status = 'pending'";
+        const params: any[] = [];
+
+        if (urgency) {
+          params.push(urgency);
+          whereClause += ` AND urgency = $${params.length}`;
+        }
+
+        const result = await this.db.query(`
+          SELECT
+            id,
+            rec_number,
+            title,
+            description,
+            rationale,
+            expected_benefits,
+            urgency,
+            impact_level,
+            affected_bus,
+            status,
+            recommended_by
+          FROM recommendations
+          ${whereClause}
+          ORDER BY
+            CASE impact_level
+              WHEN 'critical' THEN 1
+              WHEN 'high' THEN 2
+              WHEN 'medium' THEN 3
+              WHEN 'low' THEN 4
+              ELSE 5
+            END,
+            CASE urgency
+              WHEN 'critical' THEN 1
+              WHEN 'high' THEN 2
+              WHEN 'medium' THEN 3
+              WHEN 'low' THEN 4
+              ELSE 5
+            END,
+            ARRAY_LENGTH(affected_bus, 1) DESC NULLS LAST
+          LIMIT 5
+        `, params);
+
+        if (result.length === 0) {
+          res.json({
+            success: true,
+            data: {
+              message: 'No pending recommendations found.',
+              highestImpact: null,
+              topRecommendations: []
+            }
+          });
+          return;
+        }
+
+        const highest = result[0];
+        res.json({
+          success: true,
+          data: {
+            message: `${highest.rec_number}: "${highest.title}" has the highest impact (${highest.impact_level} impact, ${highest.urgency} urgency).`,
+            highestImpact: {
+              recNumber: highest.rec_number,
+              title: highest.title,
+              description: highest.description,
+              rationale: highest.rationale,
+              expectedBenefits: highest.expected_benefits,
+              urgency: highest.urgency,
+              impactLevel: highest.impact_level,
+              affectedBus: highest.affected_bus,
+              recommendedBy: highest.recommended_by
+            },
+            topRecommendations: result.map((r: any) => ({
+              recNumber: r.rec_number,
+              title: r.title,
+              impactLevel: r.impact_level,
+              urgency: r.urgency
+            }))
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get recommendations for a specific feature
+    router.get('/recommendations/for-feature', async (req: Request, res: Response) => {
+      try {
+        const feature = req.query.feature as string;
+        const status = req.query.status as string || 'pending';
+
+        if (!feature) {
+          res.status(400).json({ success: false, error: 'feature query parameter required' });
+          return;
+        }
+
+        let statusClause = '';
+        if (status !== 'all') {
+          statusClause = `AND status = '${status}'`;
+        }
+
+        const result = await this.db.query(`
+          SELECT
+            id,
+            rec_number,
+            title,
+            description,
+            urgency,
+            impact_level,
+            status,
+            affected_bus
+          FROM recommendations
+          WHERE (
+            LOWER(title) LIKE LOWER($1)
+            OR LOWER(description) LIKE LOWER($1)
+            OR EXISTS (SELECT 1 FROM unnest(affected_bus) AS bu WHERE LOWER(bu) LIKE LOWER($1))
+          )
+          ${statusClause}
+          ORDER BY
+            CASE impact_level
+              WHEN 'critical' THEN 1
+              WHEN 'high' THEN 2
+              WHEN 'medium' THEN 3
+              ELSE 4
+            END,
+            CASE urgency
+              WHEN 'critical' THEN 1
+              WHEN 'high' THEN 2
+              WHEN 'medium' THEN 3
+              ELSE 4
+            END
+        `, [`%${feature}%`]);
+
+        res.json({
+          success: true,
+          data: {
+            feature,
+            status,
+            message: result.length > 0
+              ? `Found ${result.length} recommendation(s) related to "${feature}".`
+              : `No recommendations found related to "${feature}".`,
+            recommendations: result.map((r: any) => ({
+              recNumber: r.rec_number,
+              title: r.title,
+              description: r.description,
+              urgency: r.urgency,
+              impactLevel: r.impact_level,
+              status: r.status,
+              affectedBus: r.affected_bus
+            })),
+            count: result.length
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Estimate completion for a request
     router.get('/requests/:reqNumber/estimate', async (req: Request, res: Response) => {
       try {
@@ -1684,6 +1904,116 @@ export class SDLCApiServer {
         });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Check if a request is still needed (duplicate/similarity detection)
+    router.get('/requests/:reqNumber/check-needed', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+
+        // Get request details
+        const request = await this.db.query(`
+          SELECT req_number, title, description, current_phase, tags
+          FROM owner_requests
+          WHERE req_number = $1
+        `, [reqNumber]);
+
+        if (request.length === 0) {
+          res.status(404).json({ success: false, error: 'Request not found' });
+          return;
+        }
+
+        const req_data = request[0];
+
+        // Build search text from title + description
+        const searchText = `${req_data.title} ${req_data.description || ''}`.trim();
+
+        // Query memories for similar completed work
+        // Look for memories related to completed REQs
+        const similarWork = await this.db.query(`
+          SELECT
+            m.content,
+            m.metadata,
+            m.agent_id,
+            m.memory_type,
+            m.created_at,
+            1 - (m.embedding <=> (
+              SELECT embedding FROM memories
+              WHERE content ILIKE '%' || $1 || '%'
+              LIMIT 1
+            )) as similarity
+          FROM memories m
+          WHERE m.memory_type IN ('decision', 'learning', 'deliverable', 'completion')
+            AND m.content ILIKE '%done%' OR m.content ILIKE '%complete%' OR m.content ILIKE '%finished%'
+            AND m.embedding IS NOT NULL
+          ORDER BY similarity DESC NULLS LAST
+          LIMIT 10
+        `, [req_data.title.substring(0, 50)]);
+
+        // Also check owner_requests for similar completed items
+        const similarReqs = await this.db.query(`
+          SELECT
+            req_number,
+            title,
+            description,
+            current_phase,
+            updated_at
+          FROM owner_requests
+          WHERE current_phase = 'done'
+            AND req_number != $1
+            AND (
+              title ILIKE '%' || $2 || '%'
+              OR description ILIKE '%' || $2 || '%'
+            )
+          LIMIT 5
+        `, [reqNumber, req_data.title.split(' ').slice(0, 3).join('%')]);
+
+        // Determine if still needed
+        const hasSimilarCompleted = similarReqs.length > 0;
+        const confidence = hasSimilarCompleted
+          ? (similarReqs.length >= 3 ? 'high' : 'medium')
+          : 'low';
+
+        res.json({
+          success: true,
+          data: {
+            reqNumber,
+            stillNeeded: !hasSimilarCompleted,
+            confidence,
+            message: hasSimilarCompleted
+              ? `Found ${similarReqs.length} similar completed item(s). Review to determine if this is still needed.`
+              : 'No similar completed work found. This request appears to still be needed.',
+            similarWork: similarReqs.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              completedAt: r.updated_at,
+              phase: r.current_phase
+            })),
+            relatedMemories: similarWork
+              .filter((m: any) => m.similarity > 0.7)
+              .slice(0, 3)
+              .map((m: any) => ({
+                content: m.content.substring(0, 200),
+                agent: m.agent_id,
+                type: m.memory_type,
+                similarity: m.similarity
+              }))
+          }
+        });
+      } catch (error: any) {
+        // Fallback if embeddings not available
+        res.json({
+          success: true,
+          data: {
+            reqNumber: req.params.reqNumber,
+            stillNeeded: true,
+            confidence: 'low',
+            message: 'Could not perform similarity search. Assuming request is still needed.',
+            similarWork: [],
+            relatedMemories: []
+          }
+        });
       }
     });
 

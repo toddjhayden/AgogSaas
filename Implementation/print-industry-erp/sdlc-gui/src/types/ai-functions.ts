@@ -208,6 +208,52 @@ export const queryFunctions: SDLCFunction[] = [
       },
       required: ['query']
     }
+  },
+  {
+    name: 'getBiggestBottleneck',
+    description: 'Find the request that is blocking the most other work - the biggest bottleneck in the system',
+    category: 'query',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'getHighestImpactRecommendation',
+    description: 'Find the recommendation that would have the biggest impact if implemented',
+    category: 'query',
+    parameters: {
+      type: 'object',
+      properties: {
+        urgency: {
+          type: 'string',
+          enum: ['low', 'medium', 'high', 'critical'],
+          description: 'Filter by urgency level (optional)'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'getRecsForFeature',
+    description: 'Find all recommendations related to a specific feature or area (e.g., WMS, inventory, invoicing) that need approval',
+    category: 'query',
+    parameters: {
+      type: 'object',
+      properties: {
+        feature: {
+          type: 'string',
+          description: 'Feature area to search for (e.g., WMS, warehouse, inventory, invoicing, quotes)'
+        },
+        status: {
+          type: 'string',
+          enum: ['pending', 'approved', 'rejected', 'all'],
+          description: 'Filter by status (default: pending)'
+        }
+      },
+      required: ['feature']
+    }
   }
 ];
 

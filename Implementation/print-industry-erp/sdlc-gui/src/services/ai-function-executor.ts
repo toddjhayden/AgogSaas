@@ -116,6 +116,19 @@ export async function executeSDLCFunction(call: FunctionCall): Promise<FunctionR
         return await fetchAPI(`/requests/search?q=${encodeURIComponent(String(args.query))}&limit=${limit}`);
       }
 
+      case 'getBiggestBottleneck':
+        return await fetchAPI('/requests/biggest-bottleneck');
+
+      case 'getHighestImpactRecommendation': {
+        const urgencyParam = args.urgency ? `?urgency=${args.urgency}` : '';
+        return await fetchAPI(`/recommendations/highest-impact${urgencyParam}`);
+      }
+
+      case 'getRecsForFeature': {
+        const statusParam = args.status || 'pending';
+        return await fetchAPI(`/recommendations/for-feature?feature=${encodeURIComponent(String(args.feature))}&status=${statusParam}`);
+      }
+
       // ========== MUTATION FUNCTIONS ==========
 
       case 'updateRequestPriority':
@@ -233,18 +246,7 @@ export async function executeSDLCFunction(call: FunctionCall): Promise<FunctionR
         });
 
       case 'checkIfNeeded':
-        // TODO: Implement embedding-based duplicate check
-        // For now, return a placeholder
-        return {
-          success: true,
-          data: {
-            reqNumber: args.reqNumber,
-            stillNeeded: true,
-            confidence: 'low',
-            message: 'Duplicate detection via embeddings not yet implemented. REQ assumed to be needed.',
-            similarWork: []
-          }
-        };
+        return await fetchAPI(`/requests/${args.reqNumber}/check-needed`);
 
       default:
         return {
