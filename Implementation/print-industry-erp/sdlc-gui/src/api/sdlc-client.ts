@@ -56,6 +56,36 @@ export async function getHealth(): Promise<ApiResponse<SDLCHealthStatus>> {
   return fetchApi<SDLCHealthStatus>('/health');
 }
 
+/**
+ * Check local NATS status by calling the NATS monitoring endpoint directly.
+ * This checks the local agent infrastructure, not the VPS.
+ * NATS monitoring runs on port 8223 (mapped from container's 8222).
+ */
+export async function checkLocalNatsStatus(): Promise<{ connected: boolean; server?: string; connections?: number }> {
+  try {
+    // NATS monitoring endpoint - runs locally for agent infrastructure
+    const response = await fetch('http://localhost:8223/varz', {
+      method: 'GET',
+      // Short timeout since this is a local check
+      signal: AbortSignal.timeout(2000),
+    });
+
+    if (!response.ok) {
+      return { connected: false };
+    }
+
+    const data = await response.json();
+    return {
+      connected: true,
+      server: data.server_name || 'NATS',
+      connections: data.connections || 0,
+    };
+  } catch {
+    // NATS not available locally
+    return { connected: false };
+  }
+}
+
 // =============================================================================
 // Version
 // =============================================================================

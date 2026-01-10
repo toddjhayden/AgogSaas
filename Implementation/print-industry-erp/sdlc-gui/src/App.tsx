@@ -57,12 +57,14 @@ interface SidebarProps {
 function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
   const { health, fetchHealth } = useSDLCStore();
   const [workflowFocus, setWorkflowFocus] = useState<string | null>(null);
+  const [localNatsStatus, setLocalNatsStatus] = useState<{ connected: boolean; connections?: number }>({ connected: false });
 
-  // Fetch health and workflow status every 2 minutes
+  // Fetch health, workflow status, and local NATS status every 2 minutes
   useEffect(() => {
     const fetchAll = async () => {
       fetchHealth();
-      // Also fetch workflow status for the subtitle hint
+
+      // Fetch workflow status for the subtitle hint
       try {
         const response = await import('@/api/sdlc-client').then(m => m.getWorkflowStatus());
         if (response.success && response.data?.hasActiveDirective && response.data.directive) {
@@ -72,6 +74,14 @@ function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
         }
       } catch {
         setWorkflowFocus(null);
+      }
+
+      // Check local NATS status (agent infrastructure)
+      try {
+        const natsStatus = await import('@/api/sdlc-client').then(m => m.checkLocalNatsStatus());
+        setLocalNatsStatus(natsStatus);
+      } catch {
+        setLocalNatsStatus({ connected: false });
       }
     };
     fetchAll();
@@ -159,11 +169,11 @@ function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
                 DB: {health?.database ? 'Connected' : 'Disconnected'}
               </span>
             </div>
-            {/* NATS Status */}
+            {/* NATS Status (Local Agent Infrastructure) */}
             <div className="flex items-center gap-2 text-sm">
-              <Radio size={14} className={health?.nats ? 'text-green-400' : 'text-yellow-400'} />
+              <Radio size={14} className={localNatsStatus.connected ? 'text-green-400' : 'text-yellow-400'} />
               <span className="text-slate-400 text-xs">
-                NATS: {health?.nats ? 'Connected' : 'Not Available'}
+                NATS: {localNatsStatus.connected ? `Connected${localNatsStatus.connections !== undefined ? ` (${localNatsStatus.connections})` : ''}` : 'Not Available'}
               </span>
             </div>
           </div>
