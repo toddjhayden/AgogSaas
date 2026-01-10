@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   RefreshCw, AlertTriangle, CheckCircle, ArrowRight, X,
   ThumbsUp, ThumbsDown, AlertCircle as AlertIcon, ChevronDown,
-  ChevronUp, Target, Zap, Info, MousePointerClick, GitBranch, List
+  ChevronUp, Target, Zap, Info, MousePointerClick, GitBranch, List,
+  Calendar, Eye, EyeOff
 } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
 import type { RequestItem, DeepestUnblockedRequest, Recommendation } from '@/api/sdlc-client';
@@ -118,6 +119,10 @@ export default function BlockerGraphPage() {
   const [actionNotes, setActionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Done items filter
+  const [showDoneItems, setShowDoneItems] = useState(true);
+  const [hideDoneOlderThanDays, setHideDoneOlderThanDays] = useState<number | null>(7); // Default: hide done > 7 days old
+
   // Global filters
   const {
     isEnabled: globalFiltersEnabled,
@@ -130,6 +135,22 @@ export default function BlockerGraphPage() {
 
   // Double-click to filter
   const { handleDoubleClick } = useDoubleClickFilter();
+
+  // Check if a done item should be hidden based on age
+  const shouldHideDoneItem = useCallback((
+    isDone: boolean,
+    updatedAt?: string
+  ): boolean => {
+    if (!isDone) return false; // Not done, don't hide
+    if (!showDoneItems) return true; // Hide all done items
+    if (hideDoneOlderThanDays === null) return false; // No age filter
+    if (!updatedAt) return false; // No date, show it
+
+    const doneDate = new Date(updatedAt);
+    const now = new Date();
+    const daysDiff = Math.floor((now.getTime() - doneDate.getTime()) / (1000 * 60 * 60 * 24));
+    return daysDiff > hideDoneOlderThanDays;
+  }, [showDoneItems, hideDoneOlderThanDays]);
 
   // Get all connected requests for a given item (both blocked by and blocking)
   const getConnectedRequests = useCallback((itemId: string): Set<string> => {
@@ -214,11 +235,16 @@ export default function BlockerGraphPage() {
       blockingCount: number;
       itemType: 'req' | 'rec';
       status?: string;
+      updatedAt?: string;
     }>();
 
     // Add all requests that have blocking relationships
     dataSource.forEach(req => {
       if (req.blocking.length > 0 || req.blockedBy.length > 0) {
+        const isDone = req.currentPhase === 'done';
+        // Skip if this done item should be hidden
+        if (shouldHideDoneItem(isDone, req.updatedAt)) return;
+
         nodeMap.set(req.reqNumber, {
           id: req.reqNumber,
           reqNumber: req.reqNumber,
@@ -229,6 +255,7 @@ export default function BlockerGraphPage() {
           blockedByCount: req.blockedBy.length,
           blockingCount: req.blocking.length,
           itemType: 'req',
+          updatedAt: req.updatedAt,
         });
 
         // Also add referenced items as nodes if not already present
@@ -237,6 +264,10 @@ export default function BlockerGraphPage() {
             // Check if it's a REC
             const recData = recommendations.find(r => r.recNumber === blockerReq);
             if (recData) {
+              const recIsDone = recData.status === 'done' || recData.status === 'approved';
+              // Skip if this done item should be hidden
+              if (shouldHideDoneItem(recIsDone, recData.updatedAt)) return;
+
               nodeMap.set(blockerReq, {
                 id: blockerReq,
                 reqNumber: blockerReq,
@@ -248,9 +279,14 @@ export default function BlockerGraphPage() {
                 blockingCount: 1,
                 itemType: 'rec',
                 status: recData.status,
+                updatedAt: recData.updatedAt,
               });
             } else {
               const blockerData = requests.find(r => r.reqNumber === blockerReq);
+              const blockerIsDone = blockerData?.currentPhase === 'done';
+              // Skip if this done item should be hidden
+              if (shouldHideDoneItem(blockerIsDone, blockerData?.updatedAt)) return;
+
               nodeMap.set(blockerReq, {
                 id: blockerReq,
                 reqNumber: blockerReq,
@@ -261,6 +297,7 @@ export default function BlockerGraphPage() {
                 blockedByCount: blockerData?.blockedBy?.length || 0,
                 blockingCount: blockerData?.blocking?.length || 0,
                 itemType: 'req',
+                updatedAt: blockerData?.updatedAt,
               });
             }
           }
@@ -271,6 +308,10 @@ export default function BlockerGraphPage() {
             // Check if it's a REC
             const recData = recommendations.find(r => r.recNumber === blockedReq);
             if (recData) {
+              const recIsDone = recData.status === 'done' || recData.status === 'approved';
+              // Skip if this done item should be hidden
+              if (shouldHideDoneItem(recIsDone, recData.updatedAt)) return;
+
               nodeMap.set(blockedReq, {
                 id: blockedReq,
                 reqNumber: blockedReq,
@@ -282,9 +323,14 @@ export default function BlockerGraphPage() {
                 blockingCount: 0,
                 itemType: 'rec',
                 status: recData.status,
+                updatedAt: recData.updatedAt,
               });
             } else {
               const blockedData = requests.find(r => r.reqNumber === blockedReq);
+              const blockedIsDone = blockedData?.currentPhase === 'done';
+              // Skip if this done item should be hidden
+              if (shouldHideDoneItem(blockedIsDone, blockedData?.updatedAt)) return;
+
               nodeMap.set(blockedReq, {
                 id: blockedReq,
                 reqNumber: blockedReq,
@@ -295,6 +341,7 @@ export default function BlockerGraphPage() {
                 blockedByCount: blockedData?.blockedBy?.length || 0,
                 blockingCount: blockedData?.blocking?.length || 0,
                 itemType: 'req',
+                updatedAt: blockedData?.updatedAt,
               });
             }
           }
@@ -305,6 +352,10 @@ export default function BlockerGraphPage() {
     // Add recommendations that have sourceReq (they block the original request)
     recommendations.forEach(rec => {
       if (rec.sourceReq && !nodeMap.has(rec.recNumber)) {
+        const recIsDone = rec.status === 'done' || rec.status === 'approved';
+        // Skip if this done item should be hidden
+        if (shouldHideDoneItem(recIsDone, rec.updatedAt)) return;
+
         // REC blocks its source REQ
         nodeMap.set(rec.recNumber, {
           id: rec.recNumber,
@@ -317,6 +368,7 @@ export default function BlockerGraphPage() {
           blockingCount: 1,
           itemType: 'rec',
           status: rec.status,
+          updatedAt: rec.updatedAt,
         });
       }
     });
@@ -350,7 +402,7 @@ export default function BlockerGraphPage() {
       nodes: Array.from(nodeMap.values()),
       links,
     };
-  }, [requests, recommendations, filteredRequests, globalFiltersEnabled, focusedItem]);
+  }, [requests, recommendations, filteredRequests, globalFiltersEnabled, focusedItem, shouldHideDoneItem]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -598,8 +650,45 @@ export default function BlockerGraphPage() {
               <GitBranch className="text-blue-600" size={20} />
               Blocking Relationships Graph
             </h2>
-            <div className="text-sm text-slate-500">
-              {d3GraphData.nodes.length} nodes · {d3GraphData.links.length} edges
+            <div className="flex items-center gap-4">
+              {/* Done items filter controls */}
+              <div className="flex items-center gap-2 border-r pr-4">
+                <button
+                  onClick={() => setShowDoneItems(!showDoneItems)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors ${
+                    showDoneItems
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                  title={showDoneItems ? 'Hide done items' : 'Show done items'}
+                >
+                  {showDoneItems ? <Eye size={14} /> : <EyeOff size={14} />}
+                  Done
+                </button>
+                {showDoneItems && (
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={14} className="text-slate-400" />
+                    <select
+                      value={hideDoneOlderThanDays ?? 'all'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setHideDoneOlderThanDays(val === 'all' ? null : parseInt(val, 10));
+                      }}
+                      className="text-xs border border-slate-200 rounded px-1.5 py-1 bg-white"
+                    >
+                      <option value="all">Show all</option>
+                      <option value="1">Last 1 day</option>
+                      <option value="3">Last 3 days</option>
+                      <option value="7">Last 7 days</option>
+                      <option value="14">Last 14 days</option>
+                      <option value="30">Last 30 days</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="text-sm text-slate-500">
+                {d3GraphData.nodes.length} nodes · {d3GraphData.links.length} edges
+              </div>
             </div>
           </div>
           {d3GraphData.nodes.length === 0 ? (

@@ -63,6 +63,9 @@ const recStatusColors: Record<string, string> = {
   done: '#22c55e',      // green
 };
 
+// Done phase color (muted green)
+const DONE_COLOR = '#86efac'; // Light green for done items
+
 export function D3BlockerGraph({
   nodes,
   links,
@@ -188,6 +191,7 @@ export function D3BlockerGraph({
     node.each(function(d) {
       const g = d3.select(this);
       const isRec = d.itemType === 'rec';
+      const isDone = d.phase === 'done' || d.status === 'done';
       const baseRadius = 15;
       const radius = baseRadius + Math.min(d.blockingCount * 3, 15);
 
@@ -195,6 +199,8 @@ export function D3BlockerGraph({
       let strokeColor = phaseColors[d.phase] || '#94a3b8';
       if (d.reqNumber === focusedItem) {
         strokeColor = '#3b82f6';
+      } else if (isDone) {
+        strokeColor = '#22c55e'; // Green for done
       } else if (isRec && d.status) {
         // For RECs, use status color for border
         strokeColor = recStatusColors[d.status] || '#f59e0b';
@@ -203,18 +209,22 @@ export function D3BlockerGraph({
       }
 
       const strokeWidth = d.reqNumber === focusedItem ? 4 : isRec ? 3 : 2;
+      const fillColor = isDone ? DONE_COLOR : (priorityColors[d.priority] || '#64748b');
+      const opacity = isDone ? 0.6 : 1;
 
       if (isRec) {
         // Diamond shape for recommendations
         const size = radius * 1.4;
         g.append('path')
           .attr('d', `M 0 ${-size} L ${size} 0 L 0 ${size} L ${-size} 0 Z`)
-          .attr('fill', priorityColors[d.priority] || '#64748b')
+          .attr('fill', fillColor)
+          .attr('fill-opacity', opacity)
           .attr('stroke', strokeColor)
-          .attr('stroke-width', strokeWidth);
+          .attr('stroke-width', strokeWidth)
+          .attr('stroke-dasharray', isDone ? '4,2' : 'none');
 
         // Add status indicator icon for RECs
-        if (d.status === 'approved') {
+        if (isDone || d.status === 'approved') {
           g.append('text')
             .text('✓')
             .attr('text-anchor', 'middle')
@@ -241,9 +251,22 @@ export function D3BlockerGraph({
         // Circle for requests
         g.append('circle')
           .attr('r', radius)
-          .attr('fill', priorityColors[d.priority] || '#64748b')
+          .attr('fill', fillColor)
+          .attr('fill-opacity', opacity)
           .attr('stroke', strokeColor)
-          .attr('stroke-width', strokeWidth);
+          .attr('stroke-width', strokeWidth)
+          .attr('stroke-dasharray', isDone ? '4,2' : 'none');
+
+        // Add done checkmark for completed REQs
+        if (isDone) {
+          g.append('text')
+            .text('✓')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '-1.5em')
+            .attr('font-size', '12px')
+            .attr('font-weight', 'bold')
+            .attr('fill', '#22c55e');
+        }
       }
     });
 
@@ -398,6 +421,11 @@ export function D3BlockerGraph({
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full border-2 border-red-500 bg-transparent" />
             <span className="text-xs text-slate-600">Blocked</span>
+          </div>
+          {/* Done status */}
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-green-200 border-2 border-dashed border-green-500 opacity-60" />
+            <span className="text-xs text-slate-600">Done</span>
           </div>
         </div>
         <div className="text-xs text-slate-400 mt-2">
