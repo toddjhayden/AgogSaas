@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, AlertTriangle } from 'lucide-react';
+import { ArrowRight, AlertTriangle, Grid3X3, PieChart } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
 import { useSDLCStore } from '@/stores/useSDLCStore';
+import { D3ChordDiagram } from '@/components/D3ChordDiagram';
 
 export default function ImpactAnalysisPage() {
   const { entities, fetchDependencyGraph } = useSDLCStore();
@@ -13,6 +14,7 @@ export default function ImpactAnalysisPage() {
   } | null>(null);
   const [crossBuMatrix, setCrossBuMatrix] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(false);
+  const [matrixView, setMatrixView] = useState<'table' | 'chart'>('chart');
 
   useEffect(() => {
     fetchDependencyGraph();
@@ -150,12 +152,45 @@ export default function ImpactAnalysisPage() {
 
         {/* Cross-BU Dependency Matrix */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Cross-BU Dependency Matrix</h2>
-          <p className="text-sm text-slate-500 mb-4">
-            Shows dependency counts between business units (rows depend on columns)
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Cross-BU Dependency Matrix</h2>
+              <p className="text-sm text-slate-500">
+                Shows dependency counts between business units
+              </p>
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              <button
+                onClick={() => setMatrixView('chart')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  matrixView === 'chart'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <PieChart size={16} />
+                Chart
+              </button>
+              <button
+                onClick={() => setMatrixView('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  matrixView === 'table'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <Grid3X3 size={16} />
+                Table
+              </button>
+            </div>
+          </div>
 
           {bus.length > 0 ? (
+            matrixView === 'chart' ? (
+              <div className="h-[400px]">
+                <D3ChordDiagram matrix={crossBuMatrix} />
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -213,18 +248,21 @@ export default function ImpactAnalysisPage() {
                 </tbody>
               </table>
             </div>
+            )
           ) : (
             <div className="text-center text-slate-500 py-8">
               No cross-BU dependencies found
             </div>
           )}
 
-          <div className="mt-4 text-xs text-slate-500">
-            <p>
-              <strong>Reading:</strong> Row BU depends on Column BU. Higher numbers
-              (redder) indicate stronger coupling.
-            </p>
-          </div>
+          {matrixView === 'table' && (
+            <div className="mt-4 text-xs text-slate-500">
+              <p>
+                <strong>Reading:</strong> Row BU depends on Column BU. Higher numbers
+                (redder) indicate stronger coupling.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Recommendations */}
