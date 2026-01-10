@@ -19,7 +19,7 @@ import {
   MousePointerClick,
 } from 'lucide-react';
 import { useFilterStore } from '@/stores/useFilterStore';
-import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
+import { FilterBar, FilterActiveBadge, FilterStatus, useDoubleClickFilter } from '@/components/GlobalFilterBar';
 
 // Kanban column configuration
 const KANBAN_COLUMNS: {
@@ -117,6 +117,7 @@ function RecommendationCard({
   onReject,
   isUpdating,
   onFocus,
+  onDoubleClickFilter,
   isFocused,
 }: {
   recommendation: Recommendation;
@@ -125,6 +126,7 @@ function RecommendationCard({
   onReject: (rec: Recommendation) => void;
   isUpdating: boolean;
   onFocus: (recNumber: string) => void;
+  onDoubleClickFilter: (recNumber: string) => void;
   isFocused: boolean;
 }) {
   const urgencyColors: Record<string, string> = {
@@ -156,7 +158,13 @@ function RecommendationCard({
           {/* Header */}
           <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-1">
-              <span className="text-xs font-mono text-slate-500">{recommendation.recNumber}</span>
+              <span
+                className="text-xs font-mono text-slate-500 hover:text-blue-600 cursor-pointer"
+                onDoubleClick={() => onDoubleClickFilter(recommendation.recNumber)}
+                title="Double-click to filter"
+              >
+                {recommendation.recNumber}
+              </span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -265,6 +273,7 @@ function KanbanColumn({
   onReject,
   updatingId,
   onFocus,
+  onDoubleClickFilter,
   focusedItem,
 }: {
   column: typeof KANBAN_COLUMNS[0];
@@ -273,6 +282,7 @@ function KanbanColumn({
   onReject: (rec: Recommendation) => void;
   updatingId: string | null;
   onFocus: (recNumber: string) => void;
+  onDoubleClickFilter: (recNumber: string) => void;
   focusedItem: string | null;
 }) {
   return (
@@ -305,6 +315,7 @@ function KanbanColumn({
                   onReject={onReject}
                   isUpdating={updatingId === rec.id}
                   onFocus={onFocus}
+                  onDoubleClickFilter={onDoubleClickFilter}
                   isFocused={focusedItem === rec.recNumber}
                 />
               ))
@@ -343,6 +354,9 @@ export default function RecommendationsKanbanPage() {
     focusedItem,
     focusOnRec,
   } = useFilterStore();
+
+  // Double-click to filter
+  const { handleDoubleClick } = useDoubleClickFilter();
 
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
@@ -561,7 +575,10 @@ export default function RecommendationsKanbanPage() {
         </button>
       </div>
 
-      {/* Global Filter Bar */}
+      {/* Always-visible Filter Status */}
+      <FilterStatus className="mb-3" />
+
+      {/* Expanded Filter Bar when enabled */}
       <FilterBar showSearch={true} showStatus={true} showPriority={true} />
 
       {/* Kanban Board */}
@@ -577,6 +594,7 @@ export default function RecommendationsKanbanPage() {
                 onReject={handleRejectClick}
                 updatingId={recommendationUpdating}
                 onFocus={focusOnRec}
+                onDoubleClickFilter={handleDoubleClick}
                 focusedItem={focusedItem}
               />
             ))}

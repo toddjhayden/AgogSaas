@@ -7,7 +7,7 @@ import {
 import * as api from '@/api/sdlc-client';
 import type { RequestItem, DeepestUnblockedRequest } from '@/api/sdlc-client';
 import { useFilterStore } from '@/stores/useFilterStore';
-import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
+import { FilterBar, FilterActiveBadge, FilterStatus, useDoubleClickFilter } from '@/components/GlobalFilterBar';
 
 interface RequestWithBlockers extends RequestItem {
   blockedBy: string[];
@@ -122,6 +122,9 @@ export default function BlockerGraphPage() {
     focusedItem,
     focusOnReq,
   } = useFilterStore();
+
+  // Double-click to filter
+  const { handleDoubleClick } = useDoubleClickFilter();
 
   // Filter deepest unblocked based on global filters
   const filteredDeepestUnblocked = useMemo(() => {
@@ -354,7 +357,10 @@ export default function BlockerGraphPage() {
         </button>
       </div>
 
-      {/* Global Filter Bar */}
+      {/* Always-visible Filter Status */}
+      <FilterStatus className="mb-4" />
+
+      {/* Expanded Filter Bar when enabled */}
       <FilterBar showSearch={true} showStatus={false} showPriority={true} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -405,7 +411,13 @@ export default function BlockerGraphPage() {
                           </span>
                           <div>
                             <div className="font-medium text-sm flex items-center gap-2">
-                              {req.reqNumber}
+                              <span
+                                onDoubleClick={() => handleDoubleClick(req.reqNumber)}
+                                className="cursor-pointer hover:text-blue-600"
+                                title="Double-click to filter"
+                              >
+                                {req.reqNumber}
+                              </span>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -535,7 +547,16 @@ export default function BlockerGraphPage() {
                         }`}
                       >
                         <div className="w-2 h-2 bg-amber-500 rounded-full" />
-                        <span className="font-medium text-sm">{blocker.reqNumber}</span>
+                        <span
+                          className="font-medium text-sm cursor-pointer hover:text-blue-600"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            handleDoubleClick(blocker.reqNumber);
+                          }}
+                          title="Double-click to filter"
+                        >
+                          {blocker.reqNumber}
+                        </span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -578,7 +599,16 @@ export default function BlockerGraphPage() {
                                   className="flex items-center gap-2 cursor-pointer flex-1"
                                 >
                                   <div className="w-2 h-2 bg-red-500 rounded-full" />
-                                  <span className="font-medium text-sm">{blockedReq}</span>
+                                  <span
+                                    className="font-medium text-sm hover:text-blue-600"
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDoubleClick(blockedReq);
+                                    }}
+                                    title="Double-click to filter"
+                                  >
+                                    {blockedReq}
+                                  </span>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();

@@ -284,3 +284,117 @@ export function FilterActiveBadge() {
     </span>
   );
 }
+
+// Compact filter status that's always visible - shows current filter state
+interface FilterStatusProps {
+  className?: string;
+}
+
+export function FilterStatus({ className = '' }: FilterStatusProps) {
+  const {
+    isEnabled,
+    type,
+    focusedItem,
+    status,
+    priority,
+    searchTerm,
+    toggleEnabled,
+    clearFocus,
+    resetFilters,
+  } = useFilterStore();
+
+  const hasActiveFilters = type !== 'ALL' || focusedItem || status !== 'all' || priority !== 'all' || searchTerm;
+
+  return (
+    <div className={`bg-white rounded-lg shadow-sm border border-slate-200 p-2 ${className}`}>
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Toggle button */}
+        <button
+          onClick={toggleEnabled}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm font-medium transition-colors ${
+            isEnabled
+              ? 'bg-blue-600 text-white'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <Filter size={14} />
+          <span>{isEnabled ? 'Filters ON' : 'Filters OFF'}</span>
+        </button>
+
+        {/* Active filter indicators */}
+        {isEnabled && hasActiveFilters && (
+          <>
+            {type !== 'ALL' && (
+              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                Type: {type}
+              </span>
+            )}
+            {focusedItem && (
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+                <span className="font-mono">{focusedItem}</span>
+                <button
+                  onClick={clearFocus}
+                  className="hover:text-blue-900"
+                  title="Clear focus"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            {status !== 'all' && (
+              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                Status: {status}
+              </span>
+            )}
+            {priority !== 'all' && (
+              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">
+                Priority: {priority}
+              </span>
+            )}
+            {searchTerm && (
+              <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full flex items-center gap-1">
+                <Search size={10} />
+                "{searchTerm}"
+              </span>
+            )}
+            <button
+              onClick={resetFilters}
+              className="text-xs text-slate-500 hover:text-red-600 px-1"
+              title="Reset all filters"
+            >
+              <X size={14} />
+            </button>
+          </>
+        )}
+
+        {isEnabled && !hasActiveFilters && (
+          <span className="text-xs text-slate-400">No active filters</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Hook for double-click to filter functionality
+export function useDoubleClickFilter() {
+  const { focusOnReq, focusOnRec, setEnabled } = useFilterStore();
+
+  const handleDoubleClick = (itemId: string) => {
+    if (!itemId) return;
+
+    // Enable filters first
+    setEnabled(true);
+
+    // Determine type from ID pattern
+    if (itemId.startsWith('REQ-')) {
+      focusOnReq(itemId);
+    } else if (itemId.startsWith('REC-')) {
+      focusOnRec(itemId);
+    } else {
+      // Generic focus (assume REQ if unclear)
+      focusOnReq(itemId);
+    }
+  };
+
+  return { handleDoubleClick };
+}

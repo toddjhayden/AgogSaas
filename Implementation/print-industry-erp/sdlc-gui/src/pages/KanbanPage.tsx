@@ -3,15 +3,16 @@ import { useSDLCStore } from '@/stores/useSDLCStore';
 import { Clock, AlertCircle, RefreshCw, MousePointerClick } from 'lucide-react';
 import type { OwnerRequest } from '@/types';
 import { useFilterStore } from '@/stores/useFilterStore';
-import { FilterBar, FilterActiveBadge } from '@/components/GlobalFilterBar';
+import { FilterBar, FilterActiveBadge, FilterStatus, useDoubleClickFilter } from '@/components/GlobalFilterBar';
 
 interface RequestCardProps {
   request: OwnerRequest;
   onFocus: (reqNumber: string) => void;
+  onDoubleClickFilter: (reqNumber: string) => void;
   isFocused: boolean;
 }
 
-function RequestCard({ request, onFocus, isFocused }: RequestCardProps) {
+function RequestCard({ request, onFocus, onDoubleClickFilter, isFocused }: RequestCardProps) {
   const priorityColors = {
     critical: 'border-l-red-500 bg-red-50',
     high: 'border-l-orange-500 bg-orange-50',
@@ -27,7 +28,13 @@ function RequestCard({ request, onFocus, isFocused }: RequestCardProps) {
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1">
-          <span className="text-xs font-mono text-slate-500">{request.reqNumber}</span>
+          <span
+            className="text-xs font-mono text-slate-500 hover:text-blue-600 cursor-pointer"
+            onDoubleClick={() => onDoubleClickFilter(request.reqNumber)}
+            title="Double-click to filter"
+          >
+            {request.reqNumber}
+          </span>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -106,6 +113,9 @@ export default function KanbanPage() {
     focusedItem,
     focusOnReq,
   } = useFilterStore();
+
+  // Double-click to filter
+  const { handleDoubleClick } = useDoubleClickFilter();
 
   useEffect(() => {
     fetchKanban();
@@ -202,7 +212,10 @@ export default function KanbanPage() {
         </button>
       </div>
 
-      {/* Global Filter Bar */}
+      {/* Always-visible Filter Status */}
+      <FilterStatus className="mb-3" />
+
+      {/* Expanded Filter Bar when enabled */}
       <FilterBar showSearch={true} showStatus={true} showPriority={true} />
 
       <div className="flex-1 overflow-x-auto -webkit-overflow-scrolling-touch pb-4">
@@ -241,6 +254,7 @@ export default function KanbanPage() {
                         key={request.id}
                         request={request}
                         onFocus={focusOnReq}
+                        onDoubleClickFilter={handleDoubleClick}
                         isFocused={focusedItem === request.reqNumber}
                       />
                     ))
