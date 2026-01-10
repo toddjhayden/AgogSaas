@@ -398,11 +398,24 @@ export default function BlockerGraphPage() {
       }
     });
 
+    // Apply globalType filter to nodes if enabled
+    let filteredNodes = Array.from(nodeMap.values());
+    if (globalFiltersEnabled && globalType !== 'ALL') {
+      const targetType = globalType === 'REQ' ? 'req' : 'rec';
+      filteredNodes = filteredNodes.filter(n => n.itemType === targetType);
+    }
+
+    // Filter links to only include connections between filtered nodes
+    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    const filteredLinks = links.filter(
+      l => filteredNodeIds.has(l.source) && filteredNodeIds.has(l.target)
+    );
+
     return {
-      nodes: Array.from(nodeMap.values()),
-      links,
+      nodes: filteredNodes,
+      links: filteredLinks,
     };
-  }, [requests, recommendations, filteredRequests, globalFiltersEnabled, focusedItem, shouldHideDoneItem]);
+  }, [requests, recommendations, filteredRequests, globalFiltersEnabled, globalType, focusedItem, shouldHideDoneItem]);
 
   const fetchData = async () => {
     setLoading(true);
