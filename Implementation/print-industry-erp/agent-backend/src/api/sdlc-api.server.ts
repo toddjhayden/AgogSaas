@@ -1233,6 +1233,64 @@ export class SDLCApiServer {
       }
     });
 
+    // Search requests (MUST be before :reqNumber route)
+    router.get('/requests/search', async (req: Request, res: Response) => {
+      try {
+        const query = req.query.q as string;
+        const limit = parseInt(req.query.limit as string) || 20;
+
+        if (!query) {
+          return res.status(400).json({ success: false, error: 'Search query required' });
+        }
+
+        const results = await this.db.query(`
+          SELECT
+            req_number,
+            title,
+            priority,
+            current_phase,
+            is_blocked,
+            tags,
+            created_at
+          FROM owner_requests
+          WHERE
+            LOWER(title) LIKE LOWER($1)
+            OR LOWER(description) LIKE LOWER($1)
+            OR req_number LIKE UPPER($1)
+            OR $2 = ANY(tags)
+          ORDER BY
+            CASE WHEN LOWER(title) LIKE LOWER($1) THEN 0 ELSE 1 END,
+            CASE priority
+              WHEN 'catastrophic' THEN 1
+              WHEN 'critical' THEN 2
+              WHEN 'high' THEN 3
+              WHEN 'medium' THEN 4
+              WHEN 'low' THEN 5
+            END
+          LIMIT $3
+        `, [`%${query}%`, query.toLowerCase(), limit]);
+
+        res.json({
+          success: true,
+          data: {
+            query,
+            results: results.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              phase: r.current_phase,
+              isBlocked: r.is_blocked,
+              tags: r.tags,
+              createdAt: r.created_at
+            })),
+            count: results.length
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Get single owner request by reqNumber
     router.get('/requests/:reqNumber', async (req: Request, res: Response) => {
       try {
@@ -2364,64 +2422,6 @@ export class SDLCApiServer {
             updatedBy: updatedBy || 'ai-assist',
             reason,
             message: `${reqNumber} is now the top priority.`
-          }
-        });
-      } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
-      }
-    });
-
-    // Search requests
-    router.get('/requests/search', async (req: Request, res: Response) => {
-      try {
-        const query = req.query.q as string;
-        const limit = parseInt(req.query.limit as string) || 20;
-
-        if (!query) {
-          return res.status(400).json({ success: false, error: 'Search query required' });
-        }
-
-        const results = await this.db.query(`
-          SELECT
-            req_number,
-            title,
-            priority,
-            current_phase,
-            is_blocked,
-            tags,
-            created_at
-          FROM owner_requests
-          WHERE
-            LOWER(title) LIKE LOWER($1)
-            OR LOWER(description) LIKE LOWER($1)
-            OR req_number LIKE UPPER($1)
-            OR $2 = ANY(tags)
-          ORDER BY
-            CASE WHEN LOWER(title) LIKE LOWER($1) THEN 0 ELSE 1 END,
-            CASE priority
-              WHEN 'catastrophic' THEN 1
-              WHEN 'critical' THEN 2
-              WHEN 'high' THEN 3
-              WHEN 'medium' THEN 4
-              WHEN 'low' THEN 5
-            END
-          LIMIT $3
-        `, [`%${query}%`, query.toLowerCase(), limit]);
-
-        res.json({
-          success: true,
-          data: {
-            query,
-            results: results.map((r: any) => ({
-              reqNumber: r.req_number,
-              title: r.title,
-              priority: r.priority,
-              phase: r.current_phase,
-              isBlocked: r.is_blocked,
-              tags: r.tags,
-              createdAt: r.created_at
-            })),
-            count: results.length
           }
         });
       } catch (error: any) {
