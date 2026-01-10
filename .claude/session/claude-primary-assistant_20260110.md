@@ -30,6 +30,27 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 - Age filter: hide done items older than X days (1, 3, 7, 14, 30)
 - Default: show done items from last 7 days
 
+### VPS Deployment - Workflow Endpoints
+- Deployed updated `sdlc-api.server.js` to VPS (74.208.64.193)
+- Ran migration `V0.0.30__create_workflow_directives.sql` on VPS database
+- Created tables: `workflow_directives`, `workflow_saved_state`
+- Created functions: `get_active_workflow_directive()`, `is_req_in_active_scope()`, `deactivate_workflow_directive()`
+- Fixed API path issues in `sdlc-client.ts` and `ai-function-executor.ts`
+  - Workflow endpoints are at `/api/agent/workflow/*`, not `/api/workflow/*`
+- Verified endpoint working: `https://api.agog.fyi/api/agent/workflow/status`
+
+### System Revision Tracking
+- Added version configuration files:
+  - `agent-backend/src/config/version.ts` - API version (V0.1.0, commit aeb6351)
+  - `sdlc-gui/src/config/version.ts` - GUI version (V0.1.0, commit d30626f)
+- Added `/api/agent/version` endpoint to return API and DB versions
+- Updated Settings page with "System Revisions" section at top:
+  - GUI Revision: V0.1.0-d30626f (blue)
+  - API Revision: V0.1.0-aeb6351 (purple)
+  - DB Revision: V0.0.30 (green - matches migration version)
+- Pattern follows migration versioning: V{major}.{minor}.{patch}
+- Full revision string for copy/paste: `GUI:V0.1.0-d30626f | API:V0.1.0-aeb6351 | DB:V0.0.30`
+
 ### Previous Session Work (Carried Over)
 - `4549253` - RECs added to Blocker Graph with approval status
 - `979ba0f` - D3 Chord Diagram for cross-BU dependencies
@@ -106,10 +127,11 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 ---
 
 ## TODO List
+- [x] Deploy workflow endpoints to VPS (completed)
+- [x] Fix API path issues for workflow endpoints (completed)
+- [x] Add revision tracking to Settings page (completed)
 - [ ] Fix Cross-BU Dependency Matrix visualization
 - [ ] Fix filter issue with RECs in Blocker Graph
 - [ ] Entity Dependency Graph needs interactive analysis features
-- [ ] AI cannot report current workflow focus
-- [ ] Agentic workflow not working on focused blocker chain
 - [ ] UX: Right-click/drag REQ to insert into chat
 - [ ] Add security to AI experience

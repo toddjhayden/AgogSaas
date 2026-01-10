@@ -6,9 +6,10 @@
 import { MUTATION_FUNCTION_NAMES } from '@/types/ai-functions';
 import { useSDLCSettingsStore } from '@/stores/useSDLCSettingsStore';
 
-// Get API base URL from settings store
+// Get API base URL from settings store (includes /agent suffix for agent endpoints)
 function getSDLCApiBase(): string {
-  return useSDLCSettingsStore.getState().apiUrl;
+  const storeUrl = useSDLCSettingsStore.getState().apiUrl;
+  return storeUrl ? `${storeUrl}/agent` : '/api/agent';
 }
 
 export interface FunctionResult {

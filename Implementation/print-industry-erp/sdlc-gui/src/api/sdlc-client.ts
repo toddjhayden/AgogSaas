@@ -57,6 +57,27 @@ export async function getHealth(): Promise<ApiResponse<SDLCHealthStatus>> {
 }
 
 // =============================================================================
+// Version
+// =============================================================================
+
+export interface VersionInfo {
+  api: {
+    version: string;
+    commit: string;
+    buildDate: string;
+    revision: string;
+  };
+  database: {
+    version: string;
+    migrationsApplied: string;
+  };
+}
+
+export async function getVersion(): Promise<ApiResponse<VersionInfo>> {
+  return fetchApi<VersionInfo>('/version');
+}
+
+// =============================================================================
 // Entity Registry
 // =============================================================================
 
@@ -422,31 +443,14 @@ export interface WorkflowStatus {
 }
 
 export async function getWorkflowStatus(): Promise<ApiResponse<WorkflowStatus>> {
-  const apiBase = useSDLCSettingsStore.getState().apiUrl;
-  try {
-    const response = await fetch(`${apiBase}/workflow/status`);
-    const data = await response.json();
-    return { success: true, data };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { success: false, error: message };
-  }
+  return fetchApi<WorkflowStatus>('/workflow/status');
 }
 
 export async function clearWorkflowFocus(reason?: string): Promise<ApiResponse<{ cleared: boolean }>> {
-  const apiBase = useSDLCSettingsStore.getState().apiUrl;
-  try {
-    const response = await fetch(`${apiBase}/workflow/focus/clear`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: reason || 'Cleared from GUI' }),
-    });
-    const data = await response.json();
-    return { success: true, data };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { success: false, error: message };
-  }
+  return fetchApi<{ cleared: boolean }>('/workflow/focus/clear', {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason || 'Cleared from GUI' }),
+  });
 }
 
 // Get all requests with their blocker info for the graph

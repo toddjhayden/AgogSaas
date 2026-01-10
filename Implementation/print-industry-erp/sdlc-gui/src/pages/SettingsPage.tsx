@@ -25,10 +25,14 @@ import {
   Server,
   AlertTriangle,
   CheckCircle,
+  GitCommit,
+  Package,
 } from 'lucide-react';
 import { useAIChatStore } from '../stores/useAIChatStore';
 import { AI_PROVIDERS, type AIProviderType } from '../types/ai-providers';
 import { useSDLCSettingsStore } from '../stores/useSDLCSettingsStore';
+import { getVersion, type VersionInfo } from '../api/sdlc-client';
+import { GUI_VERSION, GUI_COMMIT, GUI_REVISION } from '../config/version';
 
 // Icon mapping for providers
 const providerIcons: Record<AIProviderType, typeof Github> = {
@@ -45,6 +49,8 @@ export function SettingsPage() {
   const [newProviderType, setNewProviderType] = useState<AIProviderType | null>(null);
   const [newProviderToken, setNewProviderToken] = useState('');
   const [showNewToken, setShowNewToken] = useState(false);
+  const [apiVersion, setApiVersion] = useState<VersionInfo | null>(null);
+  const [versionLoading, setVersionLoading] = useState(true);
 
   const {
     providers,
@@ -60,6 +66,19 @@ export function SettingsPage() {
     fetchSDLCContext,
     fetchModelsForProvider,
   } = useAIChatStore();
+
+  // Fetch API version on mount
+  useEffect(() => {
+    const fetchVersion = async () => {
+      setVersionLoading(true);
+      const result = await getVersion();
+      if (result.success && result.data) {
+        setApiVersion(result.data);
+      }
+      setVersionLoading(false);
+    };
+    fetchVersion();
+  }, []);
 
   const handleAddProvider = () => {
     if (newProviderType && newProviderToken.trim()) {
@@ -79,6 +98,85 @@ export function SettingsPage() {
       <div className="flex items-center gap-3 mb-6">
         <Settings size={28} className="text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
+      </div>
+
+      {/* System Revision Section - At the top */}
+      <div className="bg-white rounded-lg shadow-md mb-6">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-slate-100 rounded-lg">
+              <Package size={24} className="text-slate-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">System Revisions</h2>
+              <p className="text-sm text-slate-500">Version alignment for SDLC Control components</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* GUI Revision */}
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 mb-2">
+                <GitCommit size={16} className="text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">GUI Revision</span>
+              </div>
+              <div className="font-mono text-lg text-blue-900">{GUI_VERSION}</div>
+              <div className="font-mono text-xs text-blue-600 mt-1">{GUI_COMMIT}</div>
+            </div>
+
+            {/* API Revision */}
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Server size={16} className="text-purple-600" />
+                <span className="text-sm font-medium text-purple-800">API Revision</span>
+              </div>
+              {versionLoading ? (
+                <div className="flex items-center gap-2 text-purple-600">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">Loading...</span>
+                </div>
+              ) : apiVersion ? (
+                <>
+                  <div className="font-mono text-lg text-purple-900">{apiVersion.api.version}</div>
+                  <div className="font-mono text-xs text-purple-600 mt-1">{apiVersion.api.commit}</div>
+                </>
+              ) : (
+                <div className="text-sm text-purple-600">Unavailable</div>
+              )}
+            </div>
+
+            {/* Database Revision */}
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 mb-2">
+                <Database size={16} className="text-green-600" />
+                <span className="text-sm font-medium text-green-800">DB Revision</span>
+              </div>
+              {versionLoading ? (
+                <div className="flex items-center gap-2 text-green-600">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">Loading...</span>
+                </div>
+              ) : apiVersion ? (
+                <>
+                  <div className="font-mono text-lg text-green-900">{apiVersion.database.version}</div>
+                  <div className="font-mono text-xs text-green-600 mt-1">migrations applied</div>
+                </>
+              ) : (
+                <div className="text-sm text-green-600">Unavailable</div>
+              )}
+            </div>
+          </div>
+
+          {/* Full revision string for copy/paste */}
+          <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="text-xs text-slate-500 mb-1">Full Revision String</div>
+            <code className="text-sm text-slate-700 font-mono">
+              GUI:{GUI_REVISION} | API:{apiVersion?.api.revision || '...'} | DB:{apiVersion?.database.version || '...'}
+            </code>
+          </div>
+        </div>
       </div>
 
       {/* AI Providers Section */}

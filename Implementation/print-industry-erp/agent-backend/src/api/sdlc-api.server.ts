@@ -91,6 +91,31 @@ export class SDLCApiServer {
       }
     });
 
+    // Version endpoint - returns API and DB revision info
+    router.get('/version', async (req: Request, res: Response) => {
+      try {
+        // Import version config
+        const { API_VERSION, API_COMMIT, API_BUILD_DATE, DB_VERSION, API_REVISION } = await import('../config/version');
+
+        res.json({
+          success: true,
+          data: {
+            api: {
+              version: API_VERSION,
+              commit: API_COMMIT,
+              buildDate: API_BUILD_DATE,
+              revision: API_REVISION,
+            },
+            database: {
+              version: DB_VERSION,
+            },
+          },
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // =========================================================================
     // Entity Registry
     // =========================================================================
