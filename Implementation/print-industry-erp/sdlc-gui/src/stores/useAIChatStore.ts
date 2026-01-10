@@ -15,6 +15,14 @@ import type {
   DynamicModelInfo,
 } from '../types/ai-providers';
 import { AI_PROVIDERS as PROVIDERS } from '../types/ai-providers';
+import {
+  buildFunctionSystemPrompt,
+  extractFunctionCalls,
+  executeFunctionCallsWithConfirmation,
+  formatFunctionResultsForChat,
+  buildFollowUpMessage,
+} from '../services/ai-function-handler';
+import type { ExecutedFunctionCall } from '../services/ai-function-executor';
 
 // Comparison response type
 interface ComparisonResponse {
@@ -74,6 +82,13 @@ interface AIChatStore {
   // SDLC Context actions
   updateSDLCContext: (options: Partial<SDLCContextOptions>) => void;
   fetchSDLCContext: () => Promise<void>;
+
+  // Function calling
+  pendingConfirmation: { call: { name: string; args: Record<string, unknown> }; message: string } | null;
+  functionCallsEnabled: boolean;
+  lastFunctionCalls: ExecutedFunctionCall[];
+  setFunctionCallsEnabled: (enabled: boolean) => void;
+  confirmPendingFunction: (confirmed: boolean) => void;
 
   // Utility
   getActiveProvider: () => AIProviderConfig | null;
@@ -257,6 +272,9 @@ export const useAIChatStore = create<AIChatStore>()(
       isLoadingModels: {},
       sdlcContext: DEFAULT_SDLC_CONTEXT,
       contextData: null,
+      pendingConfirmation: null,
+      functionCallsEnabled: true,
+      lastFunctionCalls: [],
 
       // Provider actions
       addProvider: (type: AIProviderType, apiKey: string) => {
@@ -475,6 +493,12 @@ export const useAIChatStore = create<AIChatStore>()(
           // Build system prompt with SDLC context
           let systemPrompt = 'You are a helpful AI assistant integrated into an SDLC (Software Development Lifecycle) management tool. Help users with their development workflow, code questions, and project management tasks.';
 
+          // Add function calling instructions if enabled
+          const { functionCallsEnabled } = get();
+          if (functionCallsEnabled) {
+            systemPrompt = buildFunctionSystemPrompt(systemPrompt);
+          }
+
           if (contextData) {
             const contextParts: string[] = [];
 
@@ -548,7 +572,33 @@ export const useAIChatStore = create<AIChatStore>()(
           }
 
           const data = await response.json();
-          const assistantContent = request.parseResponse(data);
+          let assistantContent = request.parseResponse(data);
+
+          // Check for function calls in response
+          let executedFunctions: ExecutedFunctionCall[] = [];
+          if (functionCallsEnabled) {
+            const functionCalls = extractFunctionCalls(assistantContent);
+
+            if (functionCalls.length > 0) {
+              // Execute function calls with confirmation for mutations
+              executedFunctions = await executeFunctionCallsWithConfirmation(
+                functionCalls,
+                async (call, message) => {
+                  // Set pending confirmation and wait for user response
+                  return new Promise((resolve) => {
+                    set({
+                      pendingConfirmation: { call, message },
+                    });
+                    // Store resolver for later
+                    (window as any).__pendingConfirmationResolve = resolve;
+                  });
+                }
+              );
+
+              // Append function results to response
+              assistantContent += formatFunctionResultsForChat(executedFunctions);
+            }
+          }
 
           const assistantMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
@@ -562,6 +612,7 @@ export const useAIChatStore = create<AIChatStore>()(
           set(state => ({
             messages: [...state.messages, assistantMessage],
             isLoading: false,
+            lastFunctionCalls: executedFunctions,
           }));
 
           // Update session
@@ -792,6 +843,20 @@ export const useAIChatStore = create<AIChatStore>()(
       },
 
       // Utility
+      // Function calling actions
+      setFunctionCallsEnabled: (enabled: boolean) => {
+        set({ functionCallsEnabled: enabled });
+      },
+
+      confirmPendingFunction: (confirmed: boolean) => {
+        const resolver = (window as any).__pendingConfirmationResolve;
+        if (resolver) {
+          resolver(confirmed);
+          delete (window as any).__pendingConfirmationResolve;
+        }
+        set({ pendingConfirmation: null });
+      },
+
       getActiveProvider: () => {
         const { providers, activeProviderId } = get();
         return providers.find(p => p.id === activeProviderId) || null;

@@ -552,13 +552,46 @@ To complete the AI + SDLC function calling:
    - DeepSeek - native function calling
    - Llama (GitHub) - prompt-based fallback
 
-### How to Use (Once Complete)
+### User's Desired Use Cases (May Require Agentic Workflow Changes)
 
-From AI Assist in sdlc.agog.fyi:
-- "What's blocking REQ-P0-BUILD-1767507808-DB?"
-- "Change priority of REQ-XXX to catastrophic"
-- "Show me unblocked work I can do in 8 hours"
-- "What did customer XLX request?"
+From sdlc.agog.fyi AI Assist, user wants to be able to say:
+
+| User Command | Function | Notes |
+|--------------|----------|-------|
+| "Change critical to catastrophic" | `updateRequestPriority` | ✅ Implemented |
+| "Flag REQ-X as most important thing to work on" | `setTopPriority` | ✅ Implemented |
+| "Focus all percent effort into REQ-X" | `setWorkflowFocus` | ⚠️ May need orchestrator changes |
+| "What is blocked by REQ-X?" | `getBlockedByRequest` | ✅ Implemented |
+| "Prioritize all unblocked work for next 8 hours" | `getUnblockedWork` + `optimizePriorities` | ⚠️ May need orchestrator changes |
+| "Do the easiest work over the weekend" | `getUnblockedWork(sortBy: effort_asc)` | ✅ Implemented |
+| "When can I expect REQ-X to be finished?" | `estimateCompletion` | ✅ Implemented |
+| "Rearrange priorities to get most work done this weekend" | `optimizePriorities` | ⚠️ Needs backend logic |
+| "What was created from Customer XLX? Prioritize their needs" | `getRequestsByCustomer` + `optimizePriorities` | ⚠️ Needs backend logic |
+
+**Agentic Workflow Changes Needed:**
+- `setWorkflowFocus` - Orchestrator needs to read workflow_directives table and adjust agent allocation
+- `optimizePriorities` - Backend needs algorithm to reorder priorities based on goal
+
+### Example Prompts (For User Reference)
+
+```
+# Query Examples
+"What's blocking REQ-P0-BUILD-1767507808-DB?"
+"Show me all unblocked work sorted by easiest first"
+"What can I complete in 8 hours?"
+"Find requests from customer Acme Corp"
+"When will REQ-SDLC-1767972294 be done?"
+
+# Mutation Examples (Will Ask Confirmation)
+"Change REQ-X priority to catastrophic"
+"Set REQ-X as the top priority"
+"Add blocker: REQ-A is blocked by REQ-B"
+"Create recommendation: Upgrade database before migration"
+```
+
+### Commit
+
+`4d73b7b` - feat(ai-chat): Add SDLC function calling infrastructure
 
 ---
 
