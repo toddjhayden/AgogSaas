@@ -57,9 +57,9 @@ interface SidebarProps {
 function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
   const { health, fetchHealth } = useSDLCStore();
   const [workflowFocus, setWorkflowFocus] = useState<string | null>(null);
-  const [localNatsStatus, setLocalNatsStatus] = useState<{ connected: boolean; connections?: number }>({ connected: false });
+  const [infrastructureHealth, setInfrastructureHealth] = useState<{ nats?: { status: string; connections?: number }; orchestrator?: { status: string } }>({});
 
-  // Fetch health, workflow status, and local NATS status every 2 minutes
+  // Fetch health, workflow status, and infrastructure health every 2 minutes
   useEffect(() => {
     const fetchAll = async () => {
       fetchHealth();
@@ -76,12 +76,19 @@ function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
         setWorkflowFocus(null);
       }
 
-      // Check local NATS status (agent infrastructure)
+      // Fetch infrastructure health from SDLC API (orchestrator publishes this)
       try {
-        const natsStatus = await import('@/api/sdlc-client').then(m => m.checkLocalNatsStatus());
-        setLocalNatsStatus(natsStatus);
+        const infraResponse = await import('@/api/sdlc-client').then(m => m.getInfrastructureHealth());
+        if (infraResponse.success && infraResponse.data) {
+          const natsComp = infraResponse.data.find(c => c.component === 'nats');
+          const orchComp = infraResponse.data.find(c => c.component === 'orchestrator');
+          setInfrastructureHealth({
+            nats: natsComp ? { status: natsComp.status, connections: (natsComp.details as any)?.connections } : undefined,
+            orchestrator: orchComp ? { status: orchComp.status } : undefined,
+          });
+        }
       } catch {
-        setLocalNatsStatus({ connected: false });
+        setInfrastructureHealth({});
       }
     };
     fetchAll();
@@ -169,11 +176,17 @@ function Sidebar({ isOpen, onClose, onNavigate }: SidebarProps) {
                 DB: {health?.database ? 'Connected' : 'Disconnected'}
               </span>
             </div>
-            {/* NATS Status (Local Agent Infrastructure) */}
+            {/* NATS Status (from orchestrator health publishing) */}
             <div className="flex items-center gap-2 text-sm">
-              <Radio size={14} className={localNatsStatus.connected ? 'text-green-400' : 'text-yellow-400'} />
+              <Radio size={14} className={infrastructureHealth.nats?.status === 'healthy' ? 'text-green-400' : infrastructureHealth.nats?.status === 'degraded' ? 'text-yellow-400' : 'text-slate-500'} />
               <span className="text-slate-400 text-xs">
-                NATS: {localNatsStatus.connected ? `Connected${localNatsStatus.connections !== undefined ? ` (${localNatsStatus.connections})` : ''}` : 'Not Available'}
+                NATS: {infrastructureHealth.nats?.status === 'healthy'
+                  ? `Connected${infrastructureHealth.nats.connections !== undefined ? ` (${infrastructureHealth.nats.connections})` : ''}`
+                  : infrastructureHealth.nats?.status === 'degraded'
+                    ? 'Degraded'
+                    : infrastructureHealth.nats?.status === 'unavailable'
+                      ? 'Unavailable'
+                      : 'Unknown'}
               </span>
             </div>
           </div>

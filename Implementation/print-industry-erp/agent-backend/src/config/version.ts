@@ -10,7 +10,7 @@ export const API_COMMIT = 'aeb6351';
 export const API_BUILD_DATE = '2026-01-10';
 
 // Database migration version (should match latest migration file)
-export const DB_VERSION = 'V0.0.31';
+export const DB_VERSION = 'V0.0.32';
 
 // Combined revision code for display
 export const API_REVISION = `${API_VERSION}-${API_COMMIT}`;

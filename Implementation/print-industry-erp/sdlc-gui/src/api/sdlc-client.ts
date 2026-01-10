@@ -60,6 +60,7 @@ export async function getHealth(): Promise<ApiResponse<SDLCHealthStatus>> {
  * Check local NATS status by calling the NATS monitoring endpoint directly.
  * This checks the local agent infrastructure, not the VPS.
  * NATS monitoring runs on port 8223 (mapped from container's 8222).
+ * @deprecated Use getInfrastructureHealth() instead for consistent status across local/VPS
  */
 export async function checkLocalNatsStatus(): Promise<{ connected: boolean; server?: string; connections?: number }> {
   try {
@@ -84,6 +85,28 @@ export async function checkLocalNatsStatus(): Promise<{ connected: boolean; serv
     // NATS not available locally
     return { connected: false };
   }
+}
+
+// =============================================================================
+// Agent Infrastructure Health
+// =============================================================================
+
+export interface InfrastructureComponent {
+  component: string;
+  display_name: string;
+  status: 'healthy' | 'degraded' | 'unavailable' | 'unknown';
+  details: Record<string, unknown>;
+  last_heartbeat: string | null;
+  is_stale: boolean;
+  seconds_since_heartbeat: number | null;
+}
+
+/**
+ * Get health status of all agent infrastructure components.
+ * This queries the SDLC database where the orchestrator publishes health.
+ */
+export async function getInfrastructureHealth(): Promise<ApiResponse<InfrastructureComponent[]>> {
+  return fetchApi<InfrastructureComponent[]>('/infrastructure/health');
 }
 
 // =============================================================================

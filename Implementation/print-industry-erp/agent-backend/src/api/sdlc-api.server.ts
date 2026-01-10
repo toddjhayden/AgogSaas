@@ -215,6 +215,90 @@ export class SDLCApiServer {
     });
 
     // =========================================================================
+    // Agent Infrastructure Health
+    // =========================================================================
+
+    // Get all infrastructure component health statuses
+    router.get('/infrastructure/health', async (req: Request, res: Response) => {
+      try {
+        const health = await this.db.query(`SELECT * FROM agent_infrastructure_status`);
+
+        res.json({
+          success: true,
+          data: health,
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Update a component's health status (called by orchestrator/agents)
+    router.post('/infrastructure/health', async (req: Request, res: Response) => {
+      try {
+        const { component, status, details } = req.body;
+
+        if (!component || !status) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: component, status',
+          });
+        }
+
+        const validStatuses = ['healthy', 'degraded', 'unavailable', 'unknown'];
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+          });
+        }
+
+        await this.db.query(
+          `SELECT update_agent_health($1, $2, $3)`,
+          [component, status, details || null]
+        );
+
+        res.json({
+          success: true,
+          data: { component, status, updated: true },
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Batch update multiple components (for orchestrator heartbeat)
+    router.post('/infrastructure/health/batch', async (req: Request, res: Response) => {
+      try {
+        const { components } = req.body;
+
+        if (!components || !Array.isArray(components)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required field: components (array)',
+          });
+        }
+
+        const results = [];
+        for (const comp of components) {
+          if (comp.component && comp.status) {
+            await this.db.query(
+              `SELECT update_agent_health($1, $2, $3)`,
+              [comp.component, comp.status, comp.details || null]
+            );
+            results.push({ component: comp.component, updated: true });
+          }
+        }
+
+        res.json({
+          success: true,
+          data: { updated: results.length, components: results },
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
     // Entity Registry
     // =========================================================================
 
