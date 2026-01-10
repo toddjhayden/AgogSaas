@@ -13,15 +13,25 @@ import type {
   DiagramType,
   KanbanColumn,
 } from '@/types';
+import { useSDLCSettingsStore } from '@/stores/useSDLCSettingsStore';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/agent';
+// Get API base URL from settings store (falls back to env var or default)
+function getApiBase(): string {
+  const storeUrl = useSDLCSettingsStore.getState().apiUrl;
+  // The store URL is the full API URL (e.g., https://api.agog.fyi/api)
+  // For agent endpoints, we need to append /agent
+  return storeUrl ? `${storeUrl}/agent` : (import.meta.env.VITE_API_URL || '/api/agent');
+}
+
+// Note: Legacy API_BASE constant removed - now using getApiBase() for dynamic URL from settings
 
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const apiBase = getApiBase();
+    const response = await fetch(`${apiBase}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
         'X-Agent-Id': 'sdlc-gui',
@@ -412,9 +422,9 @@ export interface WorkflowStatus {
 }
 
 export async function getWorkflowStatus(): Promise<ApiResponse<WorkflowStatus>> {
-  const SDLC_API_BASE = import.meta.env.VITE_SDLC_API_URL || 'http://localhost:5100/api';
+  const apiBase = useSDLCSettingsStore.getState().apiUrl;
   try {
-    const response = await fetch(`${SDLC_API_BASE}/workflow/status`);
+    const response = await fetch(`${apiBase}/workflow/status`);
     const data = await response.json();
     return { success: true, data };
   } catch (error: unknown) {
@@ -424,9 +434,9 @@ export async function getWorkflowStatus(): Promise<ApiResponse<WorkflowStatus>> 
 }
 
 export async function clearWorkflowFocus(reason?: string): Promise<ApiResponse<{ cleared: boolean }>> {
-  const SDLC_API_BASE = import.meta.env.VITE_SDLC_API_URL || 'http://localhost:5100/api';
+  const apiBase = useSDLCSettingsStore.getState().apiUrl;
   try {
-    const response = await fetch(`${SDLC_API_BASE}/workflow/focus/clear`, {
+    const response = await fetch(`${apiBase}/workflow/focus/clear`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason: reason || 'Cleared from GUI' }),

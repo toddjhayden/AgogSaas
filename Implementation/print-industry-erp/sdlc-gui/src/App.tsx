@@ -20,6 +20,7 @@ import { AIChatPanel, ChatButton } from '@/components/AIChatPanel';
 import { AIComparePanel } from '@/components/AIComparePanel';
 import { GlobalFilterToggle } from '@/components/GlobalFilterBar';
 import { WorkflowStatusBanner } from '@/components/WorkflowStatusBanner';
+import { APIHealthBanner } from '@/components/APIHealthBanner';
 
 // Pages
 import DashboardPage from '@/pages/DashboardPage';
@@ -226,7 +227,11 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex flex-col h-screen">
+      {/* API Health Banner - shows when API is unreachable */}
+      <APIHealthBanner />
+
+      <div className="flex flex-1 overflow-hidden">
       {/* Mobile Header */}
       <MobileHeader onMenuClick={handleOpenSidebar} />
 
@@ -288,6 +293,7 @@ function AppContent() {
           isOpen={isChatOpen}
         />
       )}
+      </div>
     </div>
   );
 }

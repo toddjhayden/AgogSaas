@@ -3,7 +3,7 @@
  * Configuration for AI Providers and SDLC Context integration
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings,
   Github,
@@ -22,9 +22,13 @@ import {
   Gem,
   RefreshCw,
   Loader2,
+  Server,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 import { useAIChatStore } from '../stores/useAIChatStore';
 import { AI_PROVIDERS, type AIProviderType } from '../types/ai-providers';
+import { useSDLCSettingsStore } from '../stores/useSDLCSettingsStore';
 
 // Icon mapping for providers
 const providerIcons: Record<AIProviderType, typeof Github> = {
@@ -441,14 +445,189 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* General Settings */}
-      <div className="bg-white rounded-lg shadow-md">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800">General Settings</h2>
+      {/* SDLC API Configuration */}
+      <SDLCAPISettings />
+    </div>
+  );
+}
+
+/**
+ * SDLC API Settings Component
+ */
+function SDLCAPISettings() {
+  const {
+    apiUrl,
+    apiHealth,
+    isCheckingHealth,
+    setApiUrl,
+    checkApiHealth,
+  } = useSDLCSettingsStore();
+
+  const [customUrl, setCustomUrl] = useState(apiUrl);
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  // Check health on mount
+  useEffect(() => {
+    checkApiHealth();
+  }, [checkApiHealth]);
+
+  // Sync custom URL with store
+  useEffect(() => {
+    setCustomUrl(apiUrl);
+  }, [apiUrl]);
+
+  const handlePresetSelect = (url: string) => {
+    setApiUrl(url);
+    setShowCustomInput(false);
+  };
+
+  const handleCustomUrlSave = () => {
+    if (customUrl.trim()) {
+      setApiUrl(customUrl.trim());
+    }
+  };
+
+  const presets = [
+    { label: 'Production (VPS)', url: 'https://api.agog.fyi/api' },
+    { label: 'Local Development', url: 'http://localhost:5100/api' },
+  ];
+
+  return (
+    <div className="bg-white rounded-lg shadow-md">
+      <div className="px-6 py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Server size={24} className="text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">SDLC API</h2>
+              <p className="text-sm text-slate-500">Configure the backend API connection</p>
+            </div>
+          </div>
+          {/* Health Status Badge */}
+          <div className="flex items-center gap-2">
+            {isCheckingHealth ? (
+              <span className="flex items-center gap-1.5 text-sm text-slate-500">
+                <Loader2 size={14} className="animate-spin" />
+                Checking...
+              </span>
+            ) : apiHealth.isHealthy ? (
+              <span className="flex items-center gap-1.5 text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                <CheckCircle size={14} />
+                Connected
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm text-red-600 bg-red-50 px-3 py-1 rounded-full">
+                <AlertTriangle size={14} />
+                Disconnected
+              </span>
+            )}
+          </div>
         </div>
-        <div className="p-6">
-          <p className="text-slate-500 text-sm">Additional settings coming soon...</p>
+      </div>
+
+      <div className="p-6 space-y-4">
+        {/* Current URL Display */}
+        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+          <div className="text-xs text-slate-500 mb-1">Current API URL</div>
+          <code className="text-sm text-slate-800 font-mono break-all">{apiUrl}</code>
         </div>
+
+        {/* Preset Selection */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Quick Select
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {presets.map((preset) => (
+              <button
+                key={preset.url}
+                onClick={() => handlePresetSelect(preset.url)}
+                className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                  apiUrl === preset.url
+                    ? 'border-purple-300 bg-purple-50 text-purple-800'
+                    : 'border-slate-200 hover:border-purple-200 hover:bg-purple-50'
+                }`}
+              >
+                <div>
+                  <div className="font-medium text-sm">{preset.label}</div>
+                  <div className="text-xs text-slate-500 font-mono">{preset.url}</div>
+                </div>
+                {apiUrl === preset.url && <Check size={16} className="text-purple-600" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom URL Input */}
+        <div>
+          <button
+            onClick={() => setShowCustomInput(!showCustomInput)}
+            className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+          >
+            {showCustomInput ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {showCustomInput ? 'Hide custom URL' : 'Use custom URL'}
+          </button>
+
+          {showCustomInput && (
+            <div className="mt-3 flex gap-2">
+              <input
+                type="text"
+                value={customUrl}
+                onChange={(e) => setCustomUrl(e.target.value)}
+                placeholder="https://your-api.example.com/api"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+              />
+              <button
+                onClick={handleCustomUrlSave}
+                disabled={!customUrl.trim() || customUrl === apiUrl}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-sm"
+              >
+                Save
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Health Details */}
+        {apiHealth.lastCheck && (
+          <div className="border-t border-slate-200 pt-4">
+            <div className="text-sm font-medium text-slate-700 mb-2">Connection Status</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className={`p-2 rounded border ${apiHealth.database ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="text-xs text-slate-500">Database</div>
+                <div className={`font-medium ${apiHealth.database ? 'text-green-700' : 'text-red-700'}`}>
+                  {apiHealth.database ? 'Connected' : 'Disconnected'}
+                </div>
+              </div>
+              <div className={`p-2 rounded border ${apiHealth.nats ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                <div className="text-xs text-slate-500">NATS (Events)</div>
+                <div className={`font-medium ${apiHealth.nats ? 'text-green-700' : 'text-amber-700'}`}>
+                  {apiHealth.nats ? 'Connected' : 'Disconnected'}
+                </div>
+              </div>
+            </div>
+            {apiHealth.error && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="text-sm text-red-700">{apiHealth.error}</div>
+              </div>
+            )}
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Last checked: {new Date(apiHealth.lastCheck).toLocaleTimeString()}
+              </span>
+              <button
+                onClick={checkApiHealth}
+                disabled={isCheckingHealth}
+                className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+              >
+                <RefreshCw size={14} className={isCheckingHealth ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

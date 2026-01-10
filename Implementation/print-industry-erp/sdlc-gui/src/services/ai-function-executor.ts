@@ -4,8 +4,12 @@
  */
 
 import { MUTATION_FUNCTION_NAMES } from '@/types/ai-functions';
+import { useSDLCSettingsStore } from '@/stores/useSDLCSettingsStore';
 
-const SDLC_API_BASE = import.meta.env.VITE_SDLC_API_URL || 'http://localhost:5100/api';
+// Get API base URL from settings store
+function getSDLCApiBase(): string {
+  return useSDLCSettingsStore.getState().apiUrl;
+}
 
 export interface FunctionResult {
   success: boolean;
@@ -268,7 +272,8 @@ export async function executeSDLCFunction(call: FunctionCall): Promise<FunctionR
 
 async function fetchAPI(path: string): Promise<FunctionResult> {
   try {
-    const response = await fetch(`${SDLC_API_BASE}${path}`);
+    const apiBase = getSDLCApiBase();
+    const response = await fetch(`${apiBase}${path}`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -290,7 +295,8 @@ async function fetchAPI(path: string): Promise<FunctionResult> {
 
 async function postAPI(path: string, body: unknown): Promise<FunctionResult> {
   try {
-    const response = await fetch(`${SDLC_API_BASE}${path}`, {
+    const apiBase = getSDLCApiBase();
+    const response = await fetch(`${apiBase}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -316,7 +322,8 @@ async function postAPI(path: string, body: unknown): Promise<FunctionResult> {
 
 async function deleteAPI(path: string): Promise<FunctionResult> {
   try {
-    const response = await fetch(`${SDLC_API_BASE}${path}`, {
+    const apiBase = getSDLCApiBase();
+    const response = await fetch(`${apiBase}${path}`, {
       method: 'DELETE'
     });
 
