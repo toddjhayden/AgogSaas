@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   RefreshCw, AlertTriangle, CheckCircle, ArrowRight, X,
   ThumbsUp, ThumbsDown, AlertCircle as AlertIcon, ChevronDown,
@@ -126,6 +126,32 @@ export default function BlockerGraphPage() {
   // Double-click to filter
   const { handleDoubleClick } = useDoubleClickFilter();
 
+  // Get all connected requests for a given item (both blocked by and blocking)
+  const getConnectedRequests = useCallback((itemId: string): Set<string> => {
+    const connected = new Set<string>();
+    connected.add(itemId); // Include the focused item itself
+
+    const targetReq = requests.find(r => r.reqNumber === itemId);
+    if (targetReq) {
+      // Add all items this request blocks
+      targetReq.blocking.forEach(blockedReq => connected.add(blockedReq));
+      // Add all items blocking this request
+      targetReq.blockedBy.forEach(blockerReq => connected.add(blockerReq));
+    }
+
+    // Also check all requests to find any that reference this item
+    requests.forEach(req => {
+      if (req.blockedBy.includes(itemId)) {
+        connected.add(req.reqNumber);
+      }
+      if (req.blocking.includes(itemId)) {
+        connected.add(req.reqNumber);
+      }
+    });
+
+    return connected;
+  }, [requests]);
+
   // Filter deepest unblocked based on global filters
   const filteredDeepestUnblocked = useMemo(() => {
     if (!globalFiltersEnabled) return deepestUnblocked;
@@ -150,13 +176,22 @@ export default function BlockerGraphPage() {
       );
     }
 
-    // Focus filter
+    // Focus filter - special behavior: show focused item AND connected items
     if (focusedItem) {
-      filtered = filtered.filter((req) => req.reqNumber === focusedItem);
+      const connectedItems = getConnectedRequests(focusedItem);
+      filtered = filtered.filter((req) => connectedItems.has(req.reqNumber));
     }
 
     return filtered;
-  }, [deepestUnblocked, globalFiltersEnabled, globalType, globalPriority, globalSearchTerm, focusedItem]);
+  }, [deepestUnblocked, globalFiltersEnabled, globalType, globalPriority, globalSearchTerm, focusedItem, getConnectedRequests]);
+
+  // Filter blocking relationships graph based on focused item
+  const filteredRequests = useMemo(() => {
+    if (!globalFiltersEnabled || !focusedItem) return requests;
+
+    const connectedItems = getConnectedRequests(focusedItem);
+    return requests.filter(req => connectedItems.has(req.reqNumber));
+  }, [requests, globalFiltersEnabled, focusedItem, getConnectedRequests]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -531,7 +566,8 @@ export default function BlockerGraphPage() {
           ) : (
             <div className="space-y-4">
               <div className="border rounded-lg p-4 bg-slate-50 overflow-auto max-h-[500px]">
-                {requests
+                {/* Use filteredRequests when focused, otherwise show all */}
+                {(globalFiltersEnabled && focusedItem ? filteredRequests : requests)
                   .filter(r => r.blocking.length > 0)
                   .map((blocker) => (
                     <div key={blocker.reqNumber} className="mb-6 last:mb-0">
@@ -662,7 +698,7 @@ export default function BlockerGraphPage() {
                   ))}
 
                 {/* Blocked requests without known blockers */}
-                {requests
+                {(globalFiltersEnabled && focusedItem ? filteredRequests : requests)
                   .filter(r => r.isBlocked && r.blockedBy.length === 0 && r.blocking.length === 0)
                   .map((req) => (
                     <div
