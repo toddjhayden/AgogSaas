@@ -19,6 +19,7 @@ import { useSDLCStore } from '@/stores/useSDLCStore';
 import { AIChatPanel, ChatButton } from '@/components/AIChatPanel';
 import { AIComparePanel } from '@/components/AIComparePanel';
 import { GlobalFilterToggle } from '@/components/GlobalFilterBar';
+import { WorkflowStatusBanner } from '@/components/WorkflowStatusBanner';
 
 // Pages
 import DashboardPage from '@/pages/DashboardPage';
@@ -244,6 +245,9 @@ function AppContent() {
           ${isChatOpen ? 'md:mr-96' : ''}
         `}
       >
+        {/* Workflow Status Banner - shows when agents are in non-normal workflow */}
+        <WorkflowStatusBanner onOpenChat={handleToggleChat} />
+
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/requests" element={<RequestsPage />} />

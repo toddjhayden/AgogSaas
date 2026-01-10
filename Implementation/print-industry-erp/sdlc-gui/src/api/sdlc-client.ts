@@ -384,6 +384,61 @@ export async function removeBlocker(
   });
 }
 
+// =============================================================================
+// Workflow Directives
+// =============================================================================
+
+export interface WorkflowDirective {
+  id: string;
+  directiveType: string;
+  displayName: string;
+  targetType?: string;
+  targetValue?: string;
+  targetReqNumbers?: string[];
+  filterCriteria?: Record<string, unknown>;
+  expiresAt?: string;
+  autoRestore: boolean;
+  exclusive: boolean;
+  totalItems: number;
+  completedItems: number;
+  createdBy: string;
+  reason?: string;
+  activatedAt: string;
+}
+
+export interface WorkflowStatus {
+  hasActiveDirective: boolean;
+  directive?: WorkflowDirective;
+}
+
+export async function getWorkflowStatus(): Promise<ApiResponse<WorkflowStatus>> {
+  const SDLC_API_BASE = import.meta.env.VITE_SDLC_API_URL || 'http://localhost:5100/api';
+  try {
+    const response = await fetch(`${SDLC_API_BASE}/workflow/status`);
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: message };
+  }
+}
+
+export async function clearWorkflowFocus(reason?: string): Promise<ApiResponse<{ cleared: boolean }>> {
+  const SDLC_API_BASE = import.meta.env.VITE_SDLC_API_URL || 'http://localhost:5100/api';
+  try {
+    const response = await fetch(`${SDLC_API_BASE}/workflow/focus/clear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || 'Cleared from GUI' }),
+    });
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: message };
+  }
+}
+
 // Get all requests with their blocker info for the graph
 export async function getBlockerGraph(): Promise<
   ApiResponse<{ requests: (RequestItem & { blockedBy: string[]; blocking: string[] })[] }>

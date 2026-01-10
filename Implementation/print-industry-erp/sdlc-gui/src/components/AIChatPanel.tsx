@@ -45,7 +45,7 @@ export function AIChatPanel({ onOpenSettings, onClose, onOpenCompare }: AIChatPa
     error,
     contextData,
     pendingConfirmation,
-    functionCallsEnabled,
+    functionCallsEnabled: _functionCallsEnabled,
     sendMessage,
     clearMessages,
     newSession,
@@ -54,8 +54,12 @@ export function AIChatPanel({ onOpenSettings, onClose, onOpenCompare }: AIChatPa
     setActiveProvider,
     fetchSDLCContext,
     confirmPendingFunction,
-    setFunctionCallsEnabled,
+    setFunctionCallsEnabled: _setFunctionCallsEnabled,
   } = useAIChatStore();
+
+  // TODO: Add UI toggle for function calls (currently always enabled)
+  void _functionCallsEnabled;
+  void _setFunctionCallsEnabled;
 
   const activeProvider = providers.find(p => p.id === activeProviderId);
   const hasProviders = providers.length > 0;
@@ -305,21 +309,62 @@ export function AIChatPanel({ onOpenSettings, onClose, onOpenCompare }: AIChatPa
                 <p className="text-sm text-slate-500 max-w-[250px] mx-auto">
                   Ask questions about your workflow, get help with code, or discuss project tasks.
                 </p>
-                <div className="mt-6 space-y-2">
-                  <p className="text-xs text-slate-400">Try asking:</p>
-                  {[
-                    "What's the status of my project?",
-                    "Help me write a SQL query",
-                    "Show me blocked requests",
-                  ].map((suggestion, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setInput(suggestion)}
-                      className="block w-full text-left text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
-                    >
-                      "{suggestion}"
-                    </button>
-                  ))}
+                <div className="mt-6 space-y-3">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Example Prompts</p>
+
+                  {/* Priority & Focus */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-400 px-2">Priority & Focus</p>
+                    {[
+                      "Change REQ-1234 to catastrophic priority",
+                      "Focus all workflow on blocker-chain REQ-1234",
+                      "What is the current workflow status?",
+                    ].map((suggestion, i) => (
+                      <button
+                        key={`priority-${i}`}
+                        onClick={() => setInput(suggestion)}
+                        className="block w-full text-left text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Blockers & Dependencies */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-400 px-2">Blockers & Dependencies</p>
+                    {[
+                      "What is blocked by REQ-1234?",
+                      "Show me the full blocker chain for REQ-1234",
+                      "What unblocked work can I do in 4 hours?",
+                    ].map((suggestion, i) => (
+                      <button
+                        key={`blockers-${i}`}
+                        onClick={() => setInput(suggestion)}
+                        className="block w-full text-left text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Workload & Planning */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-400 px-2">Workload & Planning</p>
+                    {[
+                      "What requests came from Customer ABC?",
+                      "Show me all critical priority items",
+                      "When can I expect REQ-1234 to be finished?",
+                    ].map((suggestion, i) => (
+                      <button
+                        key={`workload-${i}`}
+                        onClick={() => setInput(suggestion)}
+                        className="block w-full text-left text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (

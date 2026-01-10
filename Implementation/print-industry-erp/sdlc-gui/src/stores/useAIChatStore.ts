@@ -20,7 +20,6 @@ import {
   extractFunctionCalls,
   executeFunctionCallsWithConfirmation,
   formatFunctionResultsForChat,
-  buildFollowUpMessage,
 } from '../services/ai-function-handler';
 import type { ExecutedFunctionCall } from '../services/ai-function-executor';
 

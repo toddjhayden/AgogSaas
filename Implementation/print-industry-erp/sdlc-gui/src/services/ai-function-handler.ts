@@ -13,7 +13,6 @@ import {
 import {
   executeSDLCFunction,
   getConfirmationMessage,
-  type FunctionResult,
   type ExecutedFunctionCall,
 } from './ai-function-executor';
 
