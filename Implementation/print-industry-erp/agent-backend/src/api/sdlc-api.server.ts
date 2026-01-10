@@ -577,6 +577,66 @@ export class SDLCApiServer {
       }
     });
 
+    // Create a new recommendation
+    router.post('/recommendations', async (req: Request, res: Response) => {
+      try {
+        const {
+          recNumber, title, description, rationale, expectedBenefits,
+          recommendedBy, type, urgency, impactLevel, affectedBus, sourceReq
+        } = req.body;
+
+        if (!recNumber || !title) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: recNumber, title'
+          });
+        }
+
+        const result = await this.db.query(`
+          INSERT INTO recommendations (
+            rec_number, title, description, rationale, expected_benefits,
+            recommended_by_agent, recommendation_type, urgency, impact_level,
+            affected_bus, source_req_number, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
+          RETURNING id, rec_number, title, status, created_at
+        `, [
+          recNumber,
+          title,
+          description || 'No description provided',
+          rationale || 'Generated via API',
+          expectedBenefits || 'See description',
+          recommendedBy || req.headers['x-agent-id'] || 'unknown',
+          type || 'enhancement',
+          urgency || 'medium',
+          impactLevel || 'medium',
+          affectedBus || [],
+          sourceReq || null
+        ]);
+
+        const r = result[0];
+        console.log(`[SDLC API] Created recommendation: ${r.rec_number}`);
+
+        res.status(201).json({
+          success: true,
+          data: {
+            id: r.id,
+            recNumber: r.rec_number,
+            title: r.title,
+            status: r.status,
+            createdAt: r.created_at
+          }
+        });
+      } catch (error: any) {
+        if (error.code === '23505') {
+          return res.status(409).json({
+            success: false,
+            error: `Recommendation already exists: ${req.body.recNumber}`
+          });
+        }
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Update recommendation status (approve, reject, move between phases)
     router.put('/recommendations/:id/status', async (req: Request, res: Response) => {
       try {
@@ -683,13 +743,14 @@ export class SDLCApiServer {
           ORDER BY created_at DESC
         `);
 
-        // Get recommendations
+        // Get recommendations (exclude converted ones - they become owner_requests)
         const recommendations = await this.db.query(`
           SELECT
             id, rec_number, title, description, recommendation_type, urgency,
             affected_bus, status, source_req_number, recommended_by_agent,
             created_at, updated_at
           FROM recommendations
+          WHERE status != 'converted'
           ORDER BY created_at DESC
         `);
 
@@ -847,6 +908,990 @@ export class SDLCApiServer {
       }
     });
 
+    // =========================================================================
+    // Owner Requests CRUD (for orchestrator polling)
+    // =========================================================================
+
+    // Create a new owner request
+    router.post('/requests', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber, title, description, requestType, priority, primaryBu, assignedTo, tags, source, sourceReference, affectedBus, affectedEntities } = req.body;
+        if (!reqNumber || !title) {
+          return res.status(400).json({ success: false, error: 'Missing required fields: reqNumber, title' });
+        }
+        const result = await this.db.query(`
+          INSERT INTO owner_requests (req_number, title, description, request_type, priority, primary_bu, current_phase, assigned_to, tags, source, source_reference, affected_bus, affected_entities, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6, 'backlog', $7, $8, $9, $10, $11, $12, $13) RETURNING *
+        `, [reqNumber, title, description || null, requestType || 'feature', priority || 'medium', primaryBu || 'core-infra', assignedTo || null, tags || [], source || 'orchestrator', sourceReference || null, affectedBus || [], affectedEntities || [], req.headers['x-agent-id'] || 'orchestrator']);
+        const r = result[0];
+        console.log(`[SDLC API] Created owner_request: ${r.req_number}`);
+        res.status(201).json({ success: true, data: { id: r.id, reqNumber: r.req_number, title: r.title, currentPhase: r.current_phase, priority: r.priority, createdAt: r.created_at } });
+      } catch (error: any) {
+        if (error.code === '23505') return res.status(409).json({ success: false, error: `Request already exists: ${req.body.reqNumber}` });
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Update owner request status/phase
+    router.put('/requests/:reqNumber/status', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { phase, isBlocked, blockedReason, assignedTo } = req.body;
+        if (!phase && isBlocked === undefined) {
+          return res.status(400).json({ success: false, error: 'Must provide at least one of: phase, isBlocked' });
+        }
+
+        // Build update clauses and parameters dynamically
+        // Using explicit array to ensure parameter order matches SQL placeholders
+        const updates: string[] = ['updated_at = NOW()'];
+        const params: any[] = [];
+
+        if (phase !== undefined) {
+          params.push(phase);
+          updates.push(`current_phase = $${params.length}`);
+        }
+        if (isBlocked !== undefined) {
+          params.push(isBlocked);
+          updates.push(`is_blocked = $${params.length}`);
+        }
+        if (blockedReason !== undefined) {
+          params.push(blockedReason);
+          updates.push(`blocked_reason = $${params.length}`);
+        }
+        if (assignedTo !== undefined) {
+          params.push(assignedTo);
+          updates.push(`assigned_to = $${params.length}`);
+        }
+
+        // Add reqNumber as the final parameter for WHERE clause
+        params.push(reqNumber);
+        const whereParamIndex = params.length;
+
+        const result = await this.db.query(
+          `UPDATE owner_requests SET ${updates.join(', ')} WHERE req_number = $${whereParamIndex} RETURNING *`,
+          params
+        );
+
+        if (result.length === 0) return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        const r = result[0];
+        console.log(`[SDLC API] Updated ${reqNumber} -> phase: ${r.current_phase}, blocked: ${r.is_blocked}`);
+        res.json({ success: true, data: { id: r.id, reqNumber: r.req_number, currentPhase: r.current_phase, isBlocked: r.is_blocked, blockedReason: r.blocked_reason, assignedTo: r.assigned_to, updatedAt: r.updated_at } });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get requests pending approval (MUST be before :reqNumber route)
+    router.get('/requests/pending-approval', async (req: Request, res: Response) => {
+      try {
+        const result = await this.db.query(`
+          SELECT
+            id, req_number, title, description, priority, primary_bu,
+            recommended_by_agent, rationale, expected_benefits, impact_level,
+            approval_status, created_at,
+            EXTRACT(DAY FROM (NOW() - created_at)) AS days_pending
+          FROM owner_requests
+          WHERE requires_approval = TRUE
+            AND approval_status IN ('pending', 'under_review')
+          ORDER BY
+            CASE priority
+              WHEN 'catastrophic' THEN 0
+              WHEN 'critical' THEN 1
+              WHEN 'high' THEN 2
+              WHEN 'medium' THEN 3
+              WHEN 'low' THEN 4
+            END,
+            created_at
+        `);
+
+        const requests = result.map((r: any) => ({
+          id: r.id,
+          reqNumber: r.req_number,
+          title: r.title,
+          description: r.description,
+          priority: r.priority,
+          primaryBu: r.primary_bu,
+          recommendedByAgent: r.recommended_by_agent,
+          rationale: r.rationale,
+          expectedBenefits: r.expected_benefits,
+          impactLevel: r.impact_level,
+          approvalStatus: r.approval_status,
+          createdAt: r.created_at,
+          daysPending: r.days_pending,
+        }));
+
+        res.json({ success: true, data: { requests, total: requests.length } });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get single owner request by reqNumber
+    router.get('/requests/:reqNumber', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const result = await this.db.query(`SELECT * FROM owner_requests WHERE req_number = $1`, [reqNumber]);
+        if (result.length === 0) return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        const r = result[0];
+        res.json({ success: true, data: { id: r.id, reqNumber: r.req_number, title: r.title, description: r.description, priority: r.priority, primaryBu: r.primary_bu, currentPhase: r.current_phase, assignedTo: r.assigned_to, isBlocked: r.is_blocked, blockedReason: r.blocked_reason, tags: r.tags || [], source: r.source, createdAt: r.created_at, updatedAt: r.updated_at } });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // Request Approval Workflow (Unified Model)
+    // =========================================================================
+
+    // Update approval fields for a request
+    router.put('/requests/:reqNumber/approval', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { requiresApproval, approvalStatus, recommendedByAgent, rationale, expectedBenefits, impactLevel } = req.body;
+
+        const updates: string[] = [];
+        const params: any[] = [];
+        let paramIndex = 1;
+
+        if (requiresApproval !== undefined) {
+          updates.push(`requires_approval = $${paramIndex++}`);
+          params.push(requiresApproval);
+        }
+        if (approvalStatus) {
+          updates.push(`approval_status = $${paramIndex++}`);
+          params.push(approvalStatus);
+          // Also update current_phase based on approval status
+          if (approvalStatus === 'pending' || approvalStatus === 'under_review') {
+            updates.push(`current_phase = 'pending_approval'`);
+          }
+        }
+        if (recommendedByAgent) {
+          updates.push(`recommended_by_agent = $${paramIndex++}`);
+          params.push(recommendedByAgent);
+        }
+        if (rationale) {
+          updates.push(`rationale = $${paramIndex++}`);
+          params.push(rationale);
+        }
+        if (expectedBenefits) {
+          updates.push(`expected_benefits = $${paramIndex++}`);
+          params.push(expectedBenefits);
+        }
+        if (impactLevel) {
+          updates.push(`impact_level = $${paramIndex++}`);
+          params.push(impactLevel);
+        }
+
+        if (updates.length === 0) {
+          return res.status(400).json({ success: false, error: 'No fields to update' });
+        }
+
+        params.push(reqNumber);
+        const result = await this.db.query(
+          `UPDATE owner_requests SET ${updates.join(', ')}, updated_at = NOW() WHERE req_number = $${paramIndex} RETURNING *`,
+          params
+        );
+
+        if (result.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+
+        console.log(`[SDLC API] Updated approval fields for ${reqNumber}`);
+        res.json({ success: true, data: { reqNumber, updated: true } });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Approve a request (moves to backlog)
+    router.post('/requests/:reqNumber/approve', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { approvedBy, notes } = req.body;
+
+        if (!approvedBy) {
+          return res.status(400).json({ success: false, error: 'Missing required field: approvedBy' });
+        }
+
+        // Use the database function to approve
+        const result = await this.db.query(
+          `SELECT approve_request($1, $2, $3) as approved`,
+          [reqNumber, approvedBy, notes || null]
+        );
+
+        console.log(`[SDLC API] Approved request ${reqNumber} by ${approvedBy}`);
+        res.json({ success: true, data: { reqNumber, approved: true, approvedBy } });
+      } catch (error: any) {
+        if (error.message.includes('not found')) {
+          return res.status(404).json({ success: false, error: error.message });
+        }
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Reject a request
+    router.post('/requests/:reqNumber/reject', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { rejectedBy, reason } = req.body;
+
+        if (!rejectedBy || !reason) {
+          return res.status(400).json({ success: false, error: 'Missing required fields: rejectedBy, reason' });
+        }
+
+        // Use the database function to reject
+        const result = await this.db.query(
+          `SELECT reject_request($1, $2, $3) as rejected`,
+          [reqNumber, rejectedBy, reason]
+        );
+
+        console.log(`[SDLC API] Rejected request ${reqNumber} by ${rejectedBy}`);
+        res.json({ success: true, data: { reqNumber, rejected: true, rejectedBy, reason } });
+      } catch (error: any) {
+        if (error.message.includes('not found')) {
+          return res.status(404).json({ success: false, error: error.message });
+        }
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Defer a request
+    router.post('/requests/:reqNumber/defer', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { deferredBy, until, reason } = req.body;
+
+        if (!deferredBy || !until || !reason) {
+          return res.status(400).json({ success: false, error: 'Missing required fields: deferredBy, until, reason' });
+        }
+
+        // Use the database function to defer
+        const result = await this.db.query(
+          `SELECT defer_request($1, $2, $3::TIMESTAMPTZ, $4) as deferred`,
+          [reqNumber, deferredBy, until, reason]
+        );
+
+        console.log(`[SDLC API] Deferred request ${reqNumber} by ${deferredBy} until ${until}`);
+        res.json({ success: true, data: { reqNumber, deferred: true, deferredBy, until, reason } });
+      } catch (error: any) {
+        if (error.message.includes('not found')) {
+          return res.status(404).json({ success: false, error: error.message });
+        }
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // Request Blockers (Many-to-Many Blocking Relationships)
+    // =========================================================================
+
+    // Add a blocking relationship between requests
+    router.post('/blockers', async (req: Request, res: Response) => {
+      try {
+        const { blockedReqNumber, blockingReqNumber, reason } = req.body;
+        const createdBy = req.headers['x-agent-id'] as string || 'agent';
+
+        if (!blockedReqNumber || !blockingReqNumber) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: blockedReqNumber, blockingReqNumber'
+          });
+        }
+
+        // Use the database function to add the blocker
+        const result = await this.db.query(
+          `SELECT add_request_blocker($1, $2, $3, $4) as blocker_id`,
+          [blockedReqNumber, blockingReqNumber, reason || null, createdBy]
+        );
+
+        console.log(`[SDLC API] Added blocker: ${blockedReqNumber} blocked by ${blockingReqNumber}`);
+
+        res.status(201).json({
+          success: true,
+          data: {
+            blockerId: result[0]?.blocker_id,
+            blockedReqNumber,
+            blockingReqNumber,
+            reason,
+            createdBy
+          }
+        });
+      } catch (error: any) {
+        // Handle specific errors from the function
+        if (error.message.includes('not found')) {
+          return res.status(404).json({ success: false, error: error.message });
+        }
+        if (error.code === '23505') {
+          return res.status(409).json({
+            success: false,
+            error: `Blocker relationship already exists: ${req.body.blockedReqNumber} blocked by ${req.body.blockingReqNumber}`
+          });
+        }
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get blockers for a specific request
+    router.get('/blockers/:reqNumber', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const direction = req.query.direction as string || 'both'; // 'blocked_by', 'blocking', or 'both'
+
+        const result = await this.db.query(`
+          SELECT * FROM v_request_blockers WHERE req_number = $1
+        `, [reqNumber]);
+
+        if (result.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+
+        const r = result[0];
+        res.json({
+          success: true,
+          data: {
+            reqNumber: r.req_number,
+            title: r.title,
+            currentPhase: r.current_phase,
+            isBlocked: r.is_blocked,
+            blockerCount: r.blocker_count,
+            blockedBy: r.blocked_by || [],
+            blocking: r.blocking || []
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Resolve blockers when a request completes
+    router.post('/blockers/resolve/:reqNumber', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+
+        const result = await this.db.query(
+          `SELECT resolve_request_blocker($1) as resolved_count`,
+          [reqNumber]
+        );
+
+        const resolvedCount = result[0]?.resolved_count || 0;
+        console.log(`[SDLC API] Resolved ${resolvedCount} blockers for ${reqNumber}`);
+
+        res.json({
+          success: true,
+          data: {
+            reqNumber,
+            resolvedCount
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get deepest unblocked requests (for orchestrator prioritization)
+    router.get('/deepest-unblocked', async (req: Request, res: Response) => {
+      try {
+        const limit = parseInt(req.query.limit as string) || 10;
+
+        const result = await this.db.query(
+          `SELECT * FROM get_deepest_unblocked_requests($1)`,
+          [limit]
+        );
+
+        const requests = result.map((r: any) => ({
+          reqNumber: r.req_number,
+          title: r.title,
+          priority: r.priority,
+          currentPhase: r.current_phase,
+          depth: r.depth,
+          blocksCount: r.blocks_count
+        }));
+
+        res.json({
+          success: true,
+          data: {
+            requests,
+            count: requests.length
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Remove a specific blocking relationship
+    router.delete('/blockers/:blockedReqNumber/:blockingReqNumber', async (req: Request, res: Response) => {
+      try {
+        const { blockedReqNumber, blockingReqNumber } = req.params;
+
+        // Get request IDs
+        const blocked = await this.db.query(
+          `SELECT id FROM owner_requests WHERE req_number = $1`,
+          [blockedReqNumber]
+        );
+        const blocking = await this.db.query(
+          `SELECT id FROM owner_requests WHERE req_number = $1`,
+          [blockingReqNumber]
+        );
+
+        if (blocked.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${blockedReqNumber}` });
+        }
+        if (blocking.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${blockingReqNumber}` });
+        }
+
+        // Delete the blocker relationship
+        const result = await this.db.query(`
+          DELETE FROM request_blockers
+          WHERE blocked_request_id = $1 AND blocking_request_id = $2
+          RETURNING id
+        `, [blocked[0].id, blocking[0].id]);
+
+        if (result.length === 0) {
+          return res.status(404).json({
+            success: false,
+            error: `Blocker relationship not found: ${blockedReqNumber} blocked by ${blockingReqNumber}`
+          });
+        }
+
+        // Check if blocked request has any remaining blockers
+        const remainingBlockers = await this.db.query(`
+          SELECT COUNT(*) as count FROM request_blockers
+          WHERE blocked_request_id = $1 AND resolved_at IS NULL
+        `, [blocked[0].id]);
+
+        // If no more blockers, unblock the request
+        if (parseInt(remainingBlockers[0].count) === 0) {
+          await this.db.query(`
+            UPDATE owner_requests
+            SET is_blocked = FALSE, blocked_reason = NULL
+            WHERE id = $1
+          `, [blocked[0].id]);
+        }
+
+        console.log(`[SDLC API] Removed blocker: ${blockedReqNumber} no longer blocked by ${blockingReqNumber}`);
+
+        res.json({
+          success: true,
+          data: {
+            blockedReqNumber,
+            blockingReqNumber,
+            removed: true
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // ========================================================================
+    // AI FUNCTION CALLING ENDPOINTS
+    // ========================================================================
+
+    // Get items blocked BY a specific request (what's waiting on this)
+    router.get('/requests/:reqNumber/blocked-by', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+
+        // Get the blocking request ID
+        const blocking = await this.db.query(
+          `SELECT id FROM owner_requests WHERE req_number = $1`,
+          [reqNumber]
+        );
+
+        if (blocking.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+
+        // Find all requests blocked by this one
+        const blockedItems = await this.db.query(`
+          SELECT
+            r.req_number,
+            r.title,
+            r.priority,
+            r.current_phase,
+            rb.reason as blocker_reason,
+            rb.created_at as blocked_since
+          FROM request_blockers rb
+          JOIN owner_requests r ON r.id = rb.blocked_request_id
+          WHERE rb.blocking_request_id = $1 AND rb.resolved_at IS NULL
+          ORDER BY
+            CASE r.priority
+              WHEN 'catastrophic' THEN 1
+              WHEN 'critical' THEN 2
+              WHEN 'high' THEN 3
+              WHEN 'medium' THEN 4
+              WHEN 'low' THEN 5
+            END
+        `, [blocking[0].id]);
+
+        res.json({
+          success: true,
+          data: {
+            blockingRequest: reqNumber,
+            blockedItems: blockedItems.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              phase: r.current_phase,
+              blockerReason: r.blocker_reason,
+              blockedSince: r.blocked_since
+            })),
+            count: blockedItems.length
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get blocker chain (recursive)
+    router.get('/requests/:reqNumber/blocker-chain', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+
+        // Recursive CTE to get full blocker chain
+        const chain = await this.db.query(`
+          WITH RECURSIVE blocker_chain AS (
+            -- Base case: direct blockers
+            SELECT
+              r.id,
+              r.req_number,
+              r.title,
+              r.priority,
+              r.current_phase,
+              r.is_blocked,
+              1 as depth,
+              ARRAY[r.req_number] as path
+            FROM owner_requests r
+            WHERE r.req_number = $1
+
+            UNION ALL
+
+            -- Recursive case: blockers of blockers
+            SELECT
+              r.id,
+              r.req_number,
+              r.title,
+              r.priority,
+              r.current_phase,
+              r.is_blocked,
+              bc.depth + 1,
+              bc.path || r.req_number
+            FROM blocker_chain bc
+            JOIN request_blockers rb ON rb.blocked_request_id = bc.id
+            JOIN owner_requests r ON r.id = rb.blocking_request_id
+            WHERE NOT r.req_number = ANY(bc.path)  -- Prevent cycles
+              AND rb.resolved_at IS NULL
+              AND bc.depth < 10  -- Max depth
+          )
+          SELECT DISTINCT ON (req_number) * FROM blocker_chain ORDER BY req_number, depth
+        `, [reqNumber]);
+
+        res.json({
+          success: true,
+          data: {
+            targetRequest: reqNumber,
+            chain: chain.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              phase: r.current_phase,
+              isBlocked: r.is_blocked,
+              depth: r.depth
+            })),
+            totalInChain: chain.length
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get unblocked work with sorting options
+    router.get('/requests/unblocked', async (req: Request, res: Response) => {
+      try {
+        const maxHours = parseFloat(req.query.maxHours as string) || null;
+        const sortBy = (req.query.sortBy as string) || 'priority';
+        const limit = parseInt(req.query.limit as string) || 20;
+
+        let orderClause = '';
+        switch (sortBy) {
+          case 'effort_asc':
+            orderClause = 'ORDER BY COALESCE(estimated_hours, 999) ASC, priority_order';
+            break;
+          case 'effort_desc':
+            orderClause = 'ORDER BY COALESCE(estimated_hours, 0) DESC, priority_order';
+            break;
+          case 'age':
+            orderClause = 'ORDER BY created_at ASC, priority_order';
+            break;
+          default: // priority
+            orderClause = 'ORDER BY priority_order, created_at ASC';
+        }
+
+        const hoursFilter = maxHours ? `AND (estimated_hours IS NULL OR estimated_hours <= ${maxHours})` : '';
+
+        const requests = await this.db.query(`
+          SELECT
+            req_number,
+            title,
+            priority,
+            current_phase,
+            estimated_hours,
+            created_at,
+            source_customer,
+            CASE priority
+              WHEN 'catastrophic' THEN 1
+              WHEN 'critical' THEN 2
+              WHEN 'high' THEN 3
+              WHEN 'medium' THEN 4
+              WHEN 'low' THEN 5
+            END as priority_order
+          FROM owner_requests
+          WHERE is_blocked = FALSE
+            AND current_phase NOT IN ('done', 'cancelled')
+            ${hoursFilter}
+          ${orderClause}
+          LIMIT $1
+        `, [limit]);
+
+        res.json({
+          success: true,
+          data: {
+            requests: requests.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              phase: r.current_phase,
+              estimatedHours: r.estimated_hours,
+              createdAt: r.created_at,
+              customer: r.source_customer
+            })),
+            count: requests.length,
+            sortedBy: sortBy
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Get requests by customer/source
+    router.get('/requests/by-customer/:customerName', async (req: Request, res: Response) => {
+      try {
+        const { customerName } = req.params;
+
+        const requests = await this.db.query(`
+          SELECT
+            req_number,
+            title,
+            priority,
+            current_phase,
+            is_blocked,
+            source_customer,
+            created_at
+          FROM owner_requests
+          WHERE LOWER(source_customer) LIKE LOWER($1)
+             OR LOWER(source) LIKE LOWER($1)
+             OR LOWER(title) LIKE LOWER($1)
+          ORDER BY
+            CASE priority
+              WHEN 'catastrophic' THEN 1
+              WHEN 'critical' THEN 2
+              WHEN 'high' THEN 3
+              WHEN 'medium' THEN 4
+              WHEN 'low' THEN 5
+            END,
+            created_at DESC
+        `, [`%${customerName}%`]);
+
+        res.json({
+          success: true,
+          data: {
+            customerSearch: customerName,
+            requests: requests.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              phase: r.current_phase,
+              isBlocked: r.is_blocked,
+              customer: r.source_customer,
+              createdAt: r.created_at
+            })),
+            count: requests.length
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Estimate completion for a request
+    router.get('/requests/:reqNumber/estimate', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+
+        // Get request details and blockers
+        const request = await this.db.query(`
+          SELECT
+            r.*,
+            COUNT(rb.id) as blocker_count,
+            SUM(COALESCE(blocking.estimated_hours, 4)) as blocked_hours
+          FROM owner_requests r
+          LEFT JOIN request_blockers rb ON rb.blocked_request_id = r.id AND rb.resolved_at IS NULL
+          LEFT JOIN owner_requests blocking ON blocking.id = rb.blocking_request_id
+          WHERE r.req_number = $1
+          GROUP BY r.id
+        `, [reqNumber]);
+
+        if (request.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+
+        const r = request[0];
+        const ownHours = r.estimated_hours || 4;
+        const blockedHours = parseFloat(r.blocked_hours) || 0;
+        const totalHours = ownHours + blockedHours;
+
+        // Simple estimate: 6 productive hours per day
+        const daysNeeded = Math.ceil(totalHours / 6);
+        const estimatedDate = new Date();
+        estimatedDate.setDate(estimatedDate.getDate() + daysNeeded);
+
+        res.json({
+          success: true,
+          data: {
+            reqNumber,
+            title: r.title,
+            priority: r.priority,
+            currentPhase: r.current_phase,
+            isBlocked: r.is_blocked,
+            blockerCount: parseInt(r.blocker_count),
+            estimate: {
+              ownHours,
+              blockedHours,
+              totalHours,
+              daysNeeded,
+              estimatedCompletionDate: estimatedDate.toISOString().split('T')[0],
+              confidence: r.is_blocked ? 'low' : (r.estimated_hours ? 'medium' : 'low'),
+              note: r.is_blocked
+                ? `Blocked by ${r.blocker_count} items. Resolve blockers first.`
+                : 'Estimate based on current velocity.'
+            }
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Analyze workload for time period
+    router.get('/workload/analyze', async (req: Request, res: Response) => {
+      try {
+        const hours = parseFloat(req.query.hours as string) || 8;
+
+        // Get unblocked work sorted by priority
+        const available = await this.db.query(`
+          SELECT
+            req_number,
+            title,
+            priority,
+            current_phase,
+            COALESCE(estimated_hours, 4) as estimated_hours
+          FROM owner_requests
+          WHERE is_blocked = FALSE
+            AND current_phase NOT IN ('done', 'cancelled')
+          ORDER BY
+            CASE priority
+              WHEN 'catastrophic' THEN 1
+              WHEN 'critical' THEN 2
+              WHEN 'high' THEN 3
+              WHEN 'medium' THEN 4
+              WHEN 'low' THEN 5
+            END,
+            created_at ASC
+        `);
+
+        // Calculate what fits in the time
+        let remainingHours = hours;
+        const canComplete: any[] = [];
+        const partial: any[] = [];
+
+        for (const r of available) {
+          const estHours = parseFloat(r.estimated_hours);
+          if (remainingHours >= estHours) {
+            canComplete.push({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              estimatedHours: estHours
+            });
+            remainingHours -= estHours;
+          } else if (remainingHours > 0) {
+            partial.push({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              estimatedHours: estHours,
+              canProgressHours: remainingHours
+            });
+            break;
+          }
+        }
+
+        res.json({
+          success: true,
+          data: {
+            hoursAvailable: hours,
+            analysis: {
+              canCompleteCount: canComplete.length,
+              canComplete,
+              partialProgress: partial,
+              unusedHours: Math.max(0, remainingHours),
+              totalAvailableItems: available.length
+            }
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Update request priority (for AI)
+    router.post('/requests/:reqNumber/priority', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { priority, reason, updatedBy } = req.body;
+
+        const validPriorities = ['low', 'medium', 'high', 'critical', 'catastrophic'];
+        if (!validPriorities.includes(priority)) {
+          return res.status(400).json({ success: false, error: `Invalid priority: ${priority}` });
+        }
+
+        const result = await this.db.query(`
+          UPDATE owner_requests
+          SET priority = $1, updated_at = NOW()
+          WHERE req_number = $2
+          RETURNING req_number, title, priority
+        `, [priority, reqNumber]);
+
+        if (result.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+
+        console.log(`[SDLC API] Priority updated: ${reqNumber} -> ${priority} by ${updatedBy || 'unknown'}. Reason: ${reason || 'none'}`);
+
+        res.json({
+          success: true,
+          data: {
+            reqNumber: result[0].req_number,
+            title: result[0].title,
+            newPriority: result[0].priority,
+            updatedBy: updatedBy || 'unknown',
+            reason
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Set top priority (catastrophic + focus)
+    router.post('/requests/:reqNumber/top-priority', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { reason, updatedBy } = req.body;
+
+        const result = await this.db.query(`
+          UPDATE owner_requests
+          SET priority = 'catastrophic', updated_at = NOW()
+          WHERE req_number = $1
+          RETURNING req_number, title, priority
+        `, [reqNumber]);
+
+        if (result.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+
+        console.log(`[SDLC API] TOP PRIORITY SET: ${reqNumber} by ${updatedBy || 'ai-assist'}. Reason: ${reason || 'none'}`);
+
+        res.json({
+          success: true,
+          data: {
+            reqNumber: result[0].req_number,
+            title: result[0].title,
+            priority: 'catastrophic',
+            isTopPriority: true,
+            updatedBy: updatedBy || 'ai-assist',
+            reason,
+            message: `${reqNumber} is now the top priority.`
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Search requests
+    router.get('/requests/search', async (req: Request, res: Response) => {
+      try {
+        const query = req.query.q as string;
+        const limit = parseInt(req.query.limit as string) || 20;
+
+        if (!query) {
+          return res.status(400).json({ success: false, error: 'Search query required' });
+        }
+
+        const results = await this.db.query(`
+          SELECT
+            req_number,
+            title,
+            priority,
+            current_phase,
+            is_blocked,
+            tags,
+            created_at
+          FROM owner_requests
+          WHERE
+            LOWER(title) LIKE LOWER($1)
+            OR LOWER(description) LIKE LOWER($1)
+            OR req_number LIKE UPPER($1)
+            OR $2 = ANY(tags)
+          ORDER BY
+            CASE WHEN LOWER(title) LIKE LOWER($1) THEN 0 ELSE 1 END,
+            CASE priority
+              WHEN 'catastrophic' THEN 1
+              WHEN 'critical' THEN 2
+              WHEN 'high' THEN 3
+              WHEN 'medium' THEN 4
+              WHEN 'low' THEN 5
+            END
+          LIMIT $3
+        `, [`%${query}%`, query.toLowerCase(), limit]);
+
+        res.json({
+          success: true,
+          data: {
+            query,
+            results: results.map((r: any) => ({
+              reqNumber: r.req_number,
+              title: r.title,
+              priority: r.priority,
+              phase: r.current_phase,
+              isBlocked: r.is_blocked,
+              tags: r.tags,
+              createdAt: r.created_at
+            })),
+            count: results.length
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Mount routes
     this.app.use('/api/agent', router);
 
@@ -894,6 +1939,11 @@ export class SDLCApiServer {
         console.log('  PUT  /api/agent/recommendations/:id/status');
         console.log('  GET  /api/agent/requests');
         console.log('  GET  /api/agent/request-stats');
+        console.log('  POST /api/agent/blockers');
+        console.log('  GET  /api/agent/blockers/:reqNumber');
+        console.log('  POST /api/agent/blockers/resolve/:reqNumber');
+        console.log('  GET  /api/agent/deepest-unblocked');
+        console.log('  DELETE /api/agent/blockers/:blocked/:blocking');
         resolve();
       });
     });

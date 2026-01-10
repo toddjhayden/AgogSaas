@@ -235,6 +235,333 @@ All spawned agents now receive in their context:
 
 ---
 
+## CATASTROPHIC FIX DEPLOYED (Session 2 Continued)
+
+**Commit:** `10d5128` - fix(orchestrator): CATASTROPHIC - Fix blocked P0 items excluded from priority check
+
+### The Bug (Fixed)
+```typescript
+// BEFORE (BUG): Excluded blocked catastrophic items
+const catastrophicReqs = mappedRequests.filter(r =>
+  r.priority === 'catastrophic' && r.status !== 'BLOCKED'
+);
+
+// AFTER (FIXED): Include ALL catastrophic items
+const catastrophicReqs = mappedRequests.filter(r =>
+  r.priority === 'catastrophic'
+);
+const blockedCatastrophicReqs = catastrophicReqs.filter(r => r.status === 'BLOCKED');
+```
+
+### Impact
+- Blocked P0 items now trigger catastrophic priority enforcement
+- Blockers OF blocked P0 items now get prioritized
+- Added logging for blocked catastrophic REQs
+
+### Deployment Status
+- Build: ✅ Passed
+- Type Check: ✅ Passed
+- Commit: ✅ `10d5128`
+- Push: ✅ Pushed to origin/master
+
+---
+
+---
+
+## Session 3: SDLC GUI Enhancements (Continued)
+
+### Cross-Page Filtering Improvements (Completed Earlier)
+- Added click-to-focus filter functionality on Kanban, Recommendations, Blocker Graph
+- Fixed duplicate filter menus - local filters hidden when global filters enabled
+- Integrated Blocker Graph with cross-page filtering
+
+### AI Chat Enhancements (Commit 96ed60a)
+
+#### Expanded Model Lists
+- **GitHub Models**: 30+ models including Llama 3.1/3.2/3.3, Mistral variants, Phi-4, Cohere, AI21, DeepSeek
+- **Anthropic**: Added Claude Opus 4.5, updated model list
+- **OpenAI**: Added o1, o3-mini, GPT-4 variants
+- **Google Gemini**: Added 2.0 Flash Exp, Thinking variants
+- **DeepSeek**: Added R1 reasoning model
+
+#### Side-by-Side Comparison View
+- New `AIComparePanel` component for comparing multiple providers
+- Parallel request handling to all selected providers
+- Responsive grid layout for responses
+- Copy button for each response
+
+#### Mobile Responsiveness
+- Larger touch targets, safe area utilities for iOS
+- Full-screen modals on mobile
+- Responsive input areas
+
+### Issue Identified
+User reports expanded AI options list broke AI Assist functionality. Models should be fetched dynamically from vendor APIs after user connects, not hardcoded.
+
+---
+
+## Current Tasks (Session 3 Continued)
+
+### Priority 1: Fix AI Assist Dynamic Model Fetching
+- Fetch available models from vendor API after user authenticates
+- GitHub has ~9 models available to user
+- Remove hardcoded model lists, query APIs instead
+
+### Priority 2: Cross-Page Filtering Visibility
+- All filtered pages should show what's currently filtered (especially Blocker Graph)
+- Add visible filter indicator/menu to all pages using cross-page filtering
+
+### Priority 3: Double-Click to Filter
+- Double-click on REQ/REC numbers populates filter textbox
+- Works on: Kanban cards, Recommendations cards, Blocker Graph items
+- Blocker Graph special behavior: show blocked AND blocking items connected to filtered REQ/REC
+
+### Priority 4: D3.js Graph Visualizations
+- User wants to try D3.js for Blocker Graph and Entity Graph
+
+### Future Work (After Current Tasks)
+- Plan AI + SDLC database interaction (MCP or similar)
+- Add security to AI experience
+- Split agogsaas and SDLC projects
+
+---
+
+## Session 4: AI & Filtering Fixes (Continued)
+
+### Dynamic AI Model Fetching (Commit fd69ebc)
+
+Fixed the broken AI Assist by implementing dynamic model fetching:
+
+#### Changes to `ai-providers.ts`:
+- Renamed `availableModels` to `fallbackModels` (minimal fallback list)
+- Added `modelsEndpoint` for each provider's models API
+- Added `supportsModelFetching` flag
+- Added `DynamicModelInfo` interface for fetched models
+- Added `fetchedModels` and `modelsLastFetched` to `AIProviderConfig`
+
+#### Changes to `useAIChatStore.ts`:
+- Added `isLoadingModels: Record<string, boolean>` state
+- Added `fetchModelsForProvider()` action with provider-specific logic:
+  - **GitHub Models**: `GET /catalog/models` with Bearer token
+  - **OpenAI**: `GET /v1/models` filtering for gpt/o1/o3 models
+  - **Google Gemini**: `GET /v1beta/models?key=...` filtering for generateContent support
+  - **DeepSeek**: `GET /models` (OpenAI-compatible)
+- Auto-fetches models after `addProvider()`
+
+#### Changes to `SettingsPage.tsx`:
+- Model dropdown uses `fetchedModels` when available, else `fallbackModels`
+- Added refresh button for providers that support model fetching
+- Shows model count and last updated timestamp
+- Shows loading spinner during fetch
+
+### Cross-Page Filtering Improvements (Commit 140fa4b)
+
+#### New `FilterStatus` Component:
+- Always-visible filter indicator (even when filters disabled)
+- Shows filter toggle ON/OFF state
+- Displays active filters as color-coded badges:
+  - Type (purple), Focused item (blue), Status (green), Priority (orange), Search (gray)
+- Clear button for each filter and global reset
+
+#### New `useDoubleClickFilter` Hook:
+- Double-click any REQ/REC number to focus filter on it
+- Automatically enables filters and sets focus
+- Works on Kanban cards, Recommendation cards, Blocker Graph nodes
+
+#### Updated Pages:
+- **KanbanPage**: Added FilterStatus, double-click on REQ numbers
+- **RecommendationsKanbanPage**: Added FilterStatus, double-click on REC numbers
+- **BlockerGraphPage**: Added FilterStatus, double-click on REQ numbers
+
+### Blocker Graph Connected Filtering (Commit d8fb95d)
+
+Special filter behavior for Blocker Graph:
+- When focusing on a REQ, shows the complete blocking chain context
+- Displays: focused item + all items blocking it + all items it blocks
+- Uses `getConnectedRequests()` function to find all connected items
+- `filteredRequests` memo applies this logic when focus is active
+
+### AI Chat Button Fix (Commit aa6afaa)
+- Fixed floating ChatButton overlapping submit button in AI panel
+- Now hidden when chat panel is open (close button in header is sufficient)
+
+### D3.js Force-Directed Graphs (Commits 55446fb, c56409a)
+
+#### D3BlockerGraph Component:
+- Interactive force simulation for blocking relationships
+- Nodes sized by number of items they block
+- Color-coded by priority (critical=red, high=orange, medium=yellow, low=green)
+- Stroke indicates blocked status
+- Drag nodes to reposition, scroll to zoom, pan to move
+- Click to select, double-click to filter
+- Hover tooltip with request details
+- Legend showing priority colors and interaction hints
+
+#### D3EntityGraph Component:
+- Force-directed layout for entity dependencies
+- Nodes colored by business unit (core-infra=blue, sales=green, etc.)
+- Size reflects total dependency count
+- Hover highlights connected dependencies
+- Click to select entity for details panel
+- Business unit legend
+
+#### Updated Pages:
+- **BlockerGraphPage**: List/Graph view toggle
+- **EntityGraphPage**: List/Graph view toggle
+
+### Commits This Session
+1. `fd69ebc` - feat(ai-chat): Dynamic model fetching from provider APIs
+2. `140fa4b` - feat(filtering): Add always-visible FilterStatus and double-click to filter
+3. `d8fb95d` - feat(blocker-graph): Connected items filtering on focus
+4. `aa6afaa` - fix(ai-chat): Hide floating button when chat is open
+5. `55446fb` - feat(blocker-graph): Add D3 force-directed graph visualization
+6. `c56409a` - feat(entity-graph): Add D3 force-directed entity dependency graph
+
+---
+
+## Remaining Tasks
+
+1. **D3.js for Graph Visualizations** - Blocker Graph, Entity Graph
+2. **AI + SDLC Database Interaction** - Plan MCP or similar approach
+3. **AI Security** - Add authentication/authorization
+4. **Project Split** - Separate agogsaas and SDLC projects
+
+---
+
+---
+
+## Session 5: AI + SDLC Function Calling Implementation
+
+### Planning Complete
+
+Created comprehensive MCP/Function Calling integration plan at:
+`.claude/plans/mcp-sdlc-integration.md`
+
+### User's Desired AI Interactions
+
+From sdlc.agog.fyi AI Assist, user wants to:
+1. "Change REQ-X priority to catastrophic"
+2. "Focus all workflow effort on REQ-X"
+3. "What's blocked by REQ-X?"
+4. "Prioritize unblocked work for 8 hours"
+5. "Do easiest work this weekend"
+6. "When will REQ-X be finished?"
+7. "Optimize priorities for weekend productivity"
+8. "What did Customer XLX request? Prioritize their needs."
+
+### Architecture Decision
+
+**Option B: Function Calling** (not MCP Server)
+- Works with all AI providers in browser
+- Dual approach: Native function calling + prompt-based fallback
+- No project separation required
+
+### Provider Support
+
+| Provider | Function Calling |
+|----------|------------------|
+| OpenAI (GPT-4, o1) | ✅ Native |
+| Anthropic (Claude) | ✅ Native (tools) |
+| Google Gemini | ✅ Native |
+| DeepSeek | ✅ Native |
+| GitHub Models | ⚠️ GPT-4 yes, Llama no |
+
+### Files Created
+
+1. **`sdlc-gui/src/types/ai-functions.ts`** ✅
+   - 11 Query functions (read-only)
+   - 8 Mutation functions (require confirmation)
+   - Provider-specific converters (OpenAI, Claude, Gemini)
+   - Prompt-based fallback generator
+   - Function call parser for non-native providers
+
+### Functions Defined
+
+**Query Functions:**
+- `getRequestDetails` - Full request info
+- `getBlockedByRequest` - Items blocked by a request
+- `getBlockersForRequest` - What's blocking a request
+- `getBlockerChain` - Recursive blocker tree
+- `getUnblockedWork` - Available work sorted by priority/effort
+- `getRequestsByCustomer` - Customer-specific requests
+- `estimateCompletion` - ETA for request
+- `analyzeWorkload` - What can be done in X hours
+- `getRequestsByPriority` - Filter by priority
+- `getRequestsByPhase` - Filter by phase
+- `searchRequests` - Text search
+
+**Mutation Functions:**
+- `updateRequestPriority` - Change priority
+- `setTopPriority` - Flag as most important
+- `setWorkflowFocus` - Direct agent effort %
+- `optimizePriorities` - Auto-optimize for timeframe
+- `addBlocker` - Add blocker relationship
+- `removeBlocker` - Remove blocker
+- `createRecommendation` - Create new REC
+- `updateRequestPhase` - Move to different phase
+
+### Implementation Progress
+
+- [x] Plan AI + SDLC integration
+- [x] Create ai-functions.ts with definitions
+- [x] Create ai-function-executor.ts
+- [x] Add new SDLC API endpoints (10 new endpoints)
+- [ ] Update useAIChatStore with function calling
+- [ ] Add prompt-based fallback
+- [ ] Test with multiple providers
+
+### Files Created/Modified
+
+1. **`sdlc-gui/src/types/ai-functions.ts`** - Function definitions + provider converters
+2. **`sdlc-gui/src/services/ai-function-executor.ts`** - Function execution service
+3. **`sdlc-gui/src/services/ai-function-handler.ts`** - Function calling orchestration
+4. **`agent-backend/src/api/sdlc-api.server.ts`** - Added 10 new AI endpoints
+
+### New API Endpoints Added
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/requests/:reqNumber/blocked-by` | GET | Items blocked BY a request |
+| `/requests/:reqNumber/blocker-chain` | GET | Recursive blocker tree |
+| `/requests/unblocked` | GET | Unblocked work (sortable) |
+| `/requests/by-customer/:name` | GET | Customer-specific requests |
+| `/requests/:reqNumber/estimate` | GET | Completion estimate |
+| `/workload/analyze` | GET | What fits in X hours |
+| `/requests/:reqNumber/priority` | POST | Update priority |
+| `/requests/:reqNumber/top-priority` | POST | Set as #1 priority |
+| `/requests/search` | GET | Text search |
+
+### Remaining Integration Steps
+
+To complete the AI + SDLC function calling:
+
+1. **Modify `useAIChatStore.ts`** - In `sendMessage()`:
+   - Import `buildFunctionSystemPrompt`, `extractFunctionCalls`, `executeFunctionCallsWithConfirmation` from `ai-function-handler.ts`
+   - Wrap base system prompt with `buildFunctionSystemPrompt(basePrompt)`
+   - After getting AI response, call `extractFunctionCalls(responseText)`
+   - If function calls found, execute them and build follow-up message
+   - Display function results in chat
+
+2. **Add confirmation dialog** in `AIChatPanel.tsx`:
+   - Show modal when mutation function needs confirmation
+   - Pass confirmation callback to store
+
+3. **Test with providers**:
+   - GitHub Models (GPT-4o) - native function calling
+   - Claude - native tool use
+   - DeepSeek - native function calling
+   - Llama (GitHub) - prompt-based fallback
+
+### How to Use (Once Complete)
+
+From AI Assist in sdlc.agog.fyi:
+- "What's blocking REQ-P0-BUILD-1767507808-DB?"
+- "Change priority of REQ-XXX to catastrophic"
+- "Show me unblocked work I can do in 8 hours"
+- "What did customer XLX request?"
+
+---
+
 ## Session End
 
 - Date: January 9, 2026
@@ -243,4 +570,12 @@ All spawned agents now receive in their context:
   - Sasha agent created
   - Host listener fully integrated with Sasha
   - All workflow services (orchestrator, Sam, value-chain) have Sasha awareness
+  - **CATASTROPHIC FIX DEPLOYED**: Blocked P0 items now properly prioritized
+  - Cross-page filtering with click-to-focus
+  - **AI Chat fixed**: Dynamic model fetching from vendor APIs
+  - **FilterStatus**: Always-visible filter indicator on all pages
+  - **Double-click to filter**: Works on Kanban, Recommendations, Blocker Graph
+  - **Blocker Graph connected filtering**: Shows full blocking chain context
+  - **AI Function Calling Plan**: Complete architecture for AI + SDLC
+  - **ai-functions.ts**: 19 SDLC functions defined with provider converters
 
