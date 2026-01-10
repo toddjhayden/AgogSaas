@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSDLCStore } from '@/stores/useSDLCStore';
-import { RefreshCw, GitBranch, List } from 'lucide-react';
+import { RefreshCw, GitBranch, List, ArrowUpRight, ArrowDownLeft, X } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
 import { D3EntityGraph } from '@/components/D3EntityGraph';
 
 type ViewMode = 'list' | 'graph';
+type HighlightMode = 'none' | 'upstream' | 'downstream' | 'both';
 
 export default function EntityGraphPage() {
   const { entities, dependencies, graphLoading, fetchDependencyGraph } = useSDLCStore();
@@ -12,6 +13,8 @@ export default function EntityGraphPage() {
   const [executionPlan, setExecutionPlan] = useState<any>(null);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [highlightMode, setHighlightMode] = useState<HighlightMode>('none');
+  const [selectedBUs, setSelectedBUs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchDependencyGraph();
@@ -32,6 +35,90 @@ export default function EntityGraphPage() {
       )
     : [];
 
+  // Get all unique BUs
+  const allBUs = useMemo(() => {
+    return Array.from(new Set(entities.map(e => e.owningBu))).sort();
+  }, [entities]);
+
+  // Compute upstream entities (what this entity depends on, recursively)
+  const getUpstreamEntities = useMemo(() => {
+    if (!selectedEntity) return new Set<string>();
+    const upstream = new Set<string>();
+    const visited = new Set<string>();
+    const queue = [selectedEntity];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      // Find entities this one depends on
+      dependencies
+        .filter(d => d.dependentEntity === current)
+        .forEach(d => {
+          if (!visited.has(d.dependsOnEntity)) {
+            upstream.add(d.dependsOnEntity);
+            queue.push(d.dependsOnEntity);
+          }
+        });
+    }
+    return upstream;
+  }, [selectedEntity, dependencies]);
+
+  // Compute downstream entities (what depends on this entity, recursively)
+  const getDownstreamEntities = useMemo(() => {
+    if (!selectedEntity) return new Set<string>();
+    const downstream = new Set<string>();
+    const visited = new Set<string>();
+    const queue = [selectedEntity];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      // Find entities that depend on this one
+      dependencies
+        .filter(d => d.dependsOnEntity === current)
+        .forEach(d => {
+          if (!visited.has(d.dependentEntity)) {
+            downstream.add(d.dependentEntity);
+            queue.push(d.dependentEntity);
+          }
+        });
+    }
+    return downstream;
+  }, [selectedEntity, dependencies]);
+
+  // Highlighted entities based on mode
+  const highlightedEntities = useMemo(() => {
+    if (!selectedEntity || highlightMode === 'none') return new Set<string>();
+
+    const highlighted = new Set<string>();
+    highlighted.add(selectedEntity);
+
+    if (highlightMode === 'upstream' || highlightMode === 'both') {
+      getUpstreamEntities.forEach(e => highlighted.add(e));
+    }
+    if (highlightMode === 'downstream' || highlightMode === 'both') {
+      getDownstreamEntities.forEach(e => highlighted.add(e));
+    }
+    return highlighted;
+  }, [selectedEntity, highlightMode, getUpstreamEntities, getDownstreamEntities]);
+
+  // Toggle BU filter
+  const toggleBU = (bu: string) => {
+    setSelectedBUs(prev => {
+      const next = new Set(prev);
+      if (next.has(bu)) {
+        next.delete(bu);
+      } else {
+        next.add(bu);
+      }
+      return next;
+    });
+  };
+
   const handleComputeOrder = async () => {
     if (selectedEntities.length === 0) return;
     const response = await api.getExecutionOrder(selectedEntities);
@@ -48,12 +135,20 @@ export default function EntityGraphPage() {
     );
   };
 
-  // Prepare D3 graph data
+  // Prepare D3 graph data with filtering
   const d3GraphData = useMemo(() => {
-    // Create nodes from entities
-    const nodes = entities.map(entity => {
+    // Filter entities by BU if any BUs are selected
+    const filteredEntities = selectedBUs.size > 0
+      ? entities.filter(e => selectedBUs.has(e.owningBu))
+      : entities;
+
+    const entityNames = new Set(filteredEntities.map(e => e.entityName));
+
+    // Create nodes from filtered entities
+    const nodes = filteredEntities.map(entity => {
       const dependencyCount = dependencies.filter(d => d.dependentEntity === entity.entityName).length;
       const dependentCount = dependencies.filter(d => d.dependsOnEntity === entity.entityName).length;
+      const isHighlighted = highlightedEntities.has(entity.entityName);
 
       return {
         id: entity.entityName,
@@ -62,18 +157,21 @@ export default function EntityGraphPage() {
         type: entity.entityType || 'entity',
         dependencyCount,
         dependentCount,
+        isHighlighted,
       };
     });
 
-    // Create links from dependencies
-    const links = dependencies.map(dep => ({
-      source: dep.dependentEntity,
-      target: dep.dependsOnEntity,
-      relationshipType: dep.dependencyType,
-    }));
+    // Create links from dependencies (only between filtered entities)
+    const links = dependencies
+      .filter(dep => entityNames.has(dep.dependentEntity) && entityNames.has(dep.dependsOnEntity))
+      .map(dep => ({
+        source: dep.dependentEntity,
+        target: dep.dependsOnEntity,
+        relationshipType: dep.dependencyType,
+      }));
 
     return { nodes, links };
-  }, [entities, dependencies]);
+  }, [entities, dependencies, selectedBUs, highlightedEntities]);
 
   return (
     <div className="p-6">
@@ -118,34 +216,246 @@ export default function EntityGraphPage() {
 
       {/* D3 Force-Directed Graph View */}
       {viewMode === 'graph' && (
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <GitBranch className="text-blue-600" size={20} />
-              Entity Dependency Network
-            </h2>
-            <div className="text-sm text-slate-500">
-              {d3GraphData.nodes.length} entities · {d3GraphData.links.length} dependencies
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-lg shadow p-4">
+            {/* Graph Header with Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <GitBranch className="text-blue-600" size={20} />
+                  Entity Dependency Network
+                </h2>
+                <div className="text-sm text-slate-500">
+                  {d3GraphData.nodes.length} entities · {d3GraphData.links.length} dependencies
+                </div>
+              </div>
+
+              {/* Highlight Mode Controls */}
+              {selectedEntity && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Show:</span>
+                  <button
+                    onClick={() => setHighlightMode(highlightMode === 'upstream' ? 'none' : 'upstream')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      highlightMode === 'upstream' || highlightMode === 'both'
+                        ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    title="Show entities this one depends on"
+                  >
+                    <ArrowUpRight size={12} />
+                    Upstream
+                  </button>
+                  <button
+                    onClick={() => setHighlightMode(highlightMode === 'downstream' ? 'none' : 'downstream')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      highlightMode === 'downstream' || highlightMode === 'both'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    title="Show entities that depend on this one"
+                  >
+                    <ArrowDownLeft size={12} />
+                    Downstream
+                  </button>
+                  <button
+                    onClick={() => setHighlightMode(highlightMode === 'both' ? 'none' : 'both')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      highlightMode === 'both'
+                        ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    title="Show all connected entities"
+                  >
+                    Both
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* BU Filter */}
+            <div className="flex flex-wrap items-center gap-2 mb-4 pb-4 border-b">
+              <span className="text-xs text-slate-500">Filter by BU:</span>
+              {allBUs.map(bu => (
+                <button
+                  key={bu}
+                  onClick={() => toggleBU(bu)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    selectedBUs.has(bu)
+                      ? 'bg-blue-600 text-white'
+                      : selectedBUs.size === 0
+                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                  }`}
+                >
+                  {bu}
+                </button>
+              ))}
+              {selectedBUs.size > 0 && (
+                <button
+                  onClick={() => setSelectedBUs(new Set())}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs text-slate-500 hover:bg-slate-100"
+                >
+                  <X size={12} />
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {d3GraphData.nodes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-96 text-slate-400">
+                <p className="font-medium">No entities to display</p>
+                <p className="text-sm">
+                  {selectedBUs.size > 0 ? 'Try selecting different BUs' : 'Register entities to build the dependency graph'}
+                </p>
+              </div>
+            ) : (
+              <div className="h-[600px]">
+                <D3EntityGraph
+                  nodes={d3GraphData.nodes}
+                  links={d3GraphData.links}
+                  selectedEntity={selectedEntity}
+                  highlightedEntities={highlightedEntities}
+                  onNodeClick={(entityName) => {
+                    setSelectedEntity(entityName);
+                    toggleEntitySelection(entityName);
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar - same as list view */}
+          <div className="space-y-6">
+            {/* Selected Entity Details */}
+            {selectedEntity && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Entity Details</h2>
+                  <button
+                    onClick={() => {
+                      setSelectedEntity(null);
+                      setHighlightMode('none');
+                    }}
+                    className="p-1 hover:bg-slate-100 rounded"
+                  >
+                    <X size={16} className="text-slate-400" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm text-slate-500">Name</span>
+                    <p className="font-medium">{selectedEntity}</p>
+                  </div>
+
+                  {/* Impact Summary */}
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="p-2 bg-amber-50 rounded">
+                      <span className="text-amber-600">Upstream</span>
+                      <p className="font-semibold text-amber-700">{getUpstreamEntities.size}</p>
+                    </div>
+                    <div className="p-2 bg-blue-50 rounded">
+                      <span className="text-blue-600">Downstream</span>
+                      <p className="font-semibold text-blue-700">{getDownstreamEntities.size}</p>
+                    </div>
+                  </div>
+
+                  {entityDeps.length > 0 && (
+                    <>
+                      <div>
+                        <span className="text-sm text-slate-500">Depends On (direct)</span>
+                        <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
+                          {entityDeps
+                            .filter((d) => d.dependentEntity === selectedEntity)
+                            .map((d) => (
+                              <div
+                                key={d.id}
+                                className="flex items-center justify-between text-sm bg-slate-50 px-2 py-1 rounded cursor-pointer hover:bg-slate-100"
+                                onClick={() => setSelectedEntity(d.dependsOnEntity)}
+                              >
+                                <span>{d.dependsOnEntity}</span>
+                                <span className="text-xs text-slate-400">{d.dependencyType}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-sm text-slate-500">Depended By (direct)</span>
+                        <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
+                          {entityDeps
+                            .filter((d) => d.dependsOnEntity === selectedEntity)
+                            .map((d) => (
+                              <div
+                                key={d.id}
+                                className="flex items-center justify-between text-sm bg-slate-50 px-2 py-1 rounded cursor-pointer hover:bg-slate-100"
+                                onClick={() => setSelectedEntity(d.dependentEntity)}
+                              >
+                                <span>{d.dependentEntity}</span>
+                                <span className="text-xs text-slate-400">{d.dependencyType}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Execution Order Calculator */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Execution Order</h2>
+              <p className="text-sm text-slate-500 mb-4">
+                Click nodes in the graph to select entities for execution order computation
+              </p>
+
+              {selectedEntities.length > 0 && (
+                <div className="mb-4 p-3 bg-slate-50 rounded">
+                  <div className="text-sm font-medium mb-2">Selected ({selectedEntities.length}):</div>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedEntities.map((e) => (
+                      <span
+                        key={e}
+                        className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-200"
+                        onClick={() => toggleEntitySelection(e)}
+                        title="Click to remove"
+                      >
+                        {e} ×
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleComputeOrder}
+                disabled={selectedEntities.length === 0}
+                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Compute Order
+              </button>
+
+              {executionPlan && (
+                <div className="mt-4 space-y-2">
+                  <div className="text-sm font-medium">Execution Order:</div>
+                  {executionPlan.order.map((step: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 text-sm bg-slate-50 px-3 py-2 rounded cursor-pointer hover:bg-slate-100"
+                      onClick={() => setSelectedEntity(step.entity)}
+                    >
+                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-medium">
+                        {idx + 1}
+                      </span>
+                      <span>{step.entity}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{step.bu}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          {d3GraphData.nodes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-96 text-slate-400">
-              <p className="font-medium">No entities registered</p>
-              <p className="text-sm">Register entities to build the dependency graph</p>
-            </div>
-          ) : (
-            <div className="h-[600px]">
-              <D3EntityGraph
-                nodes={d3GraphData.nodes}
-                links={d3GraphData.links}
-                selectedEntity={selectedEntity}
-                onNodeClick={(entityName) => {
-                  setSelectedEntity(entityName);
-                  toggleEntitySelection(entityName);
-                }}
-              />
-            </div>
-          )}
         </div>
       )}
 

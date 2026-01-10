@@ -13,6 +13,7 @@ interface EntityNode {
   type: string;
   dependencyCount: number;
   dependentCount: number;
+  isHighlighted?: boolean;
 }
 
 interface EntityLink {
@@ -25,6 +26,7 @@ interface D3EntityGraphProps {
   nodes: EntityNode[];
   links: EntityLink[];
   selectedEntity?: string | null;
+  highlightedEntities?: Set<string>;
   onNodeClick?: (entityName: string) => void;
   onNodeDoubleClick?: (entityName: string) => void;
   width?: number;
@@ -45,6 +47,7 @@ export function D3EntityGraph({
   nodes,
   links,
   selectedEntity,
+  highlightedEntities,
   onNodeClick,
   onNodeDoubleClick,
   width = 800,
@@ -127,6 +130,9 @@ export function D3EntityGraph({
       .force('x', d3.forceX(w / 2).strength(0.05))
       .force('y', d3.forceY(h / 2).strength(0.05));
 
+    // Check if highlighting is active for links
+    const linkHasHighlighting = highlightedEntities && highlightedEntities.size > 0;
+
     // Draw links
     const link = container.append('g')
       .attr('class', 'links')
@@ -134,9 +140,33 @@ export function D3EntityGraph({
       .data(linkData)
       .enter()
       .append('line')
-      .attr('stroke', '#cbd5e1')
-      .attr('stroke-width', 1.5)
-      .attr('stroke-opacity', 0.6)
+      .attr('stroke', d => {
+        if (!linkHasHighlighting) return '#cbd5e1';
+        const sourceId = typeof d.source === 'string' ? d.source : (d.source as any).id;
+        const targetId = typeof d.target === 'string' ? d.target : (d.target as any).id;
+        if (highlightedEntities.has(sourceId) && highlightedEntities.has(targetId)) {
+          return '#10b981'; // Green for highlighted path
+        }
+        return '#e2e8f0';
+      })
+      .attr('stroke-width', d => {
+        if (!linkHasHighlighting) return 1.5;
+        const sourceId = typeof d.source === 'string' ? d.source : (d.source as any).id;
+        const targetId = typeof d.target === 'string' ? d.target : (d.target as any).id;
+        if (highlightedEntities.has(sourceId) && highlightedEntities.has(targetId)) {
+          return 2.5;
+        }
+        return 1;
+      })
+      .attr('stroke-opacity', d => {
+        if (!linkHasHighlighting) return 0.6;
+        const sourceId = typeof d.source === 'string' ? d.source : (d.source as any).id;
+        const targetId = typeof d.target === 'string' ? d.target : (d.target as any).id;
+        if (highlightedEntities.has(sourceId) && highlightedEntities.has(targetId)) {
+          return 0.8;
+        }
+        return 0.2;
+      })
       .attr('marker-end', 'url(#entity-arrowhead)');
 
     // Draw nodes
@@ -164,6 +194,9 @@ export function D3EntityGraph({
           d.fy = null;
         }));
 
+    // Check if highlighting is active
+    const hasHighlighting = highlightedEntities && highlightedEntities.size > 0;
+
     // Node circles
     node.append('circle')
       .attr('r', d => {
@@ -171,9 +204,28 @@ export function D3EntityGraph({
         const baseRadius = 18;
         return baseRadius + Math.min((d.dependencyCount + d.dependentCount) * 2, 12);
       })
-      .attr('fill', d => buColors[d.bu] || buColors['default'])
-      .attr('stroke', d => d.name === selectedEntity ? '#3b82f6' : '#fff')
-      .attr('stroke-width', d => d.name === selectedEntity ? 4 : 2);
+      .attr('fill', d => {
+        const baseColor = buColors[d.bu] || buColors['default'];
+        // Dim non-highlighted nodes when highlighting is active
+        if (hasHighlighting && !highlightedEntities.has(d.name)) {
+          return '#e2e8f0'; // Light gray for non-highlighted
+        }
+        return baseColor;
+      })
+      .attr('stroke', d => {
+        if (d.name === selectedEntity) return '#3b82f6';
+        if (hasHighlighting && highlightedEntities.has(d.name)) return '#10b981'; // Green for highlighted
+        return '#fff';
+      })
+      .attr('stroke-width', d => {
+        if (d.name === selectedEntity) return 4;
+        if (hasHighlighting && highlightedEntities.has(d.name)) return 3;
+        return 2;
+      })
+      .attr('opacity', d => {
+        if (hasHighlighting && !highlightedEntities.has(d.name)) return 0.4;
+        return 1;
+      });
 
     // Node labels (entity name abbreviated)
     node.append('text')
@@ -240,7 +292,7 @@ export function D3EntityGraph({
     return () => {
       simulation.stop();
     };
-  }, [nodes, links, dimensions, selectedEntity, onNodeClick, onNodeDoubleClick]);
+  }, [nodes, links, dimensions, selectedEntity, highlightedEntities, onNodeClick, onNodeDoubleClick]);
 
   return (
     <div ref={containerRef} className="relative w-full h-full min-h-[400px]">

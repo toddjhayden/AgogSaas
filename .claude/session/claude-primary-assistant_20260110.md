@@ -1,7 +1,7 @@
 # Claude Primary Assistant Session - January 10, 2026
 
 ## Session Summary
-SDLC GUI improvements for AI Assist and dependency visualization. Identified multiple issues with current implementation.
+SDLC GUI improvements for AI Assist and dependency visualization. Identified multiple issues with current implementation. Fixed UI redundancy and NATS status display issues.
 
 ## Context from Previous Session (Jan 9)
 - Continued REC/REQ unification architecture planning
@@ -10,6 +10,16 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 - Created REQ-AUDIT-1767982074: Enforce Runtime Dependency Health
 
 ## Work Completed Today
+
+### Commits Made Today
+1. `733d7c7` - feat(sdlc): Add system revision tracking to Settings page
+2. `afcb769` - fix(sdlc-gui): Improve sidebar status display and remove filter redundancy
+3. `bedb8e7` - fix(sdlc-gui): Check local NATS status for agent infrastructure
+4. `19cc7a9` - feat(sdlc): Add AI error logging for function call failures
+5. `e55c0c3` - feat(sdlc): Agent infrastructure health publishing
+6. `6b06f28` - fix(sdlc-api): Move search route before parameterized route
+7. `0ac8bb2` - feat(sdlc-gui): Actionable Cross-BU Matrix with drill-down
+8. `733932a` - fix(sdlc-gui): Apply type filter to Blocker Graph nodes
 
 ### SDLC API Settings & Health Banner
 - Committed: `d30626f` - API URL settings and health banner
@@ -51,11 +61,63 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 - Pattern follows migration versioning: V{major}.{minor}.{patch}
 - Full revision string for copy/paste: `GUI:V0.1.0-d30626f | API:V0.1.0-aeb6351 | DB:V0.0.30`
 
+### Sidebar UI Improvements (afcb769)
+- Added workflow focus hint in sidebar header (amber with Zap icon when active)
+- Added NATS status alongside database status in health section
+- Changed health refresh interval from 30s to 2 minutes
+- Removed redundant focus display from FilterBar (FilterStatus handles it)
+- Made FilterActiveBadge compact (shows "Focused" not full item ID)
+
+### NATS Status Architecture Issue (bedb8e7)
+- **Problem**: GUI on VPS cannot call `localhost:8223` to check local NATS
+  - Mixed content: HTTPS page can't fetch HTTP localhost
+  - Even if allowed, VPS-served GUI's localhost refers to user's machine
+- **Attempted Fix**: Added `checkLocalNatsStatus()` to call local NATS monitoring
+- **Actual Solution Needed**: Agentic workflow should publish dependency health to SDLC database
+  - Orchestrator writes NATS status, agent health, etc. to SDLC DB
+  - GUI queries SDLC API for agent infrastructure health
+  - Not just NATS - all agentic workflow dependencies (Ollama, Agent DB, etc.)
+
+### AI Error Logging (19cc7a9)
+- V0.0.31 migration: `ai_error_log` table with helper functions
+- API endpoints:
+  - `POST /api/agent/ai/error-log` - Log an error
+  - `GET /api/agent/ai/error-log` - Get pending errors
+  - `POST /api/agent/ai/error-log/:id/dismiss` - Dismiss an error
+  - `POST /api/agent/ai/error-log/:id/promote` - Promote error to REQ
+- Added `logApiError` AI function (no confirmation required)
+- Deployed compiled JS to VPS and verified working
+- Use case: AI logs errors when function calls fail, SDLC owner reviews and acts
+
+### Agent Infrastructure Health Publishing (e55c0c3)
+- V0.0.32 migration: `agent_infrastructure_health` table
+  - Tracks: nats, ollama, agent_db, orchestrator, host_listener components
+  - Status: healthy, degraded, unavailable, unknown
+  - Includes staleness detection (2x heartbeat interval)
+  - Helper functions: `update_agent_health()`, `get_agent_infrastructure_health()`
+  - View: `agent_infrastructure_status`
+- API endpoints added to `sdlc-api.server.ts`:
+  - `GET /api/agent/infrastructure/health` - Query all component statuses
+  - `POST /api/agent/infrastructure/health` - Update single component
+  - `POST /api/agent/infrastructure/health/batch` - Orchestrator heartbeat
+- Client function `getInfrastructureHealth()` added to `sdlc-client.ts`
+- App.tsx sidebar updated to use infrastructure health for NATS status
+- Deployed to VPS, DB version now V0.0.32
+
+### Blocker Graph Type Filter Fix (733932a)
+- **Problem**: When globalType filter set to 'REC', D3 graph didn't filter nodes
+- **Fix**: Added type filter logic to `d3GraphData` useMemo
+  - Filter nodes by `itemType` when `globalFiltersEnabled && globalType !== 'ALL'`
+  - Filter links to only include connections between filtered nodes
+- **Key change**: Maps FilterType ('REQ'/'REC') to itemType ('req'/'rec')
+
 ### Previous Session Work (Carried Over)
 - `4549253` - RECs added to Blocker Graph with approval status
 - `979ba0f` - D3 Chord Diagram for cross-BU dependencies
 - `53af538` - SDLC AI API reference documentation
 - `aeb6351` - Duplicate detection and new AI query functions
+
+---
 
 ## Issues Identified
 
@@ -83,6 +145,19 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 ### 5. Agentic Workflow Not Following Focus
 **Problem**: Set focus via AI to blocker chain 1767507808, but agents not working on it
 **Investigation Needed**: Check if workflow directive is being read by orchestrator
+
+### 6. NATS Status Display - Architecture Issue
+**Problem**: VPS-hosted GUI cannot check local NATS status (mixed content, wrong localhost)
+**Solution**: Agentic workflow should publish health to SDLC database
+- Orchestrator publishes: NATS connected, Ollama status, Agent DB status, etc.
+- New table: `agent_infrastructure_health` or similar
+- GUI queries this from SDLC API instead of calling localhost
+
+### 7. AI searchRequests Function Not Working
+**Problem**: User asked "What is open for WMS?" and AI tried `searchRequests` function
+**Error**: `API error (404): {"success":false,"error":"Request not found: search"}`
+**Location**: Missing `/api/agent/requests/search` endpoint
+**Needed**: Implement search endpoint in `sdlc-api.server.ts`
 
 ---
 
@@ -113,6 +188,12 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 - **User feedback**: Not actionable, not helping analysis
 - **Needs**: Force-directed graph or different visualization
 
+### 5. Local NATS Status
+- NATS runs in Docker container `agogsaas-agents-nats` on port 4223 (mapped from 4222)
+- Monitoring available at `http://localhost:8223` (mapped from 8222)
+- VPS-hosted GUI cannot access this due to mixed content restrictions
+- **Architecture Change Needed**: Agent infrastructure health should be published to SDLC DB
+
 ---
 
 ## Investigation Queue
@@ -130,8 +211,48 @@ SDLC GUI improvements for AI Assist and dependency visualization. Identified mul
 - [x] Deploy workflow endpoints to VPS (completed)
 - [x] Fix API path issues for workflow endpoints (completed)
 - [x] Add revision tracking to Settings page (completed)
-- [ ] Fix Cross-BU Dependency Matrix visualization
-- [ ] Fix filter issue with RECs in Blocker Graph
+- [x] Fix redundant Focus display on Kanban Board (completed - afcb769)
+- [x] Add workflow focus hint in sidebar header (completed - afcb769)
+- [x] Implement agent infrastructure health publishing to SDLC DB (completed - e55c0c3)
+- [x] Fix `/api/agent/requests/search` endpoint route order (completed - 6b06f28)
+- [x] Fix Cross-BU Dependency Matrix visualization (completed - 0ac8bb2)
+- [x] Fix filter issue with RECs in Blocker Graph (completed - 733932a)
 - [ ] Entity Dependency Graph needs interactive analysis features
 - [ ] UX: Right-click/drag REQ to insert into chat
 - [ ] Add security to AI experience
+
+---
+
+## Architecture Notes
+
+### Agent Infrastructure Health (New Design Needed)
+The agentic workflow needs to publish its dependency health to SDLC database so the GUI can display it:
+
+**Dependencies to track:**
+- NATS: Connected/Disconnected, connection count
+- Ollama: Available/Unavailable, loaded models
+- Agent PostgreSQL: Connected/Disconnected
+- Orchestrator: Running/Stopped, active workflows count
+- Host Listener: Running/Stopped
+
+**Proposed table:** `agent_infrastructure_health`
+```sql
+CREATE TABLE agent_infrastructure_health (
+  id SERIAL PRIMARY KEY,
+  component VARCHAR(50) NOT NULL,  -- 'nats', 'ollama', 'agent_db', 'orchestrator', 'host_listener'
+  status VARCHAR(20) NOT NULL,     -- 'healthy', 'degraded', 'unavailable'
+  details JSONB,                   -- component-specific details
+  last_heartbeat TIMESTAMP DEFAULT NOW(),
+  UNIQUE(component)
+);
+```
+
+**Publishing mechanism:**
+- Orchestrator publishes heartbeats every 30-60 seconds
+- On startup, publishes all component states
+- On component failure, immediately updates status
+
+**GUI consumption:**
+- New endpoint: `GET /api/agent/infrastructure/health`
+- Returns all component statuses
+- GUI polls every 2 minutes (same as current health check)
