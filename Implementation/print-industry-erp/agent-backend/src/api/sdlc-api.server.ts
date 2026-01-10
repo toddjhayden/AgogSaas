@@ -625,6 +625,64 @@ export class SDLCApiServer {
       }
     });
 
+    // Get detailed cross-BU dependencies with entity names
+    router.get('/cross-bu-details', async (req: Request, res: Response) => {
+      try {
+        const { fromBu, toBu } = req.query;
+
+        // Get all cross-BU dependencies with entity details
+        const result = await this.db.query(`
+          SELECT
+            e1.entity_name as from_entity,
+            e1.owning_bu as from_bu,
+            e2.entity_name as to_entity,
+            e2.owning_bu as to_bu,
+            ed.dependency_type,
+            ed.reason
+          FROM entity_dependencies ed
+          JOIN entity_registry e1 ON ed.dependent_entity = e1.entity_name
+          JOIN entity_registry e2 ON ed.depends_on_entity = e2.entity_name
+          WHERE e1.owning_bu != e2.owning_bu
+          ${fromBu ? 'AND e1.owning_bu = $1' : ''}
+          ${toBu ? (fromBu ? 'AND e2.owning_bu = $2' : 'AND e2.owning_bu = $1') : ''}
+          ORDER BY e1.owning_bu, e2.owning_bu, e1.entity_name
+        `, fromBu && toBu ? [fromBu, toBu] : fromBu ? [fromBu] : toBu ? [toBu] : []);
+
+        // Group by BU pair for easier consumption
+        const grouped: Record<string, any[]> = {};
+        for (const row of result) {
+          const key = `${row.from_bu}|${row.to_bu}`;
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push({
+            fromEntity: row.from_entity,
+            fromBu: row.from_bu,
+            toEntity: row.to_entity,
+            toBu: row.to_bu,
+            dependencyType: row.dependency_type,
+            reason: row.reason,
+          });
+        }
+
+        res.json({
+          success: true,
+          data: {
+            details: result.map((r: any) => ({
+              fromEntity: r.from_entity,
+              fromBu: r.from_bu,
+              toEntity: r.to_entity,
+              toBu: r.to_bu,
+              dependencyType: r.dependency_type,
+              reason: r.reason,
+            })),
+            grouped,
+            total: result.length,
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // =========================================================================
     // Dependency Graph
     // =========================================================================

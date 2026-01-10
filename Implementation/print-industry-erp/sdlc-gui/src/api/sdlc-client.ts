@@ -197,6 +197,30 @@ export async function getCrossBuMatrix(): Promise<
   return fetchApi('/cross-bu-matrix');
 }
 
+export interface CrossBuDetail {
+  fromEntity: string;
+  fromBu: string;
+  toEntity: string;
+  toBu: string;
+  dependencyType: string;
+  reason?: string;
+}
+
+export async function getCrossBuDetails(
+  fromBu?: string,
+  toBu?: string
+): Promise<ApiResponse<{
+  details: CrossBuDetail[];
+  grouped: Record<string, CrossBuDetail[]>;
+  total: number;
+}>> {
+  const params = new URLSearchParams();
+  if (fromBu) params.append('fromBu', fromBu);
+  if (toBu) params.append('toBu', toBu);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return fetchApi(`/cross-bu-details${query}`);
+}
+
 // =============================================================================
 // Column Validation
 // =============================================================================

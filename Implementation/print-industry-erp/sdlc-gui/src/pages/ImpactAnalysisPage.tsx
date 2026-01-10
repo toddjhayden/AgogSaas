@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, AlertTriangle, Grid3X3, PieChart } from 'lucide-react';
+import { ArrowRight, AlertTriangle, Grid3X3, PieChart, X, ExternalLink } from 'lucide-react';
 import * as api from '@/api/sdlc-client';
+import type { CrossBuDetail } from '@/api/sdlc-client';
 import { useSDLCStore } from '@/stores/useSDLCStore';
 import { D3ChordDiagram } from '@/components/D3ChordDiagram';
 
@@ -14,7 +15,10 @@ export default function ImpactAnalysisPage() {
   } | null>(null);
   const [crossBuMatrix, setCrossBuMatrix] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(false);
-  const [matrixView, setMatrixView] = useState<'table' | 'chart'>('chart');
+  const [matrixView, setMatrixView] = useState<'table' | 'chart'>('table'); // Default to table for actionability
+  const [selectedPair, setSelectedPair] = useState<{ fromBu: string; toBu: string } | null>(null);
+  const [pairDetails, setPairDetails] = useState<CrossBuDetail[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   useEffect(() => {
     fetchDependencyGraph();
@@ -36,6 +40,26 @@ export default function ImpactAnalysisPage() {
       setImpactResult(response.data);
     }
     setLoading(false);
+  };
+
+  const handleCellClick = async (fromBu: string, toBu: string) => {
+    if (fromBu === toBu) return;
+    const count = crossBuMatrix[fromBu]?.[toBu] || 0;
+    if (count === 0) return;
+
+    setSelectedPair({ fromBu, toBu });
+    setDetailsLoading(true);
+
+    const response = await api.getCrossBuDetails(fromBu, toBu);
+    if (response.success && response.data) {
+      setPairDetails(response.data.details);
+    }
+    setDetailsLoading(false);
+  };
+
+  const closeDetailPanel = () => {
+    setSelectedPair(null);
+    setPairDetails([]);
   };
 
   const bus = Object.keys(crossBuMatrix);
@@ -218,18 +242,23 @@ export default function ImpactAnalysisPage() {
                       {bus.map((toBu) => {
                         const count = crossBuMatrix[fromBu]?.[toBu] || 0;
                         const intensity = count / maxCount;
+                        const isClickable = fromBu !== toBu && count > 0;
+                        const isSelected = selectedPair?.fromBu === fromBu && selectedPair?.toBu === toBu;
 
                         return (
                           <td
                             key={toBu}
-                            className="px-2 py-1 text-center"
-                            title={`${fromBu} → ${toBu}: ${count}`}
+                            className={`px-2 py-1 text-center ${isClickable ? 'cursor-pointer hover:bg-slate-100' : ''}`}
+                            title={`${fromBu} → ${toBu}: ${count}${isClickable ? ' (click for details)' : ''}`}
+                            onClick={() => isClickable && handleCellClick(fromBu, toBu)}
                           >
                             {fromBu === toBu ? (
                               <span className="text-slate-300">-</span>
                             ) : count > 0 ? (
                               <div
-                                className="w-8 h-8 mx-auto rounded flex items-center justify-center text-xs font-medium"
+                                className={`w-8 h-8 mx-auto rounded flex items-center justify-center text-xs font-medium transition-all ${
+                                  isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+                                }`}
                                 style={{
                                   backgroundColor: `rgba(239, 68, 68, ${intensity * 0.8})`,
                                   color: intensity > 0.5 ? 'white' : 'inherit',
@@ -296,6 +325,86 @@ export default function ImpactAnalysisPage() {
           </div>
         </div>
       </div>
+
+      {/* Detail Panel - Slide over from right */}
+      {selectedPair && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={closeDetailPanel} />
+          <div className="absolute inset-y-0 right-0 max-w-md w-full bg-white shadow-xl">
+            <div className="h-full flex flex-col">
+              {/* Header */}
+              <div className="px-6 py-4 border-b bg-slate-50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    Cross-BU Dependencies
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    {selectedPair.fromBu} → {selectedPair.toBu}
+                  </p>
+                </div>
+                <button
+                  onClick={closeDetailPanel}
+                  className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {detailsLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+                  </div>
+                ) : pairDetails.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-600 mb-4">
+                      {pairDetails.length} {pairDetails.length === 1 ? 'entity' : 'entities'} in{' '}
+                      <span className="font-medium">{selectedPair.fromBu}</span> depend on entities in{' '}
+                      <span className="font-medium">{selectedPair.toBu}</span>:
+                    </p>
+                    {pairDetails.map((detail, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 bg-slate-50 rounded-lg border border-slate-200"
+                      >
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium text-slate-700">{detail.fromEntity}</span>
+                          <ArrowRight size={14} className="text-slate-400" />
+                          <span className="font-medium text-blue-600">{detail.toEntity}</span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                          <span className="px-2 py-0.5 bg-slate-200 rounded">
+                            {detail.dependencyType || 'depends_on'}
+                          </span>
+                          {detail.reason && (
+                            <span className="truncate">{detail.reason}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-slate-500 py-8">
+                    No dependency details found
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t bg-slate-50">
+                <a
+                  href="/entities"
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <ExternalLink size={16} />
+                  View in Entity Graph
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
