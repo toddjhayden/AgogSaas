@@ -848,8 +848,9 @@ CREATE INDEX idx_workflow_directives_active ON workflow_directives(is_active) WH
 | Database migration | ✅ Done | ff07c21 |
 | API endpoints | ✅ Done | ff07c21 |
 | AI functions | ✅ Done | ff07c21 |
+| GUI WorkflowStatusBanner | ✅ Done | 9b1bc35 |
+| Example prompts for users | ✅ Done | 9b1bc35 |
 | Orchestrator integration | ⏳ Pending | - |
-| GUI WorkflowStatusBanner | ⏳ Pending | - |
 | Duplicate detection (embeddings) | ⏳ Pending | - |
 
 ### Commits
@@ -857,6 +858,44 @@ CREATE INDEX idx_workflow_directives_active ON workflow_directives(is_active) WH
 1. `4d73b7b` - AI function calling infrastructure
 2. `9943661` - Store integration and confirmation dialog
 3. `ff07c21` - Workflow directives (migration, API, AI functions)
+4. `9b1bc35` - WorkflowStatusBanner component and enhanced example prompts
+
+### WorkflowStatusBanner Component (9b1bc35)
+
+**New Component: `sdlc-gui/src/components/WorkflowStatusBanner.tsx`**
+- Displays at top of GUI when workflow is in non-normal pattern
+- Shows directive type icon, display name, progress, time remaining
+- "Change Focus" button opens AI chat to modify directive
+- "X" button clears focus and returns to normal workflow
+- Polls `/workflow/status` every 30 seconds
+- Color: Amber/orange gradient to indicate active focus
+
+**API Client Functions Added:**
+- `getWorkflowStatus()` - Fetch current directive status
+- `clearWorkflowFocus(reason?)` - Clear active directive
+
+**Integration:**
+- Added to `App.tsx` above Routes
+- Passes `onOpenChat` callback for "Change Focus" button
+
+### Enhanced Example Prompts (9b1bc35)
+
+Updated AI Chat empty state with categorized, actionable examples:
+
+**Priority & Focus:**
+- "Change REQ-1234 to catastrophic priority"
+- "Focus all workflow on blocker-chain REQ-1234"
+- "What is the current workflow status?"
+
+**Blockers & Dependencies:**
+- "What is blocked by REQ-1234?"
+- "Show me the full blocker chain for REQ-1234"
+- "What unblocked work can I do in 4 hours?"
+
+**Workload & Planning:**
+- "What requests came from Customer ABC?"
+- "Show me all critical priority items"
+- "When can I expect REQ-1234 to be finished?"
 
 ### Flexible Directive System
 
