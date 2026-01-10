@@ -850,7 +850,7 @@ CREATE INDEX idx_workflow_directives_active ON workflow_directives(is_active) WH
 | AI functions | ✅ Done | ff07c21 |
 | GUI WorkflowStatusBanner | ✅ Done | 9b1bc35 |
 | Example prompts for users | ✅ Done | 9b1bc35 |
-| Orchestrator integration | ⏳ Pending | - |
+| Orchestrator integration | ✅ Done | 8e59491 |
 | Duplicate detection (embeddings) | ⏳ Pending | - |
 
 ### Commits
@@ -896,6 +896,28 @@ Updated AI Chat empty state with categorized, actionable examples:
 - "What requests came from Customer ABC?"
 - "Show me all critical priority items"
 - "When can I expect REQ-1234 to be finished?"
+
+### Orchestrator Integration (8e59491)
+
+**SDLCApiClient Extensions:**
+- `getWorkflowStatus()` - Fetch current active directive
+- `isReqInScope(reqNumber)` - Check if REQ is in directive scope
+- `updateDirectiveProgress(id, completedItems)` - Update progress counter
+
+**Strategic Orchestrator Changes:**
+- Added `activeDirective` state tracking
+- Checks for active directive at start of each `scanOwnerRequests()` cycle
+- When exclusive directive is active, filters `mappedRequests` to only target REQs
+- Logs directive status and filter results for debugging
+- Catastrophic priority still takes precedence WITHIN the filtered set
+
+**Flow:**
+1. User says "Focus on blocker chain REQ-1234" via AI Chat
+2. AI calls `focusOnBlockerChain` function
+3. SDLC API creates `workflow_directive` with `target_req_numbers`
+4. Orchestrator polls `/workflow/status` each scan cycle
+5. If exclusive directive active, filters work queue to target REQs only
+6. When all target REQs complete, directive auto-clears (if `auto_restore=true`)
 
 ### Flexible Directive System
 
