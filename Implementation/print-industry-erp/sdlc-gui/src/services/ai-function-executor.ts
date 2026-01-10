@@ -174,6 +174,78 @@ export async function executeSDLCFunction(call: FunctionCall): Promise<FunctionR
           updatedBy: 'ai-assist'
         });
 
+      // ========== WORKFLOW FUNCTIONS ==========
+
+      case 'getWorkflowStatus':
+        return await fetchAPI('/workflow/status');
+
+      case 'focusOnBlockerChain':
+        return await postAPI('/workflow/focus/blocker-chain', {
+          reqNumber: args.reqNumber,
+          reason: args.reason,
+          createdBy: 'ai-assist'
+        });
+
+      case 'focusOnCustomer':
+        return await postAPI('/workflow/directive', {
+          directiveType: 'focus',
+          displayName: `Customer focus: ${args.customerName}`,
+          targetType: 'customer',
+          targetValue: args.customerName,
+          exclusive: true,
+          autoRestore: true,
+          createdBy: 'ai-assist',
+          reason: args.reason
+        });
+
+      case 'focusOnEasyWork':
+        return await postAPI('/workflow/directive', {
+          directiveType: 'focus',
+          displayName: `Easy work focus (< ${args.maxHours}h tasks)`,
+          targetType: 'filter',
+          filterCriteria: {
+            maxHours: args.maxHours,
+            unblocked: true
+          },
+          expiresAt: args.expiresAt,
+          exclusive: true,
+          autoRestore: true,
+          createdBy: 'ai-assist',
+          reason: args.reason || 'Easy work push'
+        });
+
+      case 'setWorkflowDirective':
+        return await postAPI('/workflow/directive', {
+          directiveType: 'focus',
+          displayName: args.displayName,
+          targetType: args.targetType,
+          targetValue: args.targetValue,
+          exclusive: args.exclusive !== false,
+          expiresAt: args.expiresAt,
+          autoRestore: true,
+          createdBy: 'ai-assist',
+          reason: args.reason
+        });
+
+      case 'clearWorkflowFocus':
+        return await postAPI('/workflow/focus/clear', {
+          reason: args.reason || 'Cleared by user via AI assist'
+        });
+
+      case 'checkIfNeeded':
+        // TODO: Implement embedding-based duplicate check
+        // For now, return a placeholder
+        return {
+          success: true,
+          data: {
+            reqNumber: args.reqNumber,
+            stillNeeded: true,
+            confidence: 'low',
+            message: 'Duplicate detection via embeddings not yet implemented. REQ assumed to be needed.',
+            similarWork: []
+          }
+        };
+
       default:
         return {
           success: false,

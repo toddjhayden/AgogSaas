@@ -215,6 +215,149 @@ export const queryFunctions: SDLCFunction[] = [
 // MUTATION FUNCTIONS (Write Operations - Require Confirmation)
 // ============================================================================
 
+// ============================================================================
+// WORKFLOW DIRECTIVE FUNCTIONS
+// ============================================================================
+
+export const workflowFunctions: SDLCFunction[] = [
+  {
+    name: 'getWorkflowStatus',
+    description: 'Get current workflow status - whether normal or focused on specific work',
+    category: 'query',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'focusOnBlockerChain',
+    description: 'Focus all workflow on a blocker chain. Agents will only work on REQs connected to the target via blocking relationships.',
+    category: 'mutation',
+    parameters: {
+      type: 'object',
+      properties: {
+        reqNumber: {
+          type: 'string',
+          description: 'The REQ number to focus the blocker chain on'
+        },
+        reason: {
+          type: 'string',
+          description: 'Why this focus is being set'
+        }
+      },
+      required: ['reqNumber']
+    }
+  },
+  {
+    name: 'focusOnCustomer',
+    description: 'Focus all workflow on a specific customer. Agents will prioritize REQs from this customer.',
+    category: 'mutation',
+    parameters: {
+      type: 'object',
+      properties: {
+        customerName: {
+          type: 'string',
+          description: 'Customer name to prioritize'
+        },
+        reason: {
+          type: 'string',
+          description: 'Why this focus is being set'
+        }
+      },
+      required: ['customerName']
+    }
+  },
+  {
+    name: 'focusOnEasyWork',
+    description: 'Focus workflow on easy/quick tasks (e.g., for weekend push). Only works on items under specified hours.',
+    category: 'mutation',
+    parameters: {
+      type: 'object',
+      properties: {
+        maxHours: {
+          type: 'number',
+          description: 'Maximum hours per task (e.g., 2 for quick tasks)'
+        },
+        expiresAt: {
+          type: 'string',
+          description: 'When to end this focus (ISO date string, e.g., "2026-01-12T18:00:00Z")'
+        },
+        reason: {
+          type: 'string',
+          description: 'Why this focus is being set (e.g., "Weekend push")'
+        }
+      },
+      required: ['maxHours']
+    }
+  },
+  {
+    name: 'setWorkflowDirective',
+    description: 'Set a custom workflow directive. Flexible targeting by tag, BU, priority, or custom filter.',
+    category: 'mutation',
+    parameters: {
+      type: 'object',
+      properties: {
+        displayName: {
+          type: 'string',
+          description: 'Human-readable name for this directive'
+        },
+        targetType: {
+          type: 'string',
+          description: 'What to target: tag, bu, priority, or filter'
+        },
+        targetValue: {
+          type: 'string',
+          description: 'The specific target value'
+        },
+        exclusive: {
+          type: 'boolean',
+          description: 'If true, only work on targeted items. If false, prioritize but allow other work.'
+        },
+        expiresAt: {
+          type: 'string',
+          description: 'When to auto-clear this directive (ISO date string)'
+        },
+        reason: {
+          type: 'string',
+          description: 'Why this directive is being set'
+        }
+      },
+      required: ['displayName', 'targetType', 'targetValue']
+    }
+  },
+  {
+    name: 'clearWorkflowFocus',
+    description: 'Clear current workflow focus and return to normal operations',
+    category: 'mutation',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Why the focus is being cleared'
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'checkIfNeeded',
+    description: 'Check if a REQ is still needed by searching for similar completed work in embeddings',
+    category: 'query',
+    parameters: {
+      type: 'object',
+      properties: {
+        reqNumber: {
+          type: 'string',
+          description: 'The REQ number to check'
+        }
+      },
+      required: ['reqNumber']
+    }
+  }
+];
+
 export const mutationFunctions: SDLCFunction[] = [
   {
     name: 'updateRequestPriority',
@@ -406,10 +549,13 @@ export const mutationFunctions: SDLCFunction[] = [
 // COMBINED FUNCTIONS
 // ============================================================================
 
-export const allSDLCFunctions: SDLCFunction[] = [...queryFunctions, ...mutationFunctions];
+export const allSDLCFunctions: SDLCFunction[] = [...queryFunctions, ...workflowFunctions, ...mutationFunctions];
 
 // Function names that require user confirmation before execution
-export const MUTATION_FUNCTION_NAMES = mutationFunctions.map(f => f.name);
+export const MUTATION_FUNCTION_NAMES = [
+  ...mutationFunctions.map(f => f.name),
+  ...workflowFunctions.filter(f => f.category === 'mutation').map(f => f.name)
+];
 
 // ============================================================================
 // PROVIDER-SPECIFIC FORMATS

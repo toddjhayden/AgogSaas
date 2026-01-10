@@ -613,6 +613,246 @@ From sdlc.agog.fyi AI Assist, user wants to be able to say:
 
 ---
 
+## Session 6: Blocker Chain Focus Mode & Duplicate Detection
+
+### User Requirements
+
+**1. Blocker Chain Focus Mode**
+User says: "Focus on blocker chain 1767507808"
+- All agents STOP work on other REQs/RECs
+- Work history is saved (NATS/SDLC already handles this)
+- All listeners, orchestrators, agents work ONLY on:
+  - Target REQ (1767507808)
+  - All REQs/RECs in its blocker chain (blocking OR blocked by)
+
+**2. Duplicate/Similarity Detection**
+User asks: "Is REQ-X still needed?"
+- Agents query embeddings for similar completed work
+- Response options:
+  - "Yes, still needed" (no similar work found)
+  - "No, already done by REQ-Y" (exact match found)
+  - "May not be needed, REQ-Z did similar work" (similarity found)
+- Shows what task was and what changed
+- User decides what to do with the REQ
+
+**3. GUI Integration**
+- Focus on blocker-chain through GUI (not just chat)
+- Visual indicator when focus mode is active
+- List of REQs in active focus chain
+
+### Architecture Required
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  User: "Focus on blocker chain 1767507808"                         │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│  AI Chat → Function: setBlockerChainFocus(reqNumber)               │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│  SDLC API: POST /workflow/blocker-chain-focus                      │
+│  1. Get blocker chain for target REQ (recursive)                   │
+│  2. Create workflow_directive: type='blocker_chain_focus'          │
+│  3. Publish NATS: agog.workflow.focus.activated                    │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│  Orchestrator receives NATS message                                │
+│  1. Save current work state (what agents are doing)                │
+│  2. Filter work queue to ONLY blocker chain REQs                   │
+│  3. Reassign agents to blocker chain items                         │
+│  4. Block new work assignment outside chain                        │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│  All Agents                                                        │
+│  - Receive focus directive                                         │
+│  - Complete current task OR pause if not in chain                  │
+│  - Only accept new work from blocker chain                         │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### Database Changes Needed
+
+```sql
+-- V0.0.30__add_workflow_directives.sql
+
+CREATE TABLE workflow_directives (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  directive_type VARCHAR(50) NOT NULL, -- 'blocker_chain_focus', 'pause', 'resume'
+  target_req_number VARCHAR(100),
+  chain_req_numbers TEXT[], -- All REQs in the blocker chain
+  percent_effort INTEGER DEFAULT 100,
+  created_by VARCHAR(100), -- 'ai-assist', 'gui', user ID
+  reason TEXT,
+  is_active BOOLEAN DEFAULT true,
+  activated_at TIMESTAMPTZ DEFAULT NOW(),
+  deactivated_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Track what agents were doing before focus
+CREATE TABLE workflow_saved_state (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  directive_id UUID REFERENCES workflow_directives(id),
+  agent_id VARCHAR(100),
+  previous_req_number VARCHAR(100),
+  previous_phase VARCHAR(50),
+  saved_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### New Functions Needed
+
+| Function | Description |
+|----------|-------------|
+| `setBlockerChainFocus(reqNumber)` | Activate focus mode on blocker chain |
+| `clearFocus()` | Deactivate focus, restore previous work |
+| `getActiveFocus()` | Get current focus directive and chain |
+| `checkIfNeeded(reqNumber)` | Query embeddings for duplicates/similar |
+
+### Duplicate Detection Flow
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  User: "Is REQ-SDLC-1234567890 still needed?"                      │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│  Function: checkIfNeeded(reqNumber)                                │
+│  1. Get REQ title, description, tags                               │
+│  2. Generate embedding for REQ content                             │
+│  3. Query agent_memory for similar embeddings (cosine > 0.85)      │
+│  4. Filter for completed work only                                 │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────────────┐
+│  Return:                                                           │
+│  {                                                                 │
+│    stillNeeded: boolean,                                           │
+│    confidence: 'high' | 'medium' | 'low',                          │
+│    similarWork: [                                                  │
+│      { reqNumber, title, similarity, completedAt, changes }        │
+│    ],                                                              │
+│    recommendation: 'proceed' | 'review' | 'close_as_duplicate'     │
+│  }                                                                 │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### Auto-Restore When Complete
+
+When focus mode work is done:
+- Orchestrator detects all chain REQs are complete (phase = 'done')
+- OR weekend push time expires
+- Auto-publish NATS: `agog.workflow.focus.completed`
+- Restore saved work state
+- Clear active directive
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Orchestrator Check (every cycle)                           │
+│  IF active_directive EXISTS:                                │
+│    IF directive.type = 'blocker_chain_focus':               │
+│      Check if all chain_req_numbers are done                │
+│      IF all done → auto-clear focus, restore state          │
+│    IF directive.type = 'weekend_easy_push':                 │
+│      Check if expires_at < NOW()                            │
+│      IF expired → auto-clear, restore state                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Workflow Status Indicator (GUI)
+
+**Component: `WorkflowStatusBanner`**
+- Shows at top of SDLC GUI when workflow is non-normal
+- Displays current directive type and target
+- Controls to modify or clear
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ⚡ FOCUSED: Workflow targeting blocker-chain REQ-P0-BUILD-1767507808    │
+│    Chain: 5 REQs remaining (2 in-progress, 3 blocked)                   │
+│    [View Chain] [Change Focus] [Return to Normal]                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🚀 WEEKEND PUSH: Completing easy tasks (< 2hr estimated)                │
+│    Progress: 4 of 7 items done · Expires: Sunday 6:00 PM                │
+│    [View Tasks] [Extend Time] [Return to Normal]                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Directive Types:**
+| Type | Display | Auto-Complete Condition |
+|------|---------|------------------------|
+| `blocker_chain_focus` | "FOCUSED: Workflow targeting blocker-chain X" | All chain REQs done |
+| `weekend_easy_push` | "WEEKEND PUSH: Completing easy tasks" | Time expires |
+| `customer_priority` | "CUSTOMER FOCUS: Prioritizing [Customer]" | All customer REQs done |
+| `pause_all` | "PAUSED: Workflow halted by user" | User resumes |
+
+### Updated Database Schema
+
+```sql
+-- V0.0.30__add_workflow_directives.sql
+
+CREATE TABLE workflow_directives (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  directive_type VARCHAR(50) NOT NULL,
+  -- 'blocker_chain_focus', 'weekend_easy_push', 'customer_priority', 'pause_all'
+
+  target_req_number VARCHAR(100),      -- For blocker_chain_focus
+  chain_req_numbers TEXT[],            -- All REQs in chain
+  customer_name VARCHAR(255),          -- For customer_priority
+  max_effort_hours DECIMAL(6,2),       -- For weekend_easy_push (e.g., 2.0)
+
+  expires_at TIMESTAMPTZ,              -- Auto-clear after this time
+  auto_restore BOOLEAN DEFAULT true,   -- Restore previous state when done?
+
+  created_by VARCHAR(100),
+  reason TEXT,
+  is_active BOOLEAN DEFAULT true,
+  activated_at TIMESTAMPTZ DEFAULT NOW(),
+  deactivated_at TIMESTAMPTZ,
+  deactivated_reason VARCHAR(100),     -- 'completed', 'expired', 'user_cancelled'
+
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_workflow_directives_active ON workflow_directives(is_active) WHERE is_active = true;
+```
+
+### API Endpoints for Workflow Status
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/workflow/status` | GET | Get current directive (if any) + chain progress |
+| `/workflow/focus/blocker-chain` | POST | Start blocker chain focus |
+| `/workflow/focus/weekend-push` | POST | Start weekend easy push |
+| `/workflow/focus/customer` | POST | Start customer priority focus |
+| `/workflow/focus/clear` | POST | Clear focus, return to normal |
+| `/workflow/pause` | POST | Pause all workflow |
+| `/workflow/resume` | POST | Resume normal workflow |
+
+### Implementation Order
+
+1. **Database migration** - workflow_directives, workflow_saved_state
+2. **API endpoints** - All workflow status/focus endpoints
+3. **AI functions** - setBlockerChainFocus, setWeekendPush, clearFocus, checkIfNeeded
+4. **Orchestrator changes** - Listen for focus NATS, filter work, auto-restore
+5. **Agent changes** - Respect focus directives
+6. **GUI WorkflowStatusBanner** - Status display with controls
+7. **GUI BlockerGraphPage** - Focus button integration
+
+---
+
 ## Session End
 
 - Date: January 9, 2026

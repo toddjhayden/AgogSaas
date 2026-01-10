@@ -1892,6 +1892,308 @@ export class SDLCApiServer {
       }
     });
 
+    // ========================================================================
+    // WORKFLOW DIRECTIVE ENDPOINTS
+    // ========================================================================
+
+    // Get current workflow status (active directive if any)
+    router.get('/workflow/status', async (req: Request, res: Response) => {
+      try {
+        const result = await this.db.query(`SELECT * FROM get_active_workflow_directive()`);
+
+        if (result.length === 0) {
+          return res.json({
+            success: true,
+            data: {
+              mode: 'normal',
+              directive: null,
+              message: 'Workflow operating normally'
+            }
+          });
+        }
+
+        const directive = result[0];
+
+        // Get progress if we have target REQs
+        let progress = null;
+        if (directive.target_req_numbers?.length > 0) {
+          const progressResult = await this.db.query(`
+            SELECT
+              COUNT(*) FILTER (WHERE current_phase = 'done') as completed,
+              COUNT(*) FILTER (WHERE current_phase != 'done' AND is_blocked = false) as in_progress,
+              COUNT(*) FILTER (WHERE is_blocked = true) as blocked,
+              COUNT(*) as total
+            FROM owner_requests
+            WHERE req_number = ANY($1)
+          `, [directive.target_req_numbers]);
+
+          progress = progressResult[0];
+        }
+
+        res.json({
+          success: true,
+          data: {
+            mode: 'focused',
+            directive: {
+              id: directive.id,
+              type: directive.directive_type,
+              displayName: directive.display_name,
+              targetType: directive.target_type,
+              targetValue: directive.target_value,
+              targetReqNumbers: directive.target_req_numbers,
+              filterCriteria: directive.filter_criteria,
+              expiresAt: directive.expires_at,
+              autoRestore: directive.auto_restore,
+              exclusive: directive.exclusive,
+              createdBy: directive.created_by,
+              reason: directive.reason,
+              activatedAt: directive.activated_at
+            },
+            progress
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Create a new workflow directive (flexible)
+    router.post('/workflow/directive', async (req: Request, res: Response) => {
+      try {
+        const {
+          directiveType,
+          displayName,
+          targetType,
+          targetValue,
+          filterCriteria,
+          expiresAt,
+          autoRestore = true,
+          exclusive = true,
+          createdBy = 'api',
+          reason
+        } = req.body;
+
+        if (!directiveType || !displayName) {
+          return res.status(400).json({
+            success: false,
+            error: 'directiveType and displayName are required'
+          });
+        }
+
+        // Deactivate any existing directive first
+        await this.db.query(`
+          UPDATE workflow_directives
+          SET is_active = false, deactivated_at = NOW(), deactivated_reason = 'superseded'
+          WHERE is_active = true
+        `);
+
+        // Resolve target REQ numbers based on target type
+        let targetReqNumbers: string[] = [];
+
+        if (targetType === 'blocker_chain' && targetValue) {
+          // Get full blocker chain (recursive)
+          const chainResult = await this.db.query(`
+            WITH RECURSIVE blocker_chain AS (
+              SELECT id, req_number, 1 as depth
+              FROM owner_requests
+              WHERE req_number = $1
+
+              UNION ALL
+
+              SELECT r.id, r.req_number, bc.depth + 1
+              FROM blocker_chain bc
+              JOIN request_blockers rb ON rb.blocked_request_id = bc.id OR rb.blocking_request_id = bc.id
+              JOIN owner_requests r ON r.id = rb.blocked_request_id OR r.id = rb.blocking_request_id
+              WHERE r.req_number != bc.req_number
+                AND rb.resolved_at IS NULL
+                AND bc.depth < 10
+            )
+            SELECT DISTINCT req_number FROM blocker_chain
+          `, [targetValue]);
+
+          targetReqNumbers = chainResult.map((r: any) => r.req_number);
+        } else if (targetType === 'req' && targetValue) {
+          targetReqNumbers = [targetValue];
+        } else if (targetType === 'customer' && targetValue) {
+          const custResult = await this.db.query(`
+            SELECT req_number FROM owner_requests
+            WHERE LOWER(source_customer) LIKE LOWER($1)
+              AND current_phase != 'done'
+          `, [`%${targetValue}%`]);
+          targetReqNumbers = custResult.map((r: any) => r.req_number);
+        } else if (targetType === 'tag' && targetValue) {
+          const tagResult = await this.db.query(`
+            SELECT req_number FROM owner_requests
+            WHERE $1 = ANY(tags)
+              AND current_phase != 'done'
+          `, [targetValue]);
+          targetReqNumbers = tagResult.map((r: any) => r.req_number);
+        } else if (targetType === 'bu' && targetValue) {
+          const buResult = await this.db.query(`
+            SELECT req_number FROM owner_requests
+            WHERE primary_bu = $1
+              AND current_phase != 'done'
+          `, [targetValue]);
+          targetReqNumbers = buResult.map((r: any) => r.req_number);
+        } else if (filterCriteria) {
+          // Build dynamic query from filter criteria
+          let whereConditions = ["current_phase != 'done'"];
+          const params: any[] = [];
+          let paramIndex = 1;
+
+          if (filterCriteria.priority) {
+            whereConditions.push(`priority = ANY($${paramIndex})`);
+            params.push(filterCriteria.priority);
+            paramIndex++;
+          }
+          if (filterCriteria.maxHours) {
+            whereConditions.push(`(estimated_hours IS NULL OR estimated_hours <= $${paramIndex})`);
+            params.push(filterCriteria.maxHours);
+            paramIndex++;
+          }
+          if (filterCriteria.unblocked) {
+            whereConditions.push('is_blocked = false');
+          }
+
+          const filterResult = await this.db.query(`
+            SELECT req_number FROM owner_requests
+            WHERE ${whereConditions.join(' AND ')}
+          `, params);
+          targetReqNumbers = filterResult.map((r: any) => r.req_number);
+        }
+
+        // Create the directive
+        const result = await this.db.query(`
+          INSERT INTO workflow_directives (
+            directive_type, display_name, target_type, target_value,
+            target_req_numbers, filter_criteria, expires_at,
+            auto_restore, exclusive, created_by, reason,
+            total_items, completed_items
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0)
+          RETURNING *
+        `, [
+          directiveType,
+          displayName,
+          targetType,
+          targetValue,
+          targetReqNumbers,
+          JSON.stringify(filterCriteria || {}),
+          expiresAt,
+          autoRestore,
+          exclusive,
+          createdBy,
+          reason,
+          targetReqNumbers.length
+        ]);
+
+        const directive = result[0];
+
+        console.log(`[SDLC API] Workflow directive activated: ${displayName} (${targetReqNumbers.length} REQs)`);
+
+        // TODO: Publish NATS message for orchestrator
+        // this.nats.publish('agog.workflow.directive.activated', directive);
+
+        res.json({
+          success: true,
+          data: {
+            directive: {
+              id: directive.id,
+              type: directive.directive_type,
+              displayName: directive.display_name,
+              targetReqNumbers: directive.target_req_numbers,
+              totalItems: directive.total_items
+            },
+            message: `Workflow now focused: ${displayName}`
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Focus on blocker chain (convenience endpoint)
+    router.post('/workflow/focus/blocker-chain', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber, createdBy = 'api', reason } = req.body;
+
+        if (!reqNumber) {
+          return res.status(400).json({ success: false, error: 'reqNumber is required' });
+        }
+
+        // Forward to generic directive endpoint
+        req.body = {
+          directiveType: 'focus',
+          displayName: `Focus on blocker chain: ${reqNumber}`,
+          targetType: 'blocker_chain',
+          targetValue: reqNumber,
+          exclusive: true,
+          autoRestore: true,
+          createdBy,
+          reason
+        };
+
+        // Re-route to directive endpoint (bit of a hack, but works)
+        const directiveHandler = router.stack.find((layer: any) =>
+          layer.route?.path === '/workflow/directive' && layer.route?.methods?.post
+        );
+
+        if (directiveHandler) {
+          return directiveHandler.route.stack[0].handle(req, res);
+        }
+
+        res.status(500).json({ success: false, error: 'Could not create directive' });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Clear focus / return to normal
+    router.post('/workflow/focus/clear', async (req: Request, res: Response) => {
+      try {
+        const { reason = 'user_cancelled' } = req.body;
+
+        const result = await this.db.query(`
+          SELECT deactivate_workflow_directive(id, $1)
+          FROM workflow_directives
+          WHERE is_active = true
+        `, [reason]);
+
+        console.log(`[SDLC API] Workflow directive cleared: ${reason}`);
+
+        res.json({
+          success: true,
+          data: {
+            cleared: result.length > 0,
+            message: 'Workflow returned to normal'
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Check if REQ is in current focus scope
+    router.get('/workflow/in-scope/:reqNumber', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+
+        const result = await this.db.query(
+          `SELECT is_req_in_active_scope($1) as in_scope`,
+          [reqNumber]
+        );
+
+        res.json({
+          success: true,
+          data: {
+            reqNumber,
+            inScope: result[0]?.in_scope ?? true
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Mount routes
     this.app.use('/api/agent', router);
 
