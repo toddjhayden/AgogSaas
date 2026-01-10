@@ -851,7 +851,9 @@ CREATE INDEX idx_workflow_directives_active ON workflow_directives(is_active) WH
 | GUI WorkflowStatusBanner | ✅ Done | 9b1bc35 |
 | Example prompts for users | ✅ Done | 9b1bc35 |
 | Orchestrator integration | ✅ Done | 8e59491 |
-| Duplicate detection (embeddings) | ⏳ Pending | - |
+| Duplicate detection (embeddings) | ✅ Done | aeb6351 |
+| New query functions | ✅ Done | aeb6351 |
+| API documentation | ✅ Done | 53af538 |
 
 ### Commits
 
@@ -859,6 +861,40 @@ CREATE INDEX idx_workflow_directives_active ON workflow_directives(is_active) WH
 2. `9943661` - Store integration and confirmation dialog
 3. `ff07c21` - Workflow directives (migration, API, AI functions)
 4. `9b1bc35` - WorkflowStatusBanner component and enhanced example prompts
+5. `8e59491` - Orchestrator integration with workflow directives
+6. `aeb6351` - Duplicate detection and new query functions
+7. `53af538` - SDLC AI API reference documentation
+
+### New Query Functions (aeb6351)
+
+**Duplicate Detection (`checkIfNeeded`):**
+- Endpoint: `GET /requests/:reqNumber/check-needed`
+- Searches completed REQs for similar titles/descriptions
+- Searches agent memories for related completed work
+- Returns `stillNeeded`, `confidence`, and `similarWork[]`
+
+**Bottleneck Analysis (`getBiggestBottleneck`):**
+- Endpoint: `GET /requests/biggest-bottleneck`
+- Finds request blocking the most other work
+- Returns top 5 blockers with blocked item counts
+
+**Highest Impact Recommendation (`getHighestImpactRecommendation`):**
+- Endpoint: `GET /recommendations/highest-impact`
+- Sorts by impact_level, urgency, affected BU count
+- Optional `?urgency=` filter
+
+**Feature Recommendations (`getRecsForFeature`):**
+- Endpoint: `GET /recommendations/for-feature?feature=WMS&status=pending`
+- Searches title, description, and affected_bus
+- Helps answer "What RECs do I need to approve for WMS?"
+
+### API Documentation (53af538)
+
+Created `.claude/docs/SDLC-AI-API-REFERENCE.md` with:
+- All query endpoints (read-only)
+- All mutation endpoints (require confirmation)
+- All workflow directive endpoints
+- Example prompts mapped to API calls
 
 ### WorkflowStatusBanner Component (9b1bc35)
 
