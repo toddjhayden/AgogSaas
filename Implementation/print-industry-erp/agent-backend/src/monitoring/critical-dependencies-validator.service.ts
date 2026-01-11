@@ -2,98 +2,111 @@
  * Critical Dependencies Validator Service
  *
  * Validates ALL critical dependencies before the Host Listener starts.
- * Uses the SDLC infrastructure health endpoint which aggregates heartbeats from all components.
+ * Uses HYBRID approach:
+ * - Orchestrator: checked via SDLC heartbeat (runs in Docker, publishes its own heartbeat)
+ * - Agent DB, NATS, Ollama: checked directly via localhost (Docker-exposed ports)
  *
  * Per WORKFLOW_RULES.md Rule #1: Services MUST EXIT immediately when critical dependencies fail.
  *
- * CRITICAL DEPENDENCIES (must all show healthy heartbeat):
- * 1. Agent Database - workflow persistence
- * 2. NATS Messaging - inter-agent communication
- * 3. Ollama LLM - local inference for embeddings
- * 4. Strategic Orchestrator - workflow coordination, finish-first policy
+ * CRITICAL DEPENDENCIES:
+ * 1. Agent Database (localhost:5434) - workflow persistence
+ * 2. NATS Messaging (localhost:4223) - inter-agent communication
+ * 3. Ollama LLM (localhost:11434) - local inference for embeddings
+ * 4. Strategic Orchestrator (SDLC heartbeat) - workflow coordination, finish-first policy
  *
  * The Host Listener CANNOT function correctly if ANY of these are down.
  */
 
 import axios from 'axios';
+import { connect } from 'nats';
+import { Pool } from 'pg';
 
-interface InfrastructureHealth {
+interface DependencyStatus {
+  name: string;
+  healthy: boolean;
+  error?: string;
+  method: 'direct' | 'heartbeat';
+}
+
+interface OrchestratorHealth {
   component: string;
-  display_name: string;
   status: string;
-  last_heartbeat: string | null;
   is_stale: boolean;
   seconds_since_heartbeat: number | null;
 }
 
-// Components that MUST be healthy for Host Listener to operate
-const REQUIRED_COMPONENTS = [
-  'agent_db',      // Agent Database
-  'nats',          // NATS Messaging
-  'ollama',        // Ollama LLM
-  'orchestrator',  // Strategic Orchestrator
-];
-
 export class CriticalDependenciesValidator {
   private readonly sdlcApiUrl: string;
+  private readonly natsUrl: string;
+  private readonly natsUser: string;
+  private readonly natsPassword: string;
+  private readonly ollamaUrl: string;
+  private readonly dbHost: string;
+  private readonly dbPort: number;
+  private readonly dbUser: string;
+  private readonly dbPassword: string;
+  private readonly dbName: string;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
   private readonly maxStaleSeconds: number;
 
   constructor() {
+    // SDLC API for orchestrator heartbeat
     this.sdlcApiUrl = process.env.SDLC_API_URL || 'https://api.agog.fyi';
+
+    // NATS - Host listener uses localhost:4223 (Docker-exposed port)
+    this.natsUrl = process.env.HOST_NATS_URL || 'nats://localhost:4223';
+    this.natsUser = process.env.NATS_USER || 'agents';
+    this.natsPassword = process.env.NATS_PASSWORD || '';
+
+    // Ollama - Host listener uses localhost:11434 (Docker-exposed port)
+    this.ollamaUrl = process.env.HOST_OLLAMA_URL || 'http://localhost:11434';
+
+    // Agent Database - Host listener uses localhost:5434 (Docker-exposed port)
+    this.dbHost = 'localhost';
+    this.dbPort = 5434;
+    this.dbUser = 'agent_user';
+    this.dbPassword = process.env.AGENT_DB_PASSWORD || 'agent_dev_password_2024';
+    this.dbName = 'agent_memory';
+
+    // Retry configuration
     this.maxRetries = parseInt(process.env.DEPENDENCY_CHECK_RETRIES || '10');
     this.retryDelayMs = parseInt(process.env.DEPENDENCY_CHECK_RETRY_DELAY_MS || '5000');
     this.maxStaleSeconds = parseInt(process.env.MAX_HEARTBEAT_STALE_SECONDS || '120');
   }
 
   /**
-   * Validate ALL critical dependencies via SDLC infrastructure health endpoint.
-   * Exit if ANY required component is unhealthy or has stale heartbeat.
+   * Validate ALL critical dependencies and exit if ANY are unavailable
    */
   async validateAndExit(): Promise<void> {
     console.log('[CriticalDependenciesValidator] ========================================');
-    console.log('[CriticalDependenciesValidator] Validating critical dependencies via SDLC...');
-    console.log('[CriticalDependenciesValidator] Required: ' + REQUIRED_COMPONENTS.join(', '));
+    console.log('[CriticalDependenciesValidator] Validating ALL critical dependencies...');
+    console.log('[CriticalDependenciesValidator] - Agent DB, NATS, Ollama: direct connection');
+    console.log('[CriticalDependenciesValidator] - Orchestrator: SDLC heartbeat');
     console.log('[CriticalDependenciesValidator] ========================================');
 
-    let lastHealthData: InfrastructureHealth[] = [];
-    let lastError: string | null = null;
+    let lastResults: DependencyStatus[] = [];
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
-      try {
-        const response = await axios.get<{ success: boolean; data: InfrastructureHealth[] }>(
-          `${this.sdlcApiUrl}/api/agent/infrastructure/health`,
-          { timeout: 10000 }
-        );
+      const results = await this.checkAllDependencies();
+      lastResults = results;
 
-        if (!response.data?.success) {
-          throw new Error('SDLC infrastructure health endpoint returned unsuccessful response');
-        }
+      const allHealthy = results.every(r => r.healthy);
+      const healthyCount = results.filter(r => r.healthy).length;
 
-        lastHealthData = response.data.data;
-        const { allHealthy, results } = this.checkRequiredComponents(lastHealthData);
+      console.log(`[CriticalDependenciesValidator] Attempt ${attempt}/${this.maxRetries}: ${healthyCount}/${results.length} healthy`);
 
-        console.log(`[CriticalDependenciesValidator] Attempt ${attempt}/${this.maxRetries}:`);
-        for (const [component, status] of Object.entries(results)) {
-          const icon = status.healthy ? '✅' : '❌';
-          const msg = status.healthy
-            ? `HEALTHY (${status.secondsAgo}s ago)`
-            : status.error;
-          console.log(`[CriticalDependenciesValidator]   ${icon} ${component}: ${msg}`);
-        }
+      for (const result of results) {
+        const icon = result.healthy ? '✅' : '❌';
+        const status = result.healthy ? `HEALTHY (${result.method})` : `FAILED: ${result.error}`;
+        console.log(`[CriticalDependenciesValidator]   ${icon} ${result.name}: ${status}`);
+      }
 
-        if (allHealthy) {
-          console.log('[CriticalDependenciesValidator] ========================================');
-          console.log('[CriticalDependenciesValidator] ✅ ALL critical dependencies healthy');
-          console.log('[CriticalDependenciesValidator] ========================================');
-          return;
-        }
-
-        lastError = 'One or more required components unhealthy';
-      } catch (error: any) {
-        lastError = error.message;
-        console.warn(`[CriticalDependenciesValidator] Attempt ${attempt}/${this.maxRetries} failed: ${error.message}`);
+      if (allHealthy) {
+        console.log('[CriticalDependenciesValidator] ========================================');
+        console.log('[CriticalDependenciesValidator] ✅ ALL critical dependencies healthy');
+        console.log('[CriticalDependenciesValidator] ========================================');
+        return;
       }
 
       if (attempt < this.maxRetries) {
@@ -103,73 +116,129 @@ export class CriticalDependenciesValidator {
     }
 
     // All retries exhausted - fail hard
-    this.exitWithError(lastHealthData, lastError);
+    this.exitWithError(lastResults);
   }
 
-  private checkRequiredComponents(healthData: InfrastructureHealth[]): {
-    allHealthy: boolean;
-    results: Record<string, { healthy: boolean; error?: string; secondsAgo?: number }>;
-  } {
-    const results: Record<string, { healthy: boolean; error?: string; secondsAgo?: number }> = {};
-    let allHealthy = true;
+  private async checkAllDependencies(): Promise<DependencyStatus[]> {
+    // Run all checks in parallel for speed
+    const [agentDb, nats, ollama, orchestrator] = await Promise.all([
+      this.checkAgentDatabase(),
+      this.checkNats(),
+      this.checkOllama(),
+      this.checkOrchestrator(),
+    ]);
 
-    for (const componentId of REQUIRED_COMPONENTS) {
-      const component = healthData.find(c => c.component === componentId);
+    return [agentDb, nats, ollama, orchestrator];
+  }
 
-      if (!component) {
-        results[componentId] = { healthy: false, error: 'Not found in health data' };
-        allHealthy = false;
-        continue;
-      }
+  /** Direct connection check to Agent Database (localhost:5434) */
+  private async checkAgentDatabase(): Promise<DependencyStatus> {
+    const name = 'Agent Database';
+    try {
+      const pool = new Pool({
+        host: this.dbHost,
+        port: this.dbPort,
+        user: this.dbUser,
+        password: this.dbPassword,
+        database: this.dbName,
+        connectionTimeoutMillis: 5000,
+      });
 
-      if (component.status !== 'healthy') {
-        results[componentId] = { healthy: false, error: `Status: ${component.status}` };
-        allHealthy = false;
-        continue;
-      }
+      await pool.query('SELECT 1');
+      await pool.end();
 
-      if (component.is_stale) {
-        results[componentId] = { healthy: false, error: 'Heartbeat is stale' };
-        allHealthy = false;
-        continue;
-      }
-
-      if (component.seconds_since_heartbeat !== null &&
-          component.seconds_since_heartbeat > this.maxStaleSeconds) {
-        results[componentId] = {
-          healthy: false,
-          error: `Heartbeat too old: ${component.seconds_since_heartbeat}s (max: ${this.maxStaleSeconds}s)`
-        };
-        allHealthy = false;
-        continue;
-      }
-
-      results[componentId] = {
-        healthy: true,
-        secondsAgo: component.seconds_since_heartbeat ?? 0
-      };
+      return { name, healthy: true, method: 'direct' };
+    } catch (error: any) {
+      return { name, healthy: false, error: error.message, method: 'direct' };
     }
-
-    return { allHealthy, results };
   }
 
-  private exitWithError(healthData: InfrastructureHealth[], lastError: string | null): never {
+  /** Direct connection check to NATS (localhost:4223) */
+  private async checkNats(): Promise<DependencyStatus> {
+    const name = 'NATS Messaging';
+    try {
+      if (!this.natsPassword) {
+        return { name, healthy: false, error: 'NATS_PASSWORD not set', method: 'direct' };
+      }
+
+      const nc = await connect({
+        servers: this.natsUrl,
+        user: this.natsUser,
+        pass: this.natsPassword,
+        timeout: 5000,
+      });
+
+      await nc.flush();
+      await nc.close();
+
+      return { name, healthy: true, method: 'direct' };
+    } catch (error: any) {
+      return { name, healthy: false, error: error.message, method: 'direct' };
+    }
+  }
+
+  /** Direct connection check to Ollama (localhost:11434) */
+  private async checkOllama(): Promise<DependencyStatus> {
+    const name = 'Ollama LLM';
+    try {
+      const response = await axios.get(`${this.ollamaUrl}/api/tags`, { timeout: 5000 });
+
+      if (response.status === 200) {
+        return { name, healthy: true, method: 'direct' };
+      }
+
+      return { name, healthy: false, error: `Unexpected status: ${response.status}`, method: 'direct' };
+    } catch (error: any) {
+      return { name, healthy: false, error: error.message, method: 'direct' };
+    }
+  }
+
+  /** Check Orchestrator via SDLC heartbeat (it runs in Docker, publishes its own heartbeat) */
+  private async checkOrchestrator(): Promise<DependencyStatus> {
+    const name = 'Strategic Orchestrator';
+    try {
+      const response = await axios.get<{ success: boolean; data: OrchestratorHealth[] }>(
+        `${this.sdlcApiUrl}/api/agent/infrastructure/health`,
+        { timeout: 10000 }
+      );
+
+      if (!response.data?.success) {
+        return { name, healthy: false, error: 'SDLC API failed', method: 'heartbeat' };
+      }
+
+      const orchestrator = response.data.data.find(c => c.component === 'orchestrator');
+
+      if (!orchestrator) {
+        return { name, healthy: false, error: 'Not found in SDLC health', method: 'heartbeat' };
+      }
+
+      if (orchestrator.status !== 'healthy') {
+        return { name, healthy: false, error: `Status: ${orchestrator.status}`, method: 'heartbeat' };
+      }
+
+      if (orchestrator.is_stale) {
+        return { name, healthy: false, error: 'Heartbeat is stale', method: 'heartbeat' };
+      }
+
+      if (orchestrator.seconds_since_heartbeat !== null &&
+          orchestrator.seconds_since_heartbeat > this.maxStaleSeconds) {
+        return { name, healthy: false, error: `Heartbeat too old: ${orchestrator.seconds_since_heartbeat}s`, method: 'heartbeat' };
+      }
+
+      return { name, healthy: true, method: 'heartbeat' };
+    } catch (error: any) {
+      return { name, healthy: false, error: error.message, method: 'heartbeat' };
+    }
+  }
+
+  private exitWithError(results: DependencyStatus[]): never {
     console.error('[CriticalDependenciesValidator] ========================================');
     console.error('[CriticalDependenciesValidator] ❌ CRITICAL DEPENDENCY VALIDATION FAILED');
     console.error('[CriticalDependenciesValidator] ========================================');
 
-    if (lastError) {
-      console.error(`[CriticalDependenciesValidator] Last error: ${lastError}`);
-    }
-
-    if (healthData.length > 0) {
-      const { results } = this.checkRequiredComponents(healthData);
-      console.error('[CriticalDependenciesValidator] Failed components:');
-      for (const [component, status] of Object.entries(results)) {
-        if (!status.healthy) {
-          console.error(`[CriticalDependenciesValidator]   ❌ ${component}: ${status.error}`);
-        }
-      }
+    console.error('[CriticalDependenciesValidator] Failed components:');
+    for (const result of results.filter(r => !r.healthy)) {
+      console.error(`[CriticalDependenciesValidator]   ❌ ${result.name}: ${result.error}`);
     }
 
     console.error('[CriticalDependenciesValidator] ');
