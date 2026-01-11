@@ -34,6 +34,30 @@ export class PasswordService {
   }
 
   /**
+   * Alias for validatePassword - used by supplier portal
+   * @param password Plain text password
+   * @param hash bcrypt hash
+   * @returns true if password matches hash
+   */
+  async verifyPassword(password: string, hash: string): Promise<boolean> {
+    return this.validatePassword(password, hash);
+  }
+
+  /**
+   * Verify TOTP code for MFA
+   * TODO: Implement proper TOTP verification with speakeasy or similar
+   * @param code TOTP code from authenticator app
+   * @param secret User's TOTP secret
+   * @returns true if code is valid
+   */
+  verifyTOTP(code: string, secret: string): boolean {
+    // STUB: Always returns false until TOTP is properly implemented
+    // TODO: Use speakeasy.totp.verify() or similar TOTP library
+    console.warn('TOTP verification not implemented - returning false');
+    return false;
+  }
+
+  /**
    * Validate password complexity
    * Requirements:
    * - Minimum 8 characters

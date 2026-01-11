@@ -23,6 +23,33 @@ import {
 } from 'lucide-react';
 import { GET_SUPPLIER_DASHBOARD } from '../graphql/queries/supplierPortal';
 
+// Type definitions for supplier dashboard data
+interface SupplierAlert {
+  id: string;
+  alertType: string;
+  createdAt: string;
+  message: string;
+  actionItems?: string[];
+}
+
+interface SupplierPurchaseOrder {
+  id: string;
+  poNumber: string;
+  poDate: string;
+  requestedDeliveryDate?: string;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  isAcknowledged: boolean;
+  hasASN: boolean;
+}
+
+interface SupplierActivity {
+  id: string;
+  activityType: string;
+  createdAt: string;
+}
+
 const SupplierDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -229,7 +256,7 @@ const SupplierDashboard: React.FC = () => {
             <div className="p-6">
               {dashboard?.recentAlerts && dashboard.recentAlerts.length > 0 ? (
                 <div className="space-y-4">
-                  {dashboard.recentAlerts.map((alert: unknown) => (
+                  {dashboard.recentAlerts.map((alert: SupplierAlert) => (
                     <div
                       key={alert.id}
                       className="border-l-4 border-yellow-400 bg-yellow-50 p-4"
@@ -315,7 +342,7 @@ const SupplierDashboard: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {dashboard?.recentPurchaseOrders &&
                   dashboard.recentPurchaseOrders.length > 0 ? (
-                    dashboard.recentPurchaseOrders.map((po: unknown) => (
+                    dashboard.recentPurchaseOrders.map((po: SupplierPurchaseOrder) => (
                       <tr key={po.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
@@ -403,7 +430,7 @@ const SupplierDashboard: React.FC = () => {
           {dashboard?.recentActivity && dashboard.recentActivity.length > 0 ? (
             <div className="flow-root">
               <ul className="-mb-8">
-                {dashboard.recentActivity.map((activity: any, idx: number) => (
+                {dashboard.recentActivity.map((activity: SupplierActivity, idx: number) => (
                   <li key={activity.id}>
                     <div className="relative pb-8">
                       {idx !== dashboard.recentActivity.length - 1 && (

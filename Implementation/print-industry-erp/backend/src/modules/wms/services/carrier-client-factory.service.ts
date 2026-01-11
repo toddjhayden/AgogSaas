@@ -1,14 +1,14 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ICarrierClient, ICarrierClientFactory } from '../interfaces/carrier-client.interface';
 import { FedExClientService } from './carriers/fedex-client.service';
+import { UPSClientService } from './carriers/ups-client.service';
 import { Pool } from 'pg';
 import { CredentialEncryptionService } from './credential-encryption.service';
 
 /**
  * Carrier Client Factory Service
  *
- * REQ-STRATEGIC-AUTO-1767066329941: Carrier Shipping Integrations
- * Strategy Pattern implementation from Sylvia's critique
+ * REQ-1767925582663-ieqg0: Complete FedEx Carrier Integration & Multi-Carrier Network
  *
  * Provides centralized carrier client creation and management.
  * Implements:
@@ -16,12 +16,13 @@ import { CredentialEncryptionService } from './credential-encryption.service';
  * - Lazy loading of carrier credentials
  * - Client caching for performance
  * - Dynamic carrier registration
+ * - Credential decryption and configuration
  *
- * Supported Carriers (Phase 1):
- * - FedEx (mock implementation)
+ * Supported Carriers:
+ * - FedEx (production-ready with FedEx Ship API v1)
+ * - UPS (mock implementation, ready for UPS API integration)
  *
  * Future Carriers:
- * - UPS
  * - USPS
  * - DHL
  * - Canada Post
@@ -29,16 +30,19 @@ import { CredentialEncryptionService } from './credential-encryption.service';
  */
 @Injectable()
 export class CarrierClientFactoryService implements ICarrierClientFactory {
+  private readonly logger = new Logger(CarrierClientFactoryService.name);
   private clientCache = new Map<string, ICarrierClient>();
   private carrierConfigs = new Map<string, any>();
 
   constructor(
     @Inject('DATABASE_POOL') private readonly db: Pool,
     private readonly credentialService: CredentialEncryptionService,
-    private readonly fedexClient: FedExClientService
+    private readonly fedexClient: FedExClientService,
+    private readonly upsClient: UPSClientService,
   ) {
     // Register available carrier clients
     this.registerCarrier('FEDEX', this.fedexClient);
+    this.registerCarrier('UPS', this.upsClient);
   }
 
   /**
@@ -67,7 +71,7 @@ export class CarrierClientFactoryService implements ICarrierClientFactory {
    *
    * @param tenantId - Tenant identifier
    * @param carrierIntegrationId - Carrier integration ID from database
-   * @returns Configured carrier client
+   * @returns Configured carrier client with decrypted credentials
    */
   async getClientForIntegration(
     tenantId: string,
@@ -75,9 +79,9 @@ export class CarrierClientFactoryService implements ICarrierClientFactory {
   ): Promise<ICarrierClient> {
     // Load carrier integration from database
     const result = await this.db.query(
-      `SELECT carrier_code, api_endpoint, api_username,
-              api_password_encrypted, api_key_encrypted, oauth_token_encrypted,
-              account_number, service_level_mapping
+      `SELECT carrier_code, api_endpoint, carrier_account_number,
+              api_key_encrypted, api_password_encrypted, oauth_token_encrypted,
+              service_level_mapping, environment
        FROM carrier_integrations
        WHERE id = $1 AND tenant_id = $2 AND is_active = true AND deleted_at IS NULL`,
       [carrierIntegrationId, tenantId]
@@ -90,19 +94,52 @@ export class CarrierClientFactoryService implements ICarrierClientFactory {
     }
 
     const config = result.rows[0];
-    const carrierCode = config.carrier_code;
+    const carrierCode = config.carrier_code.toUpperCase();
 
     // Get base carrier client
     const client = this.getClient(carrierCode);
 
-    // TODO: Configure client with tenant-specific credentials
-    // For now, return unconfigured client (works for mock implementations)
-    // In production:
-    // 1. Decrypt credentials using credentialService
-    // 2. Set credentials on client
-    // 3. Configure API endpoint if custom
-    // 4. Set account number
-    // 5. Cache configured client
+    // Decrypt and configure carrier-specific credentials
+    try {
+      if (carrierCode === 'FEDEX') {
+        const apiKey = config.api_key_encrypted
+          ? await this.credentialService.decrypt(config.api_key_encrypted, carrierIntegrationId)
+          : '';
+        const secretKey = config.api_password_encrypted
+          ? await this.credentialService.decrypt(config.api_password_encrypted, carrierIntegrationId)
+          : '';
+
+        (client as FedExClientService).configure({
+          apiKey,
+          secretKey,
+          accountNumber: config.carrier_account_number,
+          environment: config.environment === 'PRODUCTION' ? 'PRODUCTION' : 'TEST',
+        });
+
+        this.logger.log(`Configured FedEx client for carrier integration ${carrierIntegrationId}`);
+      } else if (carrierCode === 'UPS') {
+        const clientId = config.api_key_encrypted
+          ? await this.credentialService.decrypt(config.api_key_encrypted, carrierIntegrationId)
+          : '';
+        const clientSecret = config.api_password_encrypted
+          ? await this.credentialService.decrypt(config.api_password_encrypted, carrierIntegrationId)
+          : '';
+
+        (client as UPSClientService).configure({
+          clientId,
+          clientSecret,
+          accountNumber: config.carrier_account_number,
+          environment: config.environment === 'PRODUCTION' ? 'PRODUCTION' : 'TEST',
+        });
+
+        this.logger.log(`Configured UPS client for carrier integration ${carrierIntegrationId}`);
+      } else {
+        this.logger.warn(`No configuration handler for carrier: ${carrierCode}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to configure carrier client: ${error.message}`);
+      throw new Error(`Failed to configure ${carrierCode} client: ${error.message}`);
+    }
 
     return client;
   }

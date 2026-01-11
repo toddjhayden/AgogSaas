@@ -19,7 +19,8 @@ const axios = require('axios');
 
 // Configuration
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://agogsaas_user:changeme@localhost:5433/agogsaas';
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+// Host-side script uses HOST_OLLAMA_URL (localhost), not Docker-internal OLLAMA_URL
+const OLLAMA_URL = process.env.HOST_OLLAMA_URL || 'http://localhost:11434';
 const BATCH_SIZE = 10;
 const EMBEDDING_MODEL = 'nomic-embed-text';
 const EMBEDDING_DIMENSIONS = 768;

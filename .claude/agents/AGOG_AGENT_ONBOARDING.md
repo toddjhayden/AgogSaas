@@ -82,7 +82,56 @@ fix(auth): Resolve JWT token expiration issue
 docs(standards): Update agent onboarding guide
 ```
 
-### 5. Schema-Driven Development
+### 5. Logging Standards
+
+**All agent scripts, services, and orchestration code MUST implement file-based logging.**
+
+```typescript
+// ✅ ALWAYS use structured file-based logging
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Create logs directory
+const logDir = path.resolve(__dirname, '..', 'logs');
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+// Log file with date-based naming
+const logFile = path.join(logDir, `service-name-${new Date().toISOString().split('T')[0]}.log`);
+const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+
+// Structured log function
+function log(level: 'INFO' | 'ERROR' | 'WARN' | 'DEBUG', source: string, message: string) {
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] [${level}] [${source}] ${message}`;
+  console.log(logLine);         // Console output
+  logStream.write(logLine + '\n');  // File output (REQUIRED)
+}
+
+// Convenience functions
+function logInfo(source: string, message: string) { log('INFO', source, message); }
+function logError(source: string, message: string) { log('ERROR', source, message); }
+function logWarn(source: string, message: string) { log('WARN', source, message); }
+function logDebug(source: string, message: string) { log('DEBUG', source, message); }
+```
+
+**Log Format:**
+```
+[2025-12-09T10:30:00.000Z] [INFO] [SourceComponent] Message here
+[2025-12-09T10:30:01.000Z] [ERROR] [SourceComponent] Error message here
+```
+
+**Requirements:**
+- **File Location:** `{service}/logs/{service-name}-YYYY-MM-DD.log`
+- **Log Levels:** INFO (normal), ERROR (failures), WARN (issues), DEBUG (verbose)
+- **Both Outputs:** MUST log to BOTH console AND file
+- **Source Identification:** Always include component/function name in source field
+- **Error Logging:** Log ALL spawn failures, NATS errors, and process errors
+
+**NEVER use console.log alone** - always write to file as well
+
+### 6. Schema-Driven Development
 1. **Design YAML schema first** (structured pseudocode)
 2. **Validate schema** against standards
 3. **Generate code** (TypeScript interfaces, TypeORM entities, SQL migrations)
@@ -548,6 +597,74 @@ REQ → Cynthia (Research)
 ```
 
 **Full report published to NATS separately (not in return value)**
+
+---
+
+## 6. Code Registry (MANDATORY - HARD BLOCK)
+
+### ALL FILE OPERATIONS REQUIRE REGISTRY APPROVAL
+
+The Code Registry tracks every file in the codebase with full lineage (which REQ created/modified it, which agent, when). This prevents chaos from agents creating duplicate files, orphaned code, or making changes without traceability.
+
+**Registry Location:** `.claude/registry/`
+**Helper CLI:** `npx tsx .claude/registry/registry-helper.ts`
+
+### Before Creating ANY File (code, config, docs, scripts - EVERYTHING):
+
+1. **Check for similar files first:**
+   ```bash
+   cd .claude/registry && npx tsx registry-helper.ts find-similar "your purpose here"
+   ```
+
+2. **If similar file exists:** MODIFY that file, DO NOT create new one
+
+3. **If no similar file, register BEFORE creating:**
+   ```bash
+   cd .claude/registry && npx tsx registry-helper.ts register \
+     "path/to/new/file.ts" "service" "Purpose description" "REQ-XXX" "your-agent-name"
+   ```
+
+4. **Only AFTER successful registration**, use Write tool to create file
+
+### After ANY File Modification:
+```bash
+cd .claude/registry && npx tsx registry-helper.ts change \
+  "path/to/file.ts" "REQ-XXX" "your-agent-name" "modified" "Brief summary of changes"
+```
+
+### Before Deleting ANY File:
+```bash
+cd .claude/registry && npx tsx registry-helper.ts deactivate \
+  "path/to/file.ts" "REQ-XXX" "your-agent-name" "Reason for deletion"
+```
+
+### Registry Helper Commands
+
+| Command | Purpose |
+|---------|---------|
+| `check <path>` | Check if file exists in registry |
+| `find-similar <purpose>` | Find files with similar purpose (REQUIRED before new files) |
+| `register <path> <type> <purpose> <req> <agent>` | Register new file |
+| `change <path> <req> <agent> <type> <summary>` | Log modification |
+| `deactivate <path> <req> <agent> <reason>` | Mark file inactive before deletion |
+| `list-by-req <req>` | List all files touched by a REQ |
+| `list-by-agent <agent>` | List all files touched by an agent |
+| `orphans` | List files not in registry |
+
+### File Types for Registration
+
+`service`, `controller`, `resolver`, `component`, `page`, `dto`, `interface`, `module`, `guard`, `middleware`, `config`, `util`, `migration`, `script`, `doc`, `schema`, `test`
+
+### HARD BLOCKED ACTIONS (Sam Audits Will Catch):
+
+- Creating ANY new file without registry pre-registration
+- Deleting files without marking inactive in registry
+- Moving/renaming files without updating registry
+- Modifying files without logging the change
+
+### ENFORCEMENT:
+
+Sam's audit includes inventory verification. Unregistered files = P0 violation requiring immediate fix.
 
 ---
 

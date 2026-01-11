@@ -51,7 +51,7 @@ interface IotDevice {
   ipAddress?: string;
   macAddress?: string;
   connectionType?: string;
-  connectionConfig?: any;
+  connectionConfig?: Record<string, unknown>;
   hardwareProfile?: string;
   isActive: boolean;
   isOnline?: boolean;
@@ -63,7 +63,7 @@ interface IotDevice {
   diskUsage?: number;
   networkLatency?: number;
   tags?: string[];
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt?: string;
   createdByUserId?: string;
@@ -97,7 +97,7 @@ interface EquipmentEvent {
   eventDescription: string;
   severity: string;
   productionRunId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   acknowledged: boolean;
   acknowledgedByUserId?: string;
   acknowledgedAt?: string;
@@ -113,7 +113,7 @@ interface SensorReading {
   readingValue: number;
   unitOfMeasure: string;
   productionRunId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -154,7 +154,7 @@ const HARDWARE_PROFILES = [
 export const EdgeProvisioningPage: React.FC = () => {
   const { t } = useTranslation();
   useAppStore();
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state) => state.user) as { id?: string; tenantId?: string } | null;
   const tenantId = user?.tenantId || '';
 
   const [activeTab, setActiveTab] = useState<'devices' | 'events' | 'sensors'>('devices');
@@ -435,7 +435,7 @@ export const EdgeProvisioningPage: React.FC = () => {
     {
       header: 'Status',
       accessor: 'status',
-      render: (_: any, device: IotDevice) => {
+      render: (_: unknown, device: IotDevice) => {
         const status = getDeviceStatus(device);
         return (
           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>

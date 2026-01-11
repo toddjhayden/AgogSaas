@@ -33,11 +33,28 @@ if (!fs.existsSync(logDir)) {
 const logFile = path.join(logDir, `host-listener-${new Date().toISOString().split('T')[0]}.log`);
 const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 
+// Module-level log buffer for SDLC streaming (sanitized)
+const recentLogsBuffer: Array<{ timestamp: string; level: string; source: string; message: string }> = [];
+const MAX_LOG_BUFFER = 100;
+
 function log(level: 'INFO' | 'ERROR' | 'WARN' | 'DEBUG', source: string, message: string) {
   const timestamp = new Date().toISOString();
   const logLine = `[${timestamp}] [${level}] [${source}] ${message}`;
   console.log(logLine);
   logStream.write(logLine + '\n');
+
+  // Add to buffer for SDLC streaming (skip DEBUG to reduce noise)
+  if (level !== 'DEBUG') {
+    recentLogsBuffer.push({ timestamp, level, source, message: sanitizeLogMessage(message) });
+    if (recentLogsBuffer.length > MAX_LOG_BUFFER) {
+      recentLogsBuffer.shift();
+    }
+  }
+}
+
+/** Get recent logs for SDLC (already sanitized) */
+function getRecentLogs(count: number = 20): typeof recentLogsBuffer {
+  return recentLogsBuffer.slice(-count);
 }
 
 function logInfo(source: string, message: string) { log('INFO', source, message); }
@@ -49,13 +66,43 @@ function logDebug(source: string, message: string) { log('DEBUG', source, messag
 dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '..', '.env') });
 
 // PostgreSQL connection for change management storage
+// Password loaded from environment variable for security
 const pgPool = new Pool({
   host: 'localhost',
   port: 5434,
   user: 'agent_user',
-  password: 'agent_dev_password_2024',
+  password: process.env.AGENT_DB_PASSWORD || 'agent_dev_password_2024', // TODO: Remove fallback after .env.local updated
   database: 'agent_memory',
 });
+
+// Patterns to sanitize from logs before sending to SDLC
+const SANITIZE_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
+  // API keys and tokens
+  { pattern: /sk-[a-zA-Z0-9]{20,}/g, replacement: '[REDACTED_API_KEY]' },
+  { pattern: /Bearer\s+[a-zA-Z0-9._-]+/gi, replacement: 'Bearer [REDACTED]' },
+  { pattern: /token[=:]\s*["']?[a-zA-Z0-9._-]+["']?/gi, replacement: 'token=[REDACTED]' },
+  // Passwords
+  { pattern: /password[=:]\s*["']?[^"'\s,}]+["']?/gi, replacement: 'password=[REDACTED]' },
+  { pattern: /NATS_PASSWORD[=:]\s*["']?[^"'\s,}]+["']?/gi, replacement: 'NATS_PASSWORD=[REDACTED]' },
+  // Connection strings with passwords
+  { pattern: /postgresql:\/\/[^:]+:[^@]+@/gi, replacement: 'postgresql://[USER]:[REDACTED]@' },
+  // File paths (reduce to relative)
+  { pattern: /[A-Z]:\\Users\\[^\\]+\\/gi, replacement: '[USER_HOME]\\' },
+  { pattern: /\/home\/[^/]+\//gi, replacement: '/home/[USER]/' },
+  // IP addresses (internal)
+  { pattern: /\b(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)\b/g, replacement: '[INTERNAL_IP]' },
+  // Email addresses
+  { pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, replacement: '[EMAIL]' },
+];
+
+/** Sanitize log message for audit compliance */
+function sanitizeLogMessage(message: string): string {
+  let sanitized = message;
+  for (const { pattern, replacement } of SANITIZE_PATTERNS) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+  return sanitized;
+}
 
 // Ollama URL for embeddings (host machine port mapping)
 // HOST listener uses localhost:11434 (Docker-exposed port), NOT the Docker-internal OLLAMA_URL
@@ -102,7 +149,7 @@ interface StageEvent {
 class HostAgentListener {
   private nc!: NatsConnection;
   private js!: JetStreamClient;
-  private maxConcurrent = 4; // Allow 4 agents to run simultaneously (e.g., Dashboard Research + Item Research + Dashboard Backend + Item Critique)
+  private maxConcurrent = 6; // Allow 6 agents to run simultaneously (increased from 4 for better throughput)
   private activeAgents = 0;
   private isRunning = true;
   private workflowRules: string = ''; // Loaded from .claude/WORKFLOW_RULES.md
@@ -171,14 +218,15 @@ class HostAgentListener {
       // Subscribe to Sasha rule question requests
       this.subscribeToSashaRuleQuestions();
 
-      // AUTO-SPAWN SAM on startup for P0 discovery
-      logInfo('HostListener', '🚨 Auto-spawning Sam for P0 discovery audit...');
-      await this.spawnSamAuditAgent({
-        reqNumber: `REQ-P0-AUDIT-STARTUP-${Date.now()}`,
-        auditType: 'p0-discovery',
-        timestamp: new Date().toISOString(),
-        requestedBy: 'host-listener-startup',
-      });
+      // Subscribe to control commands from SDLC (restart, status, get_logs)
+      this.subscribeToControlCommands();
+
+      // NOTE: Auto-spawn P0 discovery removed - Sam daemon triggers ALL audits via NATS
+      // This eliminates duplicate audit mechanisms and prevents race conditions
+      // Sam daemon runs startup audit immediately after connecting to NATS
+
+      // Start health heartbeat publishing to SDLC (every 60 seconds)
+      this.startHealthHeartbeat();
 
       // Keep alive
       await this.keepAlive();
@@ -427,34 +475,77 @@ IMPORTANT: Output recommendations in the JSON array - they will be published to 
   }
 
   /**
-   * Subscribe to Sam audit requests from Docker daemon
-   * These are requests to run comprehensive system audits
+   * Subscribe to Sam audit requests using JetStream durable consumer
+   * Fixes race condition: messages persist in stream until consumed
+   * Per WORKFLOW_RULES.md Rule #1: Fail fast if dependency unavailable
    */
   private async subscribeToSamAuditRequests() {
     const subject = 'agog.agent.requests.sam-audit';
+    const streamName = 'agog_audit_requests';
+    const consumerName = 'host-listener-audit-consumer';
 
-    const sub = this.nc.subscribe(subject);
-    logInfo('HostListener', `✅ Subscribed to ${subject}`);
+    try {
+      const jsm = await this.nc.jetstreamManager();
 
-    (async () => {
-      for await (const msg of sub) {
-        if (!this.isRunning) break;
-
-        try {
-          const request = JSON.parse(msg.string());
-          logInfo('HostListener', `📨 Received sam-audit request: ${JSON.stringify(request)}`);
-
-          // Wait for available slot
-          await this.waitForSlot();
-
-          // Spawn Sam audit agent
-          await this.spawnSamAuditAgent(request);
-
-        } catch (error: any) {
-          logError('HostListener', `Error processing sam-audit request: ${error.message}`);
-        }
+      // Create durable pull consumer
+      try {
+        await jsm.consumers.add(streamName, {
+          durable_name: consumerName,
+          ack_policy: 'explicit' as any,
+          deliver_policy: 'all' as any, // Deliver all messages from stream
+          filter_subject: subject,
+          max_deliver: 3, // Retry up to 3 times
+          ack_wait: 5 * 60 * 1_000_000_000, // 5 minute ack timeout
+        });
+        logInfo('HostListener', `✅ Created durable consumer: ${consumerName}`);
+      } catch (error: any) {
+        // Consumer might already exist
+        logDebug('HostListener', `Consumer already exists or error: ${error.message}`);
       }
-    })();
+
+      // Get consumer
+      const consumer = await this.js.consumers.get(streamName, consumerName);
+      logInfo('HostListener', `✅ Connected to JetStream consumer for ${subject}`);
+
+      // Process messages (pull-based - prevents race condition)
+      (async () => {
+        while (this.isRunning) {
+          try {
+            // Fetch one message at a time
+            const messages = await consumer.fetch({ max_messages: 1, expires: 1000 });
+
+            for await (const msg of messages) {
+              const request = JSON.parse(msg.string());
+              logInfo('HostListener', `📨 Received sam-audit request from JetStream: ${request.reqNumber}`);
+
+              try {
+                await this.waitForSlot();
+                await this.spawnSamAuditAgent(request);
+
+                // ACK message after successful spawn
+                msg.ack();
+                logInfo('HostListener', `✅ ACKed audit request ${request.reqNumber}`);
+
+              } catch (error: any) {
+                logError('HostListener', `Failed to spawn audit: ${error.message}`);
+                // NACK message to retry
+                msg.nak(30000); // Retry in 30 seconds
+              }
+            }
+          } catch (error: any) {
+            if (error.code !== '408') { // Ignore timeout (no messages)
+              logError('HostListener', `Audit consumer error: ${error.message}`);
+            }
+            await this.sleep(1000); // Brief pause before next fetch
+          }
+        }
+      })();
+
+    } catch (error: any) {
+      logError('HostListener', `Failed to create audit consumer: ${error.message}`);
+      // Rule #1: Fail fast if critical dependency unavailable
+      process.exit(1);
+    }
   }
 
   /**
@@ -759,6 +850,10 @@ IMPORTANT: The "changes" object is REQUIRED - explicitly list what you created o
     }
   }
 
+  private async sleep(ms: number): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   /**
    * Get relevant learnings for an agent before they start work
    */
@@ -1014,6 +1109,185 @@ ${JSON.stringify(contextData, null, 2)}`;
     return health;
   }
 
+  /** Publish heartbeat to SDLC infrastructure health table */
+  private startHealthHeartbeat() {
+    // Publish immediately on startup
+    this.publishHealthHeartbeat();
+
+    // Then every 60 seconds
+    setInterval(() => {
+      this.publishHealthHeartbeat();
+    }, 60000);
+
+    logInfo('HostListener', '💓 Health heartbeat publishing started (every 60s)');
+  }
+
+  private async publishHealthHeartbeat() {
+    try {
+      const health = await this.checkWorkflowHealth();
+      const status = health.nats ? 'healthy' : 'degraded';
+
+      await axios.post('https://api.agog.fyi/api/agent/infrastructure/health', {
+        component: 'host_listener',
+        status,
+        details: {
+          description: 'Spawns Claude CLI agents on Windows host',
+          activeAgents: this.activeAgents,
+          maxConcurrent: this.maxConcurrent,
+          natsConnected: health.nats,
+          sdlcConnected: health.database,
+          ollamaConnected: health.embeddings,
+          uptime: Math.floor(process.uptime()),
+          pid: process.pid,
+          // Include recent sanitized logs for SDLC visibility
+          recentLogs: getRecentLogs(30),
+        }
+      }, { timeout: 5000 });
+
+      logInfo('HostListener', `💓 Health heartbeat published (${this.activeAgents}/${this.maxConcurrent} agents, status: ${status})`);
+    } catch (e: any) {
+      logError('HostListener', `Failed to publish health heartbeat: ${e.message}`);
+    }
+  }
+
+  /** Subscribe to control commands from SDLC */
+  private async subscribeToControlCommands() {
+    const sub = this.nc.subscribe('agog.control.host_listener');
+    logInfo('HostListener', '🎮 Subscribed to control commands on agog.control.host_listener');
+
+    (async () => {
+      for await (const msg of sub) {
+        if (!this.isRunning) break;
+        try {
+          const cmd = JSON.parse(sc.decode(msg.data));
+          logInfo('HostListener', `🎮 Received control command: ${cmd.action}`);
+
+          switch (cmd.action) {
+            case 'status':
+              // Return current status
+              const health = await this.checkWorkflowHealth();
+              msg.respond(sc.encode(JSON.stringify({
+                success: true,
+                status: health.nats ? 'healthy' : 'degraded',
+                activeAgents: this.activeAgents,
+                maxConcurrent: this.maxConcurrent,
+                uptime: Math.floor(process.uptime()),
+                recentLogs: getRecentLogs(10),
+              })));
+              break;
+
+            case 'restart':
+              // Graceful restart - exit with code 0, let start-listener.bat restart us
+              logInfo('HostListener', '🔄 Restart requested via SDLC - initiating graceful shutdown...');
+              msg.respond(sc.encode(JSON.stringify({ success: true, message: 'Restarting...' })));
+              // Give time for response to send
+              setTimeout(() => process.exit(0), 1000);
+              break;
+
+            case 'get_logs':
+              // Return recent in-memory logs
+              const count = cmd.count || 50;
+              msg.respond(sc.encode(JSON.stringify({
+                success: true,
+                logs: getRecentLogs(count),
+              })));
+              break;
+
+            case 'get_log_files':
+              // List available log files
+              try {
+                const logsDir = path.join(__dirname, '..', 'logs');
+                const files = fs.readdirSync(logsDir)
+                  .filter(f => f.endsWith('.log'))
+                  .map(f => ({
+                    name: f,
+                    path: path.join(logsDir, f),
+                    size: fs.statSync(path.join(logsDir, f)).size,
+                    modified: fs.statSync(path.join(logsDir, f)).mtime.toISOString(),
+                  }))
+                  .sort((a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime());
+                msg.respond(sc.encode(JSON.stringify({ success: true, files })));
+              } catch (e: any) {
+                msg.respond(sc.encode(JSON.stringify({ success: false, error: e.message })));
+              }
+              break;
+
+            case 'read_log_file':
+              // Read a specific log file (sanitized, with pagination)
+              try {
+                const { filename, lines = 200, offset = 0 } = cmd;
+                if (!filename) throw new Error('filename required');
+
+                const logsDir = path.join(__dirname, '..', 'logs');
+                const filePath = path.join(logsDir, path.basename(filename)); // Prevent path traversal
+
+                if (!fs.existsSync(filePath)) {
+                  throw new Error('Log file not found');
+                }
+
+                const content = fs.readFileSync(filePath, 'utf8');
+                const allLines = content.split('\n');
+                const totalLines = allLines.length;
+
+                // Get requested slice
+                const start = Math.max(0, totalLines - lines - offset);
+                const end = totalLines - offset;
+                const selectedLines = allLines.slice(start, end);
+
+                // Sanitize each line
+                const sanitizedLines = selectedLines.map(line => sanitizeLogMessage(line));
+
+                msg.respond(sc.encode(JSON.stringify({
+                  success: true,
+                  filename,
+                  totalLines,
+                  offset,
+                  lines: sanitizedLines,
+                })));
+              } catch (e: any) {
+                msg.respond(sc.encode(JSON.stringify({ success: false, error: e.message })));
+              }
+              break;
+
+            case 'tail_log_file':
+              // Get last N lines of current log file (most common use case)
+              try {
+                const tailLines = cmd.lines || 100;
+                const currentLogFile = path.join(__dirname, '..', 'logs',
+                  `host-listener-${new Date().toISOString().split('T')[0]}.log`);
+
+                if (!fs.existsSync(currentLogFile)) {
+                  throw new Error('Current log file not found');
+                }
+
+                const content = fs.readFileSync(currentLogFile, 'utf8');
+                const allLines = content.split('\n');
+                const lastLines = allLines.slice(-tailLines);
+                const sanitizedLines = lastLines.map(line => sanitizeLogMessage(line));
+
+                msg.respond(sc.encode(JSON.stringify({
+                  success: true,
+                  filename: path.basename(currentLogFile),
+                  lines: sanitizedLines,
+                })));
+              } catch (e: any) {
+                msg.respond(sc.encode(JSON.stringify({ success: false, error: e.message })));
+              }
+              break;
+
+            default:
+              msg.respond(sc.encode(JSON.stringify({
+                success: false,
+                error: `Unknown action: ${cmd.action}`,
+              })));
+          }
+        } catch (e: any) {
+          logError('HostListener', `Control command error: ${e.message}`);
+        }
+      }
+    })();
+  }
+
   /** Subscribe to Sasha rule questions from agents via NATS */
   private async subscribeToSashaRuleQuestions() {
     const sub = this.nc.subscribe('agog.agent.requests.sasha-rules');
@@ -1145,10 +1419,19 @@ Report ready_to_resume: true when fixed.`;
     const subject = `agog.deliverables.${agentId}.${streamName}.${reqNumber}`;
 
     try {
-      await this.js.publish(subject, sc.encode(JSON.stringify(deliverable)));
+      // Increased timeout from default 5s to 30s for large deliverables
+      await this.js.publish(subject, sc.encode(JSON.stringify(deliverable)), { timeout: 30000 });
       logInfo('HostListener', `📤 Published deliverable to ${subject}`);
     } catch (error: any) {
       logError('HostListener', `Failed to publish deliverable: ${error.message}`);
+      // Retry once with longer timeout if initial publish fails
+      try {
+        logInfo('HostListener', `🔄 Retrying publish with extended timeout...`);
+        await this.js.publish(subject, sc.encode(JSON.stringify(deliverable)), { timeout: 60000 });
+        logInfo('HostListener', `📤 Retry successful for ${subject}`);
+      } catch (retryError: any) {
+        logError('HostListener', `Retry also failed: ${retryError.message}`);
+      }
     }
   }
 
@@ -1164,7 +1447,7 @@ Report ready_to_resume: true when fixed.`;
     };
 
     try {
-      await this.js.publish(subject, sc.encode(JSON.stringify(failureEvent)));
+      await this.js.publish(subject, sc.encode(JSON.stringify(failureEvent)), { timeout: 30000 });
       logInfo('HostListener', `📤 Published failure event for ${agentId}`);
     } catch (error: any) {
       logError('HostListener', `Failed to publish failure: ${error.message}`);

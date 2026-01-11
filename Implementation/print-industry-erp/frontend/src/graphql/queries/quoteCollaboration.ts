@@ -286,8 +286,8 @@ export interface PresenceEvent {
 
 export interface FieldChange {
   field: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
 }
 
 export interface ActiveUser {
@@ -325,8 +325,8 @@ export interface QuoteChangeRecord {
   changedAt: string;
   entityType: 'QUOTE' | 'QUOTE_LINE';
   fieldName: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
   changeType: 'CREATE' | 'UPDATE' | 'DELETE';
   sessionId?: string;
   wasConflict: boolean;
@@ -339,19 +339,19 @@ export interface ConflictInfo {
   field: string;
   expectedVersion: number;
   actualVersion: number;
-  currentValue: any;
-  attemptedValue: any;
+  currentValue: unknown;
+  attemptedValue: unknown;
 }
 
 export interface QuoteCollaborationResult {
   success: boolean;
-  quote: any;
+  quote: Record<string, unknown>;
   conflicts?: ConflictInfo[];
 }
 
 export interface QuoteLineCollaborationResult {
   success: boolean;
-  quoteLine: any;
+  quoteLine: Record<string, unknown>;
   conflicts?: ConflictInfo[];
 }
 

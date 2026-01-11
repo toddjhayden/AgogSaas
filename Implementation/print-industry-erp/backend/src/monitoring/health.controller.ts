@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { MetricsService } from './metrics.service';
 import { Pool } from 'pg';
 import { connect } from 'nats';
@@ -16,7 +16,7 @@ import { connect } from 'nats';
 export class HealthController {
   constructor(
     private readonly metricsService: MetricsService,
-    private readonly pool: Pool
+    @Inject('DATABASE_POOL') private readonly pool: Pool
   ) {}
 
   /**
@@ -77,7 +77,7 @@ export class HealthController {
       checks.database = true;
     } catch (err) {
       allReady = false;
-      console.error('Database readiness check failed:', err.message);
+      console.error('Database readiness check failed:', (err instanceof Error ? err.message : String(err)));
     }
 
     // Check NATS
@@ -90,7 +90,7 @@ export class HealthController {
       await nc.close();
     } catch (err) {
       allReady = false;
-      console.error('NATS readiness check failed:', err.message);
+      console.error('NATS readiness check failed:', (err instanceof Error ? err.message : String(err)));
     }
 
     // Check Ollama (optional - don't fail if not available)
@@ -100,7 +100,7 @@ export class HealthController {
       checks.ollama = response.ok;
     } catch (err) {
       // Ollama is optional, don't fail readiness
-      console.warn('Ollama readiness check failed:', err.message);
+      console.warn('Ollama readiness check failed:', (err instanceof Error ? err.message : String(err)));
     }
 
     if (!allReady) {

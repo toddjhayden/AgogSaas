@@ -8,7 +8,7 @@
  * - Win/loss analysis
  */
 
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import {
   Opportunity,
@@ -19,7 +19,7 @@ import {
 
 @Injectable()
 export class OpportunityService {
-  constructor(private readonly pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Create a new opportunity

@@ -36,6 +36,16 @@ import {
 // INTERFACES
 // =====================================================
 
+/**
+ * PubSub event types for quote collaboration
+ */
+interface QuotePubSubEvents {
+  QUOTE_CHANGED: { quoteChanged: QuoteEvent };
+  QUOTE_LINE_CHANGED: { quoteLineChanged: QuoteEvent };
+  PRESENCE_UPDATED: { presenceUpdated: PresenceEvent };
+  [key: string]: unknown; // Index signature for PubSub compatibility
+}
+
 interface GraphQLContext {
   req?: any;
   connection?: any;
@@ -347,7 +357,7 @@ export class QuoteCollaborationResolver {
     // Note: In production, should verify quote access here
     // For now, rely on filter function
 
-    return this.pubSub.asyncIterator('QUOTE_CHANGED');
+    return this.pubSub.asyncIterableIterator('QUOTE_CHANGED');
   }
 
   @Subscription('quoteLineChanged', {
@@ -369,7 +379,7 @@ export class QuoteCollaborationResolver {
     @Context() context: GraphQLContext
   ) {
     const tenantId = this.getTenantId(context);
-    return this.pubSub.asyncIterator('QUOTE_LINE_CHANGED');
+    return this.pubSub.asyncIterableIterator('QUOTE_LINE_CHANGED');
   }
 
   @Subscription('presenceUpdated', {
@@ -391,7 +401,7 @@ export class QuoteCollaborationResolver {
     @Context() context: GraphQLContext
   ) {
     const tenantId = this.getTenantId(context);
-    return this.pubSub.asyncIterator('PRESENCE_UPDATED');
+    return this.pubSub.asyncIterableIterator('PRESENCE_UPDATED');
   }
 
   // =====================================================

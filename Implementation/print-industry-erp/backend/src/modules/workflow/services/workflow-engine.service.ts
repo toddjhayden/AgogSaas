@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 interface WorkflowNode {
@@ -79,7 +79,9 @@ interface WorkflowInstanceNode {
 
 @Injectable()
 export class WorkflowEngineService {
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    @Inject('DATABASE_POOL') private readonly pool: Pool
+  ) {}
 
   /**
    * Start a new workflow instance
@@ -213,15 +215,16 @@ export class WorkflowEngineService {
       }
     } catch (error) {
       // Mark node as failed
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.updateNodeExecution(nodeExecution.id, {
         status: 'failed',
         action: 'failed',
         completed_at: new Date(),
-        comments: error.message
+        comments: errorMessage
       }, tenantId);
 
       // Fail workflow
-      await this.failWorkflow(instanceId, error.message, tenantId);
+      await this.failWorkflow(instanceId, errorMessage, tenantId);
       throw error;
     }
   }
@@ -264,12 +267,15 @@ export class WorkflowEngineService {
     }
 
     // Update node to in_progress state with approver assigned
-    await this.updateNodeExecution(nodeExecution.id, {
+    const updates: Partial<WorkflowInstanceNode> = {
       status: 'in_progress',
       assigned_user_id: approverId,
-      started_at: new Date(),
-      sla_deadline: node.sla_hours ? slaDeadline : null
-    }, tenantId);
+      started_at: new Date()
+    };
+    if (node.sla_hours) {
+      updates.sla_deadline = slaDeadline;
+    }
+    await this.updateNodeExecution(nodeExecution.id, updates, tenantId);
 
     // Create history entry
     await this.createHistoryEntry(nodeExecution.instance_id, tenantId, {
@@ -401,12 +407,15 @@ export class WorkflowEngineService {
       slaDeadline.setHours(slaDeadline.getHours() + node.sla_hours);
     }
 
-    await this.updateNodeExecution(nodeExecution.id, {
+    const taskUpdates: Partial<WorkflowInstanceNode> = {
       status: 'in_progress',
       assigned_user_id: assigneeId,
-      started_at: new Date(),
-      sla_deadline: node.sla_hours ? slaDeadline : null
-    }, tenantId);
+      started_at: new Date()
+    };
+    if (node.sla_hours) {
+      taskUpdates.sla_deadline = slaDeadline;
+    }
+    await this.updateNodeExecution(nodeExecution.id, taskUpdates, tenantId);
 
     await this.createHistoryEntry(nodeExecution.instance_id, tenantId, {
       event_type: 'node_entered',

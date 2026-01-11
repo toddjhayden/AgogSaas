@@ -557,7 +557,7 @@ export class StandardCostService {
         imported++;
       } catch (error) {
         errors.push(
-          `Failed to import ${input.costObjectCode}: ${error.message}`,
+          `Failed to import ${input.costObjectCode}: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`,
         );
       }
     }

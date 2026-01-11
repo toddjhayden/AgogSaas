@@ -1,7 +1,8 @@
 # ============================================================================
 # Stage 1: Builder - Build React application
 # ============================================================================
-FROM node:18-alpine AS builder
+# NOTE: Vite 7.x requires Node.js 20.19+ or 22.12+
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -72,7 +73,8 @@ CMD ["nginx", "-g", "daemon off;"]
 # ============================================================================
 # Stage 3: Development - Hot reload with Vite
 # ============================================================================
-FROM node:18-alpine AS development
+# NOTE: Vite 7.x requires Node.js 20.19+ or 22.12+
+FROM node:22-alpine AS development
 
 WORKDIR /app
 

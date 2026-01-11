@@ -73,6 +73,20 @@ interface ProductionAlert {
   timestamp: string;
 }
 
+interface OEETrend {
+  calculationDate: string;
+  oeePercentage: number;
+  availabilityPercentage: number;
+  performancePercentage: number;
+  qualityPercentage: number;
+  targetOEEPercentage: number;
+}
+
+interface WorkCenterSummary {
+  workCenterId: string;
+  workCenterName: string;
+}
+
 export const ProductionAnalyticsDashboard: React.FC = () => {
   const { t } = useTranslation();
   const { preferences } = useAppStore();
@@ -237,7 +251,7 @@ export const ProductionAnalyticsDashboard: React.FC = () => {
   // Format OEE trends data for chart
   const oeeTrendsChartData = useMemo(() => {
     if (!oeeTrendsData?.oEETrends) return [];
-    return oeeTrendsData.oEETrends.map((trend: unknown) => ({
+    return oeeTrendsData.oEETrends.map((trend: OEETrend) => ({
       date: new Date(trend.calculationDate).toLocaleDateString(),
       OEE: trend.oeePercentage,
       Availability: trend.availabilityPercentage,
@@ -507,7 +521,7 @@ export const ProductionAnalyticsDashboard: React.FC = () => {
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm"
               >
                 <option value="all">{t('common.allWorkCenters')}</option>
-                {workCenterData.workCenterSummaries.map((wc: unknown) => (
+                {workCenterData.workCenterSummaries.map((wc: WorkCenterSummary) => (
                   <option key={wc.workCenterId} value={wc.workCenterId}>
                     {wc.workCenterName}
                   </option>

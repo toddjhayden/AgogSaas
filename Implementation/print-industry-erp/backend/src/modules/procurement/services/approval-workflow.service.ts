@@ -337,7 +337,7 @@ export class ApprovalWorkflowService {
       });
 
       // 7. Check if this was the last step
-      const isLastStep = po.currentApprovalStepNumber >= steps.length;
+      const isLastStep = (po.currentApprovalStepNumber ?? 0) >= steps.length;
 
       if (isLastStep) {
         // Workflow complete - mark as APPROVED

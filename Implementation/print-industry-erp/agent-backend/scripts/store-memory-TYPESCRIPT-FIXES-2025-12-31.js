@@ -20,7 +20,8 @@ if (!DATABASE_URL) {
   console.error('[FATAL] DATABASE_URL environment variable is required');
   process.exit(1);
 }
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+// Host-side script uses HOST_OLLAMA_URL (localhost), not Docker-internal OLLAMA_URL
+const OLLAMA_URL = process.env.HOST_OLLAMA_URL || 'http://localhost:11434';
 const EMBEDDING_MODEL = 'nomic-embed-text';
 
 async function generateEmbedding(text) {

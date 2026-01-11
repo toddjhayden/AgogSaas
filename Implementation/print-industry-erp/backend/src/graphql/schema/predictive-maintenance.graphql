@@ -223,7 +223,7 @@ type PredictiveMaintenanceAlert {
   resolutionNotes: String
 
   # Notifications
-  notificationsSent: [Notification!]
+  notificationsSent: [MaintenanceNotification!]
   escalationLevel: Int
 
   createdAt: DateTime!
@@ -268,7 +268,7 @@ type MaintenanceScenario {
   risks: [String!]
 }
 
-type Notification {
+type MaintenanceNotification {
   userId: ID!
   method: String!
   timestamp: DateTime!
@@ -707,7 +707,7 @@ extend type Mutation {
 
   schedulePredictiveMaintenanceAlert(
     alertId: ID!
-    maintenanceRecordInput: CreateMaintenanceRecordInput!
+    maintenanceRecordInput: CreateScheduledMaintenanceInput!
   ): PredictiveMaintenanceAlert!
 
   resolvePredictiveMaintenanceAlert(
@@ -824,7 +824,7 @@ input TriggerConditionInput {
   unit: String
 }
 
-input CreateMaintenanceRecordInput {
+input CreateScheduledMaintenanceInput {
   scheduledDate: DateTime!
   maintenanceType: String!
   workDescription: String!

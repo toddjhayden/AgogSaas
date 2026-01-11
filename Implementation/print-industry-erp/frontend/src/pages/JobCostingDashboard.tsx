@@ -164,7 +164,7 @@ const JobCostingDashboard: React.FC = () => {
   };
 
   // Table columns
-  const columns: ColumnDef<JobCost, any>[] = [
+  const columns: ColumnDef<JobCost, unknown>[] = [
     {
       id: 'jobNumber',
       header: t('jobCosting.jobNumber'),
@@ -367,7 +367,7 @@ const JobCostingDashboard: React.FC = () => {
                 },
                 tooltip: {
                   callbacks: {
-                    label: (context: unknown) => {
+                    label: (context: { parsed: { y: number } }) => {
                       const value = context.parsed.y;
                       return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
                     }
@@ -378,7 +378,7 @@ const JobCostingDashboard: React.FC = () => {
                 y: {
                   beginAtZero: true,
                   ticks: {
-                    callback: (value: unknown) => `${value}%`
+                    callback: (value: number | string) => `${value}%`
                   }
                 }
               }

@@ -3,6 +3,13 @@ import { Card, CardContent, Typography, Alert, List, ListItem, ListItemText, Chi
 import { GET_SYSTEM_ERRORS } from '@graphql/queries';
 import { useEffect } from 'react';
 
+interface SystemError {
+  id: string;
+  severity: string;
+  message: string;
+  component: string;
+}
+
 interface ErrorListCardProps {
   lastRefresh: Date;
 }
@@ -29,7 +36,7 @@ export const ErrorListCard = ({ lastRefresh }: ErrorListCardProps) => {
           <Alert severity="success">No errors at this time</Alert>
         ) : (
           <List>
-            {errors.map((err: unknown) => (
+            {errors.map((err: SystemError) => (
               <ListItem key={err.id} divider>
                 <ListItemText
                   primary={

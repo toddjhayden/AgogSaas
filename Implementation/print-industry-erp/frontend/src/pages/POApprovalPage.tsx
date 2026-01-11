@@ -54,10 +54,32 @@ interface PendingApprovalItem {
   updatedAt?: string;
 }
 
+interface ApprovalHistoryEntry {
+  id: string;
+  action: string;
+  actionByUserName?: string;
+  actionByUserId?: string;
+  actionDate: string;
+  stepName?: string;
+  comments?: string;
+  rejectionReason?: string;
+  delegatedToUserName?: string;
+  wasEscalated: boolean;
+}
+
+interface User {
+  id: string;
+  tenantId: string;
+}
+
+interface AuthState {
+  user: User | null;
+}
+
 export const POApprovalPage: React.FC = () => {
   const { t } = useTranslation();
   useAppStore();
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state: AuthState) => state.user);
 
   const [filters, setFilters] = useState({
     urgencyLevel: '',
@@ -145,7 +167,7 @@ export const POApprovalPage: React.FC = () => {
   });
 
   const approvals: PendingApprovalItem[] = data?.getMyPendingApprovals || [];
-  const approvalHistory = historyData?.getPOApprovalHistory || [];
+  const approvalHistory: ApprovalHistoryEntry[] = historyData?.getPOApprovalHistory || [];
 
   // Filter approvals
   const filteredApprovals = approvals.filter((approval) => {
@@ -661,7 +683,7 @@ export const POApprovalPage: React.FC = () => {
               <div className="text-center py-8 text-gray-500">{t('No history available')}</div>
             ) : (
               <div className="space-y-4">
-                {approvalHistory.map((entry: unknown) => (
+                {approvalHistory.map((entry: ApprovalHistoryEntry) => (
                   <div key={entry.id} className="border-l-4 border-blue-500 pl-4 py-2">
                     <div className="flex items-start justify-between">
                       <div>
@@ -684,7 +706,7 @@ export const POApprovalPage: React.FC = () => {
                           {new Date(entry.actionDate).toLocaleString()}
                         </p>
                         {entry.comments && (
-                          <p className="text-sm text-gray-700 mt-2 italic">"{entry.comments}"</p>
+                          <p className="text-sm text-gray-700 mt-2 italic">&ldquo;{entry.comments}&rdquo;</p>
                         )}
                         {entry.rejectionReason && (
                           <p className="text-sm text-red-700 mt-2">

@@ -414,7 +414,7 @@ export class POApprovalWorkflowResolver {
       [id, tenantId]
     );
 
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   /**
@@ -472,7 +472,7 @@ export class POApprovalWorkflowResolver {
       [id, tenantId]
     );
 
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // =====================================================
@@ -566,7 +566,7 @@ export class POApprovalWorkflowResolver {
       return null;
     }
 
-    const po = this.mapPurchaseOrderRow(poResult.rows[0]);
+    const po: any = this.mapPurchaseOrderRow(poResult.rows[0]);
 
     // Load lines
     const linesResult = await this.db.query(

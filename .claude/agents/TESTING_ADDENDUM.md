@@ -6,6 +6,27 @@
 
 ---
 
+## 🚨 YOUR WORK WILL BE AUTOMATICALLY VERIFIED
+
+**The Orchestrator will run these commands AFTER you submit work:**
+
+```bash
+# Backend Build - MUST PASS
+cd Implementation/print-industry-erp/backend && npm run build
+
+# Frontend Build - MUST PASS
+cd Implementation/print-industry-erp/frontend && npm run build
+
+# Backend Tests - MUST PASS
+cd Implementation/print-industry-erp/backend && npm run test --passWithNoTests
+```
+
+**If ANY of these fail, your work is REJECTED and routed back to you.**
+
+You should run these yourself BEFORE claiming work is complete. If you break the build, you fix the build.
+
+---
+
 ## 🚨 CRITICAL RULE CHANGE
 
 **ALL AGENTS MUST FUNCTIONALLY TEST THEIR WORK BEFORE MARKING IT COMPLETE.**

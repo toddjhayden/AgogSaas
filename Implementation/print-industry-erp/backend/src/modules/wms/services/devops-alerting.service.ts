@@ -49,6 +49,11 @@ export interface Alert {
   facilityId?: string;
 }
 
+/**
+ * AlertInput - Alert without required timestamp (auto-added by sendAlert)
+ */
+export type AlertInput = Omit<Alert, 'timestamp'> & { timestamp?: Date };
+
 export interface AlertHistory {
   alertId: string;
   timestamp: Date;
@@ -102,8 +107,14 @@ export class DevOpsAlertingService {
   /**
    * Send alert to appropriate channels based on severity
    * Implements alert aggregation to prevent fatigue
+   * Accepts AlertInput (timestamp auto-added if not provided)
    */
-  async sendAlert(alert: Alert): Promise<void> {
+  async sendAlert(input: AlertInput): Promise<void> {
+    // Auto-add timestamp if not provided
+    const alert: Alert = {
+      ...input,
+      timestamp: input.timestamp || new Date(),
+    };
     const alertKey = this.generateAlertKey(alert);
 
     // Check if this alert should be aggregated
@@ -310,7 +321,7 @@ export class DevOpsAlertingService {
    * Note: In production, consider using a service like SendGrid or AWS SES
    */
   private async sendEmail(alert: Alert): Promise<void> {
-    const recipients = this.config.emailRecipients?.[alert.severity.toLowerCase()];
+    const recipients = (this.config.emailRecipients as any)?.[alert.severity.toLowerCase()];
 
     if (!recipients || recipients.length === 0) {
       console.warn(`[AlertingService] No email recipients configured for ${alert.severity}`);
@@ -554,5 +565,72 @@ export class DevOpsAlertingService {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Send deployment cancelled alert
+   */
+  async sendDeploymentCancelled(
+    tenantId: string,
+    deployment: any,
+    cancelledBy: string,
+    reason?: string,
+  ): Promise<void> {
+    await this.sendAlert({
+      tenantId,
+      severity: 'WARNING',
+      source: 'deployment-approval',
+      message: `Deployment #${deployment.deploymentNumber || deployment.deployment_number} was cancelled`,
+      metadata: {
+        deploymentId: deployment.id,
+        deploymentNumber: deployment.deploymentNumber || deployment.deployment_number,
+        cancelledBy,
+        reason: reason || 'No reason provided',
+      },
+    });
+  }
+
+  /**
+   * Send deployment execution started alert
+   */
+  async sendDeploymentExecutionStarted(
+    tenantId: string,
+    deployment: any,
+    executedBy: string,
+  ): Promise<void> {
+    await this.sendAlert({
+      tenantId,
+      severity: 'INFO',
+      source: 'deployment-approval',
+      message: `Deployment #${deployment.deploymentNumber || deployment.deployment_number} execution started for ${deployment.environment}`,
+      metadata: {
+        deploymentId: deployment.id,
+        deploymentNumber: deployment.deploymentNumber || deployment.deployment_number,
+        environment: deployment.environment,
+        executedBy,
+      },
+    });
+  }
+
+  /**
+   * Send deployment execution completed alert
+   */
+  async sendDeploymentExecutionCompleted(
+    tenantId: string,
+    deployment: any,
+    status: 'SUCCESS' | 'FAILED',
+  ): Promise<void> {
+    await this.sendAlert({
+      tenantId,
+      severity: status === 'SUCCESS' ? 'INFO' : 'CRITICAL',
+      source: 'deployment-approval',
+      message: `Deployment #${deployment.deploymentNumber || deployment.deployment_number} execution ${status.toLowerCase()} for ${deployment.environment}`,
+      metadata: {
+        deploymentId: deployment.id,
+        deploymentNumber: deployment.deploymentNumber || deployment.deployment_number,
+        environment: deployment.environment,
+        status,
+      },
+    });
   }
 }

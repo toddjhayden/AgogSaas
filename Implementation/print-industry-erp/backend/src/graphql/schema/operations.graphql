@@ -692,8 +692,8 @@ extend type Mutation {
   """Log equipment status"""
   logEquipmentStatus(input: LogEquipmentStatusInput!): EquipmentStatusLog!
 
-  """Create maintenance record"""
-  createMaintenanceRecord(input: CreateMaintenanceRecordInput!): MaintenanceRecord!
+  """Create work center maintenance record"""
+  createWorkCenterMaintenanceRecord(input: CreateWorkCenterMaintenanceRecordInput!): MaintenanceRecord!
 
   """Calculate OEE"""
   calculateOEE(
@@ -701,10 +701,12 @@ extend type Mutation {
     calculationDate: Date!
     shiftNumber: Int
   ): OEECalculation!
+}
 
   # =====================================================
   # PRODUCTION ANALYTICS QUERIES
   # =====================================================
+extend type Query {
   # REQ: REQ-STRATEGIC-AUTO-1767048328660 - Real-Time Production Analytics Dashboard
 
   """Get production summary for a facility"""
@@ -928,7 +930,7 @@ input LogEquipmentStatusInput {
   notes: String
 }
 
-input CreateMaintenanceRecordInput {
+input CreateWorkCenterMaintenanceRecordInput {
   workCenterId: ID!
   maintenanceType: MaintenanceType!
   maintenanceDate: Date!

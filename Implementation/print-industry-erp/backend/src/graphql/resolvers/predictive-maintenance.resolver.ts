@@ -9,7 +9,7 @@ import { EquipmentHealthScoreService } from '../../modules/predictive-maintenanc
 import { PredictiveAlertService } from '../../modules/predictive-maintenance/services/predictive-alert.service';
 import { ModelManagementService } from '../../modules/predictive-maintenance/services/model-management.service';
 import { MaintenanceRecommendationService } from '../../modules/predictive-maintenance/services/maintenance-recommendation.service';
-import { DatabaseService } from '../../common/database/database.service';
+import { DatabaseService } from '../../database/database.service';
 
 @Resolver()
 export class PredictiveMaintenanceResolver {

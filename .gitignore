@@ -11,12 +11,25 @@ tools/*.exe
 tools/*.bin
 tools/k6*
 
-# Environment variables
+# Environment variables (NEVER commit actual .env files)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+# Exception: Allow .env.example and .env.*.example files
+!.env.example
+!.env.*.example
+
+# Archive directory - prevent sensitive file commits
+.github/archive/**/*.env
+.github/archive/**/*.env.*
+**/archive/**/*.env
+**/archive/**/*.env.*
+**/archive/**/credentials.*
+**/archive/**/*.pem
+**/archive/**/*.key
+**/archive/**/*.cert
 
 # Build outputs
 dist/
@@ -76,3 +89,5 @@ Implementation/print-industry-erp/backend/agent-output/*
 !Implementation/print-industry-erp/backend/agent-output/deliverables/
 Implementation/print-industry-erp/backend/agent-output/nats-scripts/*
 Implementation/print-industry-erp/backend/agent-output/deliverables/*
+nul
+NUL

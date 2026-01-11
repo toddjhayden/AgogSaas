@@ -11,7 +11,7 @@
  */
 
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
-import { UseGuards, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { UseGuards, BadRequestException, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { CustomerAuthService } from '../customer-auth/customer-auth.service';
 import { CustomerAuthGuard } from '../customer-auth/guards/customer-auth.guard';
@@ -31,7 +31,7 @@ export class CustomerPortalResolver {
   constructor(
     private readonly customerAuthService: CustomerAuthService,
     private readonly passwordService: PasswordService,
-    private readonly dbPool: Pool,
+    @Inject('DATABASE_POOL') private readonly dbPool: Pool,
   ) {}
 
   // ============================================
@@ -299,35 +299,13 @@ export class CustomerPortalResolver {
   @Mutation()
   @UseGuards(CustomerAuthGuard)
   async customerEnrollMFA(@CurrentCustomerUser() user: CustomerUserPayload) {
-    // Check if MFA already enabled
-    const userResult = await this.dbPool.query(
-      `SELECT mfa_enabled FROM customer_users WHERE id = $1`,
-      [user.userId],
-    );
-
-    if (userResult.rows.length > 0 && userResult.rows[0].mfa_enabled) {
-      throw new BadRequestException('MFA already enabled');
-    }
-
-    // TODO: Generate TOTP secret and QR code using speakeasy
-    // For MVP, return placeholder
-    const secret = 'PLACEHOLDER_SECRET';
-    const qrCodeUrl = 'https://placeholder.qr';
-    const backupCodes = ['CODE1', 'CODE2', 'CODE3', 'CODE4', 'CODE5'];
-
-    // Store MFA secret (not activated until verified)
-    await this.dbPool.query(
-      `UPDATE customer_users
-       SET mfa_secret = $1,
-           mfa_backup_codes = $2
-       WHERE id = $3`,
-      [secret, JSON.stringify(backupCodes), user.userId],
-    );
+    // Generate TOTP secret, QR code, and backup codes
+    const enrollmentData = await this.customerAuthService.enrollMFA(user.userId, user.email);
 
     return {
-      secret,
-      qrCodeUrl,
-      backupCodes,
+      secret: enrollmentData.secret,
+      qrCodeUrl: enrollmentData.qrCodeUrl,
+      backupCodes: enrollmentData.backupCodes,
     };
   }
 
@@ -337,22 +315,8 @@ export class CustomerPortalResolver {
     @CurrentCustomerUser() user: CustomerUserPayload,
     @Args('code') code: string,
   ): Promise<boolean> {
-    // TODO: Verify TOTP code using speakeasy
-    // For MVP, accept any 6-digit code
-    if (!/^\d{6}$/.test(code)) {
-      throw new BadRequestException('Invalid MFA code format');
-    }
-
-    // Enable MFA
-    await this.dbPool.query(
-      `UPDATE customer_users SET mfa_enabled = TRUE WHERE id = $1`,
-      [user.userId],
-    );
-
-    // Log activity
-    await this.logActivity(user.userId, user.tenantId, 'MFA_ENABLED', null);
-
-    return true;
+    // Verify TOTP code and enable MFA
+    return this.customerAuthService.verifyMFAEnrollment(user.userId, code);
   }
 
   @Mutation()
@@ -361,39 +325,18 @@ export class CustomerPortalResolver {
     @CurrentCustomerUser() user: CustomerUserPayload,
     @Args('password') password: string,
   ): Promise<boolean> {
-    // Verify password before disabling MFA
-    const userResult = await this.dbPool.query(
-      `SELECT password_hash FROM customer_users WHERE id = $1`,
-      [user.userId],
-    );
+    // Disable MFA with password confirmation
+    return this.customerAuthService.disableMFA(user.userId, password);
+  }
 
-    if (userResult.rows.length === 0) {
-      throw new NotFoundException('User not found');
-    }
-
-    const isValid = await this.passwordService.validatePassword(
-      password,
-      userResult.rows[0].password_hash,
-    );
-
-    if (!isValid) {
-      throw new BadRequestException('Incorrect password');
-    }
-
-    // Disable MFA
-    await this.dbPool.query(
-      `UPDATE customer_users
-       SET mfa_enabled = FALSE,
-           mfa_secret = NULL,
-           mfa_backup_codes = NULL
-       WHERE id = $1`,
-      [user.userId],
-    );
-
-    // Log activity
-    await this.logActivity(user.userId, user.tenantId, 'MFA_DISABLED', null);
-
-    return true;
+  @Mutation()
+  @UseGuards(CustomerAuthGuard)
+  async customerRegenerateBackupCodes(
+    @CurrentCustomerUser() user: CustomerUserPayload,
+    @Args('password') password: string,
+  ): Promise<string[]> {
+    // Regenerate backup codes with password confirmation
+    return this.customerAuthService.regenerateBackupCodes(user.userId, password);
   }
 
   // ============================================

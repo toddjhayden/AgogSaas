@@ -25,6 +25,25 @@ import { useAppStore } from '../store/appStore';
 type PaymentView = 'overview' | 'make-payment' | 'add-card' | 'add-ach' | 'transactions';
 type PaymentType = 'card' | 'ach';
 
+// Type definitions for payment data
+interface Transaction {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
+}
+
+interface PaymentMethod {
+  id: string;
+  paymentMethodType: 'CARD' | 'ACH';
+  cardBrand?: string;
+  cardLast4?: string;
+  bankName?: string;
+  bankLast4?: string;
+  isDefault?: boolean;
+}
+
 export const PaymentManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const [currentView, setCurrentView] = useState<PaymentView>('overview');
@@ -131,7 +150,7 @@ export const PaymentManagementPage: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">{t('payments.successfulPayments')}</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {transactions.filter((t: unknown) => t.status === 'SUCCEEDED').length}
+                {transactions.filter((t: Transaction) => t.status === 'SUCCEEDED').length}
               </p>
             </div>
             <RefreshCw className="h-8 w-8 text-green-600" />
@@ -186,7 +205,7 @@ export const PaymentManagementPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {paymentMethods.map((method: unknown) => (
+            {paymentMethods.map((method: PaymentMethod) => (
               <div
                 key={method.id}
                 className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"

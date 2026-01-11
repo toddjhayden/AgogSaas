@@ -63,7 +63,7 @@ interface FacilityEdgeStatus {
   memoryUsage: number;
   diskUsage: number;
   networkLatency: number;
-  servicesStatus: any;
+  servicesStatus: Record<string, unknown>;
   escalated: boolean;
   escalationTier: number;
   edgeVersion: string;
@@ -94,13 +94,13 @@ interface EdgeAlert {
   escalationTier: number;
   offlineDurationMinutes: number;
   minutesSinceAlert: number;
-  channelsSent: any;
-  deliveryStatus: any;
+  channelsSent: Record<string, unknown>;
+  deliveryStatus: Record<string, unknown>;
 }
 
 export const EdgeMonitoringDashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state) => state.user) as { id?: string } | null;
 
   const [activeTab, setActiveTab] = useState<'facilities' | 'alerts'>('facilities');
   const [showFilters, setShowFilters] = useState(false);

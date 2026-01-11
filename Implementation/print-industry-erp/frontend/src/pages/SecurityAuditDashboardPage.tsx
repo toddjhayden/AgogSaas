@@ -82,6 +82,69 @@ interface TabPanelProps {
   value: number;
 }
 
+interface SecurityAuditEventEdge {
+  node: {
+    id: string;
+    eventTimestamp: string;
+    eventType: string;
+    username: string | null;
+    ipAddress: string;
+    riskLevel: string;
+    success: boolean;
+    countryCode: string | null;
+    city: string | null;
+  };
+}
+
+interface SecurityIncidentEdge {
+  node: {
+    id: string;
+    incidentNumber: string;
+    title: string;
+    severity: string;
+    status: string;
+    detectedAt: string;
+    assignedTo?: {
+      username: string;
+    };
+  };
+}
+
+interface ThreatPattern {
+  id: string;
+  patternName: string;
+  patternDescription?: string;
+  severity: string;
+  matchCount: number;
+  autoBlock: boolean;
+  enabled: boolean;
+}
+
+interface SuspiciousIP {
+  ipAddress: string;
+  eventCount: number;
+  failedLoginCount: number;
+  riskScore: number;
+  blocked: boolean;
+}
+
+interface SuspiciousUser {
+  userId: string;
+  username: string;
+  suspiciousEventCount: number;
+  riskScore: number;
+  lastSuspiciousActivity: string;
+}
+
+interface GeographicAccessEntry {
+  countryCode: string;
+  countryName?: string;
+  accessCount: number;
+  failedLoginCount: number;
+  suspiciousEventCount: number;
+  uniqueUsers: number;
+}
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
@@ -179,7 +242,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
     setEventPage(0);
   };
 
-  const getSecurityScoreColor = (score: number): string => {
+  const getSecurityScoreColor = (score: number): 'success' | 'warning' | 'error' => {
     if (score >= 90) return 'success';
     if (score >= 70) return 'warning';
     return 'error';
@@ -296,7 +359,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
                 <LinearProgress
                   variant="determinate"
                   value={overview.securityScore}
-                  color={getSecurityScoreColor(overview.securityScore) as unknown}
+                  color={getSecurityScoreColor(overview.securityScore)}
                   sx={{ mt: 2 }}
                 />
               </CardContent>
@@ -477,7 +540,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {eventsData?.securityAuditEvents?.edges?.map((edge: unknown) => {
+                  {eventsData?.securityAuditEvents?.edges?.map((edge: SecurityAuditEventEdge) => {
                     const event = edge.node;
                     return (
                       <TableRow key={event.id} hover>
@@ -564,7 +627,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {incidentsData?.securityIncidents?.edges?.map((edge: unknown) => {
+                  {incidentsData?.securityIncidents?.edges?.map((edge: SecurityIncidentEdge) => {
                     const incident = edge.node;
                     return (
                       <TableRow key={incident.id} hover>
@@ -627,7 +690,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {threatPatternsData?.threatPatterns?.map((pattern: unknown) => (
+                {threatPatternsData?.threatPatterns?.map((pattern: ThreatPattern) => (
                   <TableRow key={pattern.id} hover>
                     <TableCell>
                       <Typography variant="body2" fontWeight="bold">
@@ -701,7 +764,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {suspiciousIPsData?.suspiciousIPs?.map((ip: unknown) => (
+                    {suspiciousIPsData?.suspiciousIPs?.map((ip: SuspiciousIP) => (
                       <TableRow key={ip.ipAddress}>
                         <TableCell>
                           <Typography variant="body2" fontFamily="monospace">
@@ -758,7 +821,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {overview.suspiciousUsers.map((user: unknown) => (
+                      {overview.suspiciousUsers.map((user: SuspiciousUser) => (
                         <TableRow key={user.userId}>
                           <TableCell>{user.username}</TableCell>
                           <TableCell align="right">{user.suspiciousEventCount}</TableCell>
@@ -816,7 +879,7 @@ const SecurityAuditDashboardPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {geoMapData?.geographicAccessMap?.map((country: unknown) => (
+                {geoMapData?.geographicAccessMap?.map((country: GeographicAccessEntry) => (
                   <TableRow key={country.countryCode}>
                     <TableCell>
                       <Typography variant="body2">

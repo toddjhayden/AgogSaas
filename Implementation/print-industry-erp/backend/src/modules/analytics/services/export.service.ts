@@ -133,12 +133,12 @@ export class ExportService {
       return result;
     } catch (error) {
       this.logger.error(
-        `Export ${exportId} failed: ${error.message}`,
-        error.stack,
+        `Export ${exportId} failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`,
+        (error instanceof Error ? error.stack : undefined),
       );
 
       result.status = ExportStatus.FAILED;
-      result.error = error.message;
+      result.error = (error instanceof Error ? error.message : String(error));
       result.completedAt = new Date();
       result.executionTimeMs = Date.now() - startTime;
 

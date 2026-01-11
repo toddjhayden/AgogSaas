@@ -60,7 +60,7 @@ export class WebhookController {
         try {
           await this.webhookHandler.processStripeWebhook(event);
         } catch (error) {
-          this.logger.error(`Webhook processing error: ${error.message}`, error.stack);
+          this.logger.error(`Webhook processing error: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`, (error instanceof Error ? error.stack : undefined));
         }
       });
 
@@ -68,7 +68,7 @@ export class WebhookController {
       return { received: true };
 
     } catch (error) {
-      this.logger.error(`Webhook handling failed: ${error.message}`, error.stack);
+      this.logger.error(`Webhook handling failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`, (error instanceof Error ? error.stack : undefined));
 
       if (error instanceof UnauthorizedException) {
         throw error;

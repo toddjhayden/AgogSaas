@@ -6,15 +6,53 @@
 
 ---
 
-## 🚨 Your New Critical Responsibility
+## 🚨 AUTOMATED BUILD VERIFICATION (MANDATORY FIRST STEP)
 
-As the Orchestrator, you are the **GATEKEEPER** for work quality. You MUST enforce the mandatory testing policy before accepting any work as complete.
+**Before reviewing ANY agent evidence, the Orchestrator MUST run automated verification:**
+
+```bash
+# ALWAYS RUN THESE AFTER ANY AGENT COMPLETES WORK:
+
+# 1. Backend Build
+cd Implementation/print-industry-erp/backend && npm run build
+# Exit code must be 0
+
+# 2. Frontend Build
+cd Implementation/print-industry-erp/frontend && npm run build
+# Exit code must be 0
+
+# 3. Backend Tests
+cd Implementation/print-industry-erp/backend && npm run test --passWithNoTests
+# Exit code must be 0
+```
+
+**IF ANY BUILD FAILS:**
+1. ❌ REJECT the work immediately
+2. Record the EXACT error output
+3. Route back to agent with: "BUILD BROKEN - FIX THESE ERRORS: [paste errors]"
+4. Do NOT proceed to evidence review
+5. Do NOT mark as complete
+
+**This is automated. This is mandatory. No exceptions.**
+
+---
+
+## 🚨 Your Critical Responsibility
+
+As the Orchestrator, you are the **GATEKEEPER** for work quality. You MUST:
+1. **RUN the builds yourself** (don't trust "it compiles" claims)
+2. **VERIFY the tests pass yourself** (don't trust "tests pass" claims)
+3. **THEN review evidence** (only after automated verification passes)
 
 **NO EXCEPTIONS. NO SHORTCUTS.**
 
 ---
 
 ## Testing Enforcement Rules
+
+### Rule 0: Run Automated Verification First
+
+Before even looking at agent evidence, RUN THE BUILDS. If they fail, reject immediately.
 
 ### Rule 1: No Evidence = No Completion
 

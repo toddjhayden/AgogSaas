@@ -135,7 +135,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
 
   // FIX: Get tenant ID from app store (with fallback for development)
   // TODO: In production, enforce that tenantId must be set via authentication
-  const tenantId = (preferences as unknown).tenantId || 'tenant-default-001';
+  const tenantId = (preferences as { tenantId?: string }).tenantId || 'tenant-default-001';
 
   // State management
   const [materialId, setMaterialId] = useState<string>(''); // Empty initially - user must select
@@ -304,7 +304,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
         date: d.demandDate,
         timestamp,
         actual: d.actualDemandQuantity,
-        forecast: d.forecastedDemandQuantity || null,
+        forecast: d.forecastedDemandQuantity ?? 0,
         type: 'historical' as const,
       };
     });
@@ -315,15 +315,15 @@ export const InventoryForecastingDashboard: React.FC = () => {
       return {
         date: f.forecastDate,
         timestamp,
-        actual: null,
+        actual: 0,
         forecast: f.isManuallyOverridden
-          ? f.manualOverrideQuantity
+          ? (f.manualOverrideQuantity ?? 0)
           : f.forecastedDemandQuantity,
-        lowerBound80: f.lowerBound80Pct,
-        upperBound80: f.upperBound80Pct,
-        lowerBound95: f.lowerBound95Pct,
-        upperBound95: f.upperBound95Pct,
-        confidence: f.modelConfidenceScore,
+        lowerBound80: f.lowerBound80Pct ?? 0,
+        upperBound80: f.upperBound80Pct ?? 0,
+        lowerBound95: f.lowerBound95Pct ?? 0,
+        upperBound95: f.upperBound95Pct ?? 0,
+        confidence: f.modelConfidenceScore ?? 0,
         type: 'forecast' as const,
       };
     });
@@ -361,7 +361,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
   // Export Functions
   // ============================================================================
 
-  const exportToCSV = (data: any[], filename: string, columns: string[]) => {
+  const exportToCSV = <T extends Record<string, unknown>>(data: T[], filename: string, columns: string[]) => {
     if (data.length === 0) {
       alert('No data to export');
       return;
@@ -374,7 +374,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
     const rows = data.map((row) => {
       return columns
         .map((col) => {
-          let value = row[col];
+          let value: unknown = row[col];
 
           // Handle null/undefined
           if (value === null || value === undefined) {
@@ -383,7 +383,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
 
           // Handle dates
           if (col.includes('Date') || col.includes('Timestamp')) {
-            value = new Date(value).toLocaleDateString();
+            value = new Date(value as string | number | Date).toLocaleDateString();
           }
 
           // Handle numbers
@@ -422,7 +422,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
     // Export demand history
     if (demandHistory.length > 0) {
       exportToCSV(
-        demandHistory,
+        demandHistory as unknown as Record<string, unknown>[],
         `demand_history_${materialId}`,
         [
           'demandDate',
@@ -442,7 +442,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
     if (forecasts.length > 0) {
       setTimeout(() => {
         exportToCSV(
-          forecasts,
+          forecasts as unknown as Record<string, unknown>[],
           `forecasts_${materialId}`,
           [
             'forecastDate',
@@ -464,7 +464,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
     if (recommendations.length > 0) {
       setTimeout(() => {
         exportToCSV(
-          recommendations,
+          recommendations as unknown as Record<string, unknown>[],
           `replenishment_recommendations_${materialId}`,
           [
             'urgencyLevel',
@@ -1089,7 +1089,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
               <DataTable data={forecasts.slice(0, 20)} columns={forecastColumns} />
             ) : (
               <div className="text-center py-12 text-gray-500">
-                No forecasts available. Click "Generate Forecasts" to create new forecasts.
+                No forecasts available. Click &ldquo;Generate Forecasts&rdquo; to create new forecasts.
               </div>
             )}
           </div>
@@ -1122,7 +1122,7 @@ export const InventoryForecastingDashboard: React.FC = () => {
               <DataTable data={recommendations} columns={recommendationColumns} />
             ) : (
               <div className="text-center py-12 text-gray-500">
-                No pending recommendations. Click "Generate Recommendations" to create new recommendations based on current forecasts and inventory levels.
+                No pending recommendations. Click &ldquo;Generate Recommendations&rdquo; to create new recommendations based on current forecasts and inventory levels.
               </div>
             )}
           </div>

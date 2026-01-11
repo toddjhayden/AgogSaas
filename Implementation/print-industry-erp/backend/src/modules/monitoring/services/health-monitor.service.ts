@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Inject, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import axios from 'axios';
 import { Pool } from 'pg';
 
@@ -22,18 +22,12 @@ export interface SystemHealth {
 
 @Injectable()
 export class HealthMonitorService implements OnModuleInit, OnModuleDestroy {
-  private pool: Pool;
   private monitoringInterval: NodeJS.Timeout | null = null;
 
-  constructor() {
-    // Use DATABASE_URL connection string (set by docker-compose)
-    const connectionString = process.env.DATABASE_URL || 'postgresql://agogsaas_user:changeme@localhost:5433/agogsaas';
-    this.pool = new Pool({
-      connectionString,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+  constructor(
+    @Inject('DATABASE_POOL') private pool: Pool
+  ) {
+    // Use injected DATABASE_POOL for consistent connection handling
   }
 
   async onModuleInit() {
@@ -46,7 +40,7 @@ export class HealthMonitorService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     console.log('[HealthMonitor] Service shutting down');
     this.stopMonitoring();
-    await this.close();
+    // Don't close the shared pool - it's managed by the database module
   }
 
   async checkSystemHealth(): Promise<SystemHealth> {
@@ -103,8 +97,10 @@ export class HealthMonitorService implements OnModuleInit, OnModuleDestroy {
     const startTime = Date.now();
     const timeout = parseInt(process.env.HEALTH_CHECK_FRONTEND_TIMEOUT_MS || '5000', 10);
     try {
-      // Check frontend at correct port (3000)
-      const response = await axios.get('http://localhost:3000/', {
+      // Use Docker network hostname 'frontend' when running in container,
+      // fallback to localhost for local development
+      const frontendUrl = process.env.FRONTEND_URL || 'http://frontend:3000/';
+      const response = await axios.get(frontendUrl, {
         timeout,
       });
       const responseTime = Date.now() - startTime;
@@ -267,9 +263,5 @@ export class HealthMonitorService implements OnModuleInit, OnModuleDestroy {
       this.monitoringInterval = null;
       console.log('[Health] Monitoring stopped');
     }
-  }
-
-  async close(): Promise<void> {
-    await this.pool.end();
   }
 }

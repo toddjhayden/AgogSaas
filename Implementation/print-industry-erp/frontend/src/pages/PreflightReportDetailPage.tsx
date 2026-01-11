@@ -25,6 +25,17 @@ import {
   REJECT_PREFLIGHT_REPORT,
 } from '../graphql/queries/preflight';
 
+// Type definitions for preflight issues
+interface PreflightIssue {
+  id?: string;
+  issueType: 'ERROR' | 'WARNING' | 'INFO';
+  severity: 'CRITICAL' | 'MAJOR' | 'MINOR';
+  errorCode: string;
+  errorMessage: string;
+  suggestedFix?: string;
+  pageNumber?: number;
+}
+
 export const PreflightReportDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
@@ -94,9 +105,9 @@ export const PreflightReportDetailPage: React.FC = () => {
   const report = reportData?.preflightReport;
   const issues = issuesData?.preflightIssues || [];
 
-  const errors = issues.filter((i: unknown) => i.issueType === 'ERROR');
-  const warnings = issues.filter((i: unknown) => i.issueType === 'WARNING');
-  // Info issues could be displayed if needed: issues.filter((i: unknown) => i.issueType === 'INFO')
+  const errors = issues.filter((i: PreflightIssue) => i.issueType === 'ERROR');
+  const warnings = issues.filter((i: PreflightIssue) => i.issueType === 'WARNING');
+  // Info issues could be displayed if needed: issues.filter((i: PreflightIssue) => i.issueType === 'INFO')
 
   if (reportLoading) {
     return (
@@ -375,7 +386,7 @@ export const PreflightReportDetailPage: React.FC = () => {
                 <XCircle className="h-4 w-4 mr-2" />
                 {t('preflight.errors', 'Errors')} ({errors.length})
               </h3>
-              {errors.map((issue: any, index: number) => (
+              {errors.map((issue: PreflightIssue, index: number) => (
                 <div key={index} className="border-l-4 border-danger-500 bg-danger-50 p-3 mb-2">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -408,7 +419,7 @@ export const PreflightReportDetailPage: React.FC = () => {
                 <AlertTriangle className="h-4 w-4 mr-2" />
                 {t('preflight.warnings', 'Warnings')} ({warnings.length})
               </h3>
-              {warnings.map((issue: any, index: number) => (
+              {warnings.map((issue: PreflightIssue, index: number) => (
                 <div key={index} className="border-l-4 border-warning-500 bg-warning-50 p-3 mb-2">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">

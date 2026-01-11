@@ -170,7 +170,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Database connection failed',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: true,
       };
     }
@@ -228,7 +228,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Failed to check tables',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: true,
       };
     }
@@ -274,7 +274,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Failed to check extensions',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: false,
       };
     }
@@ -317,7 +317,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Failed to check RLS policies',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: false,
       };
     }
@@ -352,7 +352,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Bin utilization query failed',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: true,
       };
     }
@@ -383,7 +383,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Forecasting query failed',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: true,
       };
     }
@@ -414,7 +414,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Quote automation query failed',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: true,
       };
     }
@@ -445,7 +445,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Vendor scorecards query failed',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: false,
       };
     }
@@ -476,7 +476,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Purchase orders query failed',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: false,
       };
     }
@@ -526,7 +526,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Failed to check data integrity',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: false,
       };
     }
@@ -574,7 +574,7 @@ export class SmokeTestService {
         status: 'FAIL',
         duration: Date.now() - start,
         message: 'Failed to check tenant isolation',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         critical: false,
       };
     }

@@ -14,6 +14,17 @@ import {
 } from 'lucide-react';
 import { GET_SUPPLIER_PURCHASE_ORDER } from '../graphql/queries/supplierPortal';
 
+// Type definition for PO line item
+interface POLineItem {
+  id: string;
+  lineNumber: number;
+  description: string;
+  quantity: number;
+  unitOfMeasure: string;
+  unitPrice: number;
+  extendedPrice: number;
+}
+
 const SupplierPurchaseOrderDetailPage: React.FC = () => {
   const { t } = useTranslation();
   const { poNumber } = useParams<{ poNumber: string }>();
@@ -114,7 +125,7 @@ const SupplierPurchaseOrderDetailPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {po.lines?.map((line: unknown) => (
+                  {po.lines?.map((line: POLineItem) => (
                     <tr key={line.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{line.lineNumber}</td>
                       <td className="px-6 py-4 text-sm text-gray-900">{line.description}</td>

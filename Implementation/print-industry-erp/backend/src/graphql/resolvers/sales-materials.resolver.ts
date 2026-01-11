@@ -762,7 +762,7 @@ export class SalesMaterialsResolver {
          q.*,
          c.customer_name,
          f.facility_name,
-         u.full_name as sales_rep_name
+         COALESCE(u.display_name, CONCAT(u.first_name, ' ', u.last_name)) as sales_rep_name
        FROM quotes q
        LEFT JOIN customers c ON q.customer_id = c.id
        LEFT JOIN facilities f ON q.facility_id = f.id
@@ -783,7 +783,7 @@ export class SalesMaterialsResolver {
          q.*,
          c.customer_name,
          f.facility_name,
-         u.full_name as sales_rep_name
+         COALESCE(u.display_name, CONCAT(u.first_name, ' ', u.last_name)) as sales_rep_name
        FROM quotes q
        LEFT JOIN customers c ON q.customer_id = c.id
        LEFT JOIN facilities f ON q.facility_id = f.id
@@ -814,7 +814,7 @@ export class SalesMaterialsResolver {
          q.*,
          c.customer_name,
          f.facility_name,
-         u.full_name as sales_rep_name
+         COALESCE(u.display_name, CONCAT(u.first_name, ' ', u.last_name)) as sales_rep_name
        FROM quotes q
        LEFT JOIN customers c ON q.customer_id = c.id
        LEFT JOIN facilities f ON q.facility_id = f.id
@@ -1513,8 +1513,8 @@ export class SalesMaterialsResolver {
   ) {
     // Validation: Check score ranges
     validateUpdatePerformanceScoresInput({
-      priceCompetitivenessScore,
-      responsivenessScore,
+      priceCompetitivenessScore: priceCompetitivenessScore ?? undefined,
+      responsivenessScore: responsivenessScore ?? undefined,
     });
 
     const updates: string[] = [];
@@ -2249,7 +2249,7 @@ export class SalesMaterialsResolver {
       approvedAt: row.approved_at,
       journalEntryId: row.journal_entry_id,
       notes: row.notes,
-      lines: [],
+      lines: [] as any[],
       createdAt: row.created_at,
       createdBy: row.created_by,
       updatedAt: row.updated_at,
@@ -2445,7 +2445,7 @@ export class SalesMaterialsResolver {
       convertedAt: row.converted_at,
       notes: row.notes,
       termsAndConditions: row.terms_and_conditions,
-      lines: [],
+      lines: [] as any[],
       createdAt: row.created_at,
       createdBy: row.created_by,
       updatedAt: row.updated_at,
@@ -2515,7 +2515,7 @@ export class SalesMaterialsResolver {
       quoteId: row.quote_id,
       notes: row.notes,
       specialInstructions: row.special_instructions,
-      lines: [],
+      lines: [] as any[],
       createdAt: row.created_at,
       createdBy: row.created_by,
       updatedAt: row.updated_at,

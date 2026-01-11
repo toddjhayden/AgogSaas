@@ -24,12 +24,8 @@ AI-powered Enterprise Resource Planning system for the packaging industry with 4
 
 ### 1. Start the Application Stack (Production ERP)
 
-```bash
-# Windows
-RUN_APPLICATION.bat
-
-# Linux/Mac
-./run-application.sh
+```batch
+.claude\RUN_APPLICATION.bat
 ```
 
 This starts:
@@ -42,42 +38,49 @@ Access:
 - **Monitoring:** http://localhost:3000/monitoring
 - **GraphQL API:** http://localhost:4000/graphql
 
-### 2. Start the Agent Development System (Optional - For AI Development)
+### 2. Start the Agent Development System (AI-Assisted Development)
 
-```bash
-# Windows
-RUN_AGENTS.bat
-
-# Linux/Mac
-./run-agents.sh
+```batch
+cd Implementation\print-industry-erp\agent-backend
+START_SYSTEM.bat
 ```
 
 This starts:
-- PostgreSQL with pgvector (agent memory)
+- PostgreSQL with pgvector (agent memory - port 5434)
+- PostgreSQL for SDLC Control (entity graph - port 5435)
 - NATS JetStream (agent communication)
 - Agent Backend (orchestrator)
 - Ollama (local AI embeddings)
+- **SDLC Control daemon** (REST API on port 3010)
+- **SDLC Control GUI** (http://localhost:3020)
+- Host Listener (spawns Claude CLI agents)
 
-**Note:** The application works WITHOUT agents. Only start agents if you're doing AI-assisted development.
+Access:
+- **SDLC Control GUI:** http://localhost:3020 (Kanban, Requests, Approvals)
+- **SDLC REST API:** http://localhost:3010/api/agent/health
+- **NATS Monitoring:** http://localhost:8223
 
-### Manual Setup (Advanced):
+### Stop Systems
 
-```bash
+```batch
+# Stop agent system (from .claude folder)
+.claude\STOP_AGENTS.bat
+
+# Stop application
+.claude\STOP_APPLICATION.bat
+```
+
+### First-Time Setup
+
+```batch
 # 1. Configure environment
-cp .env.example .env
-# Edit .env: Add DB_PASSWORD (OPENAI_API_KEY optional)
+copy .env.example .env
+# Edit .env: Add NATS_PASSWORD, DB_PASSWORD
 
-# 2. Start application stack
-cd Implementation/print-industry-erp
-docker-compose -f docker-compose.app.yml up -d
-
-# 3. (Optional) Start agent system
-docker-compose -f docker-compose.agents.yml up -d
-
-# Access:
-# - App: http://localhost:3000
-# - Monitoring: http://localhost:3000/monitoring
-# - API: http://localhost:4000/graphql
+# 2. Fresh database initialization (removes old data)
+cd Implementation\print-industry-erp
+docker-compose -f docker-compose.agents.yml down -v
+START_SYSTEM.bat
 ```
 
 ## Project Structure
@@ -88,9 +91,16 @@ agogsaas/
 │   └── print-industry-erp/
 │       ├── docker-compose.app.yml      # Application stack (production)
 │       ├── docker-compose.agents.yml   # Agent system (dev only)
-│       ├── backend/                    # GraphQL API
+│       ├── backend/                    # GraphQL API (NestJS)
 │       ├── frontend/                   # React web application
-│       ├── database/                   # Database schemas & migrations
+│       ├── agent-backend/              # Agent orchestration & SDLC Control
+│       │   ├── src/sdlc-control/       # SDLC daemon services
+│       │   ├── src/api/                # REST API for agents
+│       │   ├── migrations/             # Database migrations
+│       │   │   ├── agent-memory/       # Agent workflow tables
+│       │   │   └── sdlc-control/       # Entity graph, Kanban, governance
+│       │   └── START_SYSTEM.bat        # Master startup script
+│       ├── sdlc-gui/                   # SDLC Control GUI (React)
 │       └── data-models/                # YAML schema definitions
 ├── project-architecture/               # System design
 ├── project-spirit/                     # Vision and business value
@@ -98,8 +108,9 @@ agogsaas/
 ├── docs/                               # Documentation
 ├── .claude/
 │   ├── agents/                         # AI agent definitions
-│   ├── RUN_APPLICATION.bat             # Start application stack
-│   └── RUN_AGENTS.bat                  # Start agent system
+│   ├── exports/                        # SDLC data synced to Git
+│   ├── STOP_AGENTS.bat                 # Stop agent system
+│   └── STOP_APPLICATION.bat            # Stop application
 └── CONSTRAINTS.md                      # Hard rules (must follow)
 ```
 
@@ -122,11 +133,18 @@ See `CONSTRAINTS.md` for complete list.
 ## Documentation
 
 ### Getting Started
-- **Quick Start**: `quick-start.sh` / `quick-start.bat`
-- **Database Guide**: `docs/DATABASE_QUICK_REFERENCE.md`
+- **Quick Start**: See [Quick Start](#quick-start) above
+- **Database Guide**: [docs/DATABASE_QUICK_REFERENCE.md](docs/DATABASE_QUICK_REFERENCE.md)
 - **Architecture**: `project-architecture/SYSTEM_OVERVIEW.md`
 - **Standards**: `Standards/README.md`
-- **AI Agents**: `.github/AI_ONBOARDING.md`
+- **AI Agents**: `.claude/agents/AGOG_AGENT_ONBOARDING.md`
+
+### SDLC Control System
+- **Overview**: [docs/SDLC_CONTROL_SYSTEM.md](docs/SDLC_CONTROL_SYSTEM.md)
+- **Entity Dependency Graph**: Topological ordering of database entities
+- **Kanban Workflow**: Request lifecycle management
+- **Column Semantic Governance**: Prevent column name overloading
+- **Impact Analysis**: Cross-BU dependency tracking
 
 ### CI/CD Pipeline
 - **GitHub Setup**: [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md)

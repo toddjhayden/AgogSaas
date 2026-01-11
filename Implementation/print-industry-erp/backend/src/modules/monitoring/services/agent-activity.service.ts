@@ -98,9 +98,20 @@ export class AgentActivityService implements OnModuleInit, OnModuleDestroy {
     (async () => {
       for await (const msg of sub) {
         try {
-          const data = this.jc.decode(msg.data) as any;
+          // Skip empty or non-JSON messages gracefully
+          if (!msg.data || msg.data.length === 0) {
+            continue;
+          }
 
-          if (data.currentAgent) {
+          let data: any;
+          try {
+            data = this.jc.decode(msg.data);
+          } catch (parseError) {
+            // Silently skip non-JSON messages (e.g., heartbeats, empty pings)
+            continue;
+          }
+
+          if (data && data.currentAgent) {
             this.updateActivity(data.currentAgent, {
               agentId: `${data.currentAgent}-${data.reqNumber}`,
               agentName: data.currentAgent,

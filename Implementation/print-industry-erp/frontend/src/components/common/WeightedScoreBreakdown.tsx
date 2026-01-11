@@ -101,7 +101,7 @@ export const WeightedScoreBreakdown: React.FC<WeightedScoreBreakdownProps> = ({
             <XAxis type="number" domain={[0, 100]} label={{ value: 'Weighted Contribution', position: 'insideBottom', offset: -10 }} />
             <YAxis type="category" dataKey="name" hide />
             <Tooltip
-              formatter={(value: unknown) => [value.toFixed(2), 'Contribution']}
+              formatter={(value: unknown) => [typeof value === 'number' ? value.toFixed(2) : String(value), 'Contribution']}
               contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc', borderRadius: '4px' }}
             />
             <Legend />

@@ -13,6 +13,20 @@ import {
   CREATE_ADVANCED_SHIP_NOTICE,
 } from '../graphql/queries/supplierPortal';
 
+// Type definitions for ASN creation
+interface POLineForASN {
+  id: string;
+  description: string;
+  quantityRemaining: number;
+}
+
+interface ASNLine {
+  poLineId: string;
+  quantityShipped: number | string;
+  lotNumber: string;
+  serialNumbers: string[];
+}
+
 const SupplierCreateASNPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -25,7 +39,7 @@ const SupplierCreateASNPage: React.FC = () => {
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [packageCount, setPackageCount] = useState(1);
   const [totalWeight, setTotalWeight] = useState('');
-  const [lines, setLines] = useState<any[]>([]);
+  const [lines, setLines] = useState<ASNLine[]>([]);
 
   const { data: poData } = useQuery(GET_SUPPLIER_PURCHASE_ORDER, {
     variables: { poNumber },
@@ -34,7 +48,7 @@ const SupplierCreateASNPage: React.FC = () => {
       // Initialize lines from PO
       if (data?.supplierPurchaseOrder?.lines) {
         setLines(
-          data.supplierPurchaseOrder.lines.map((line: unknown) => ({
+          data.supplierPurchaseOrder.lines.map((line: POLineForASN) => ({
             poLineId: line.id,
             quantityShipped: line.quantityRemaining || 0,
             lotNumber: '',
@@ -68,9 +82,9 @@ const SupplierCreateASNPage: React.FC = () => {
             packageCount,
             totalWeight: parseFloat(totalWeight),
             weightUnit: 'LBS',
-            lines: lines.map((line) => ({
+            lines: lines.map((line: ASNLine) => ({
               poLineId: line.poLineId,
-              quantityShipped: parseFloat(line.quantityShipped),
+              quantityShipped: parseFloat(String(line.quantityShipped)),
               lotNumber: line.lotNumber || null,
             })),
           },
@@ -214,7 +228,7 @@ const SupplierCreateASNPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {po?.lines?.map((poLine: any, idx: number) => (
+                {po?.lines?.map((poLine: POLineForASN, idx: number) => (
                   <tr key={poLine.id} className="border-b">
                     <td className="py-3">{poLine.description}</td>
                     <td className="text-right py-3">{poLine.quantityRemaining}</td>

@@ -17,7 +17,7 @@ import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { TierBadge } from '../components/common/TierBadge';
 import { ESGMetricsCard } from '../components/common/ESGMetricsCard';
 import { WeightedScoreBreakdown } from '../components/common/WeightedScoreBreakdown';
-import { AlertNotificationPanel } from '../components/common/AlertNotificationPanel';
+import { AlertNotificationPanel, VendorAlert } from '../components/common/AlertNotificationPanel';
 import { ColumnDef } from '@tanstack/react-table';
 import {
   GET_VENDOR_SCORECARD_ENHANCED,
@@ -159,7 +159,7 @@ export const VendorScorecardEnhancedDashboard: React.FC = () => {
 
   // Fetch vendor performance alerts
   const { data: alertsData, refetch: refetchAlerts } = useQuery<{
-    getVendorPerformanceAlerts: any[];
+    getVendorPerformanceAlerts: VendorAlert[];
   }>(GET_VENDOR_PERFORMANCE_ALERTS, {
     variables: { tenantId, vendorId: selectedVendorId },
     skip: !selectedVendorId,

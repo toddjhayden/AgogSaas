@@ -19,6 +19,28 @@ import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { GET_SHIPMENT } from '../graphql/queries/shipping';
 import { MANIFEST_SHIPMENT, UPDATE_SHIPMENT_STATUS } from '../graphql/mutations/shipping';
 
+// Type definitions for shipment data
+interface ShipmentLine {
+  id: string;
+  lineNumber: number;
+  materialCode: string;
+  materialDescription?: string;
+  quantityShipped: number;
+  unitOfMeasure: string;
+  packageNumber?: string;
+  weight?: number;
+}
+
+interface TrackingEvent {
+  id: string;
+  eventDescription: string;
+  eventDate: string;
+  city?: string;
+  state?: string;
+  exceptionFlag?: boolean;
+  exceptionReason?: string;
+}
+
 const statusColors: Record<string, string> = {
   PLANNED: 'bg-gray-100 text-gray-800',
   PACKED: 'bg-blue-100 text-blue-800',
@@ -289,7 +311,7 @@ export const ShipmentDetailPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {shipment.lines.map((line: unknown) => (
+                  {shipment.lines.map((line: ShipmentLine) => (
                     <tr key={line.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">{line.lineNumber}</td>
                       <td className="px-4 py-3">
@@ -324,7 +346,7 @@ export const ShipmentDetailPage: React.FC = () => {
                 {t('shipping.trackingHistory')}
               </h2>
               <div className="space-y-4">
-                {shipment.trackingEvents.map((event: any, index: number) => (
+                {shipment.trackingEvents.map((event: TrackingEvent, index: number) => (
                   <div key={event.id} className="flex">
                     <div className="flex flex-col items-center mr-4">
                       <div

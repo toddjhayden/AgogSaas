@@ -42,7 +42,7 @@ jest.mock('react-hot-toast', () => ({
 }));
 
 // Helper to wrap component with providers
-const renderWithProviders = (mocks: any[] = []) => {
+const renderWithProviders = (mocks: unknown[] = []) => {
   return render(
     <BrowserRouter>
       <MockedProvider mocks={mocks} addTypename={false}>

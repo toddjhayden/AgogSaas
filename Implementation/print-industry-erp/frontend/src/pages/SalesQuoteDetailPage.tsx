@@ -244,7 +244,7 @@ const SalesQuoteDetailPage: React.FC = () => {
   };
 
   // Table columns for quote lines
-  const lineColumns: ColumnDef<QuoteLine, any>[] = [
+  const lineColumns: ColumnDef<QuoteLine, unknown>[] = [
     {
       id: 'lineNumber',
       header: t('salesQuotes.lineNumber'),

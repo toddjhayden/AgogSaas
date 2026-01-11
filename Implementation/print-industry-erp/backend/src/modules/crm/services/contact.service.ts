@@ -8,7 +8,7 @@
  * - GDPR compliance
  */
 
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import {
   Contact,
@@ -18,7 +18,7 @@ import {
 
 @Injectable()
 export class ContactService {
-  constructor(private readonly pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Create a new contact

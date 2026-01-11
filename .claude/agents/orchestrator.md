@@ -346,14 +346,50 @@ Based on content and files:
 - Track token usage per requirement
 - Alert if agent stuck (no activity >2 hours)
 
-### 6. Handle Completion
+### 6. MANDATORY BUILD VERIFICATION (AUTOMATED - NO EXCEPTIONS)
+
+**Before ANY work is accepted, the orchestrator MUST run these verifications automatically:**
+
+```bash
+# Step 6a: Backend Build Verification
+cd Implementation/print-industry-erp/backend
+npm run build 2>&1
+# If exit code != 0 → REJECT IMMEDIATELY
+
+# Step 6b: Frontend Build Verification
+cd Implementation/print-industry-erp/frontend
+npm run build 2>&1
+# If exit code != 0 → REJECT IMMEDIATELY
+
+# Step 6c: Backend Tests (if exist for changed files)
+npm run test --passWithNoTests 2>&1
+# If exit code != 0 → REJECT IMMEDIATELY
+
+# Step 6d: Smoke Test (infrastructure health)
+# Run smoke-test.bat or equivalent health checks
+```
+
+**REJECTION WORKFLOW:**
+```
+IF build fails:
+  1. DO NOT mark as complete
+  2. Record exact error output
+  3. Route BACK to the agent who made the change
+  4. Agent MUST fix the build errors
+  5. Re-run verification after fix
+  6. Repeat until build passes
+```
+
+**This step is NOT optional. This step is NOT skippable. If the build breaks, the work is NOT done.**
+
+### 7. Handle Completion (ONLY AFTER BUILD PASSES)
 
 - Mark requirement as COMPLETE
 - Trigger Senior Review Agent
 - Update roadmap status
 - Check if dependent requirements can now start
 
-### 7. Handle Failures
+### 8. Handle Failures
 
 - Check ERRORS stream for details
 - Decide: Retry (if transient) or Escalate (if blocker)

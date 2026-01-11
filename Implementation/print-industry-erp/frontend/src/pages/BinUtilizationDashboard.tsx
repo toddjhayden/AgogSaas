@@ -29,6 +29,7 @@ interface ZoneUtilization {
   averageUtilization: number;
   totalCubicFeet: number;
   usedCubicFeet: number;
+  [key: string]: string | number;
 }
 
 interface BinCapacityInfo {
@@ -346,7 +347,7 @@ export const BinUtilizationDashboard: React.FC = () => {
         </h2>
         <Chart
           type="bar"
-          data={warehouseUtilization?.utilizationByZone || []}
+          data={(warehouseUtilization?.utilizationByZone || []) as Array<Record<string, string | number>>}
           xKey="zoneCode"
           yKey="averageUtilization"
           title={t('binUtilization.zoneUtilizationChart')}

@@ -7,7 +7,7 @@
  * - Engagement metrics
  */
 
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import {
   Activity,
@@ -16,7 +16,7 @@ import {
 
 @Injectable()
 export class ActivityService {
-  constructor(private readonly pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Create a new activity

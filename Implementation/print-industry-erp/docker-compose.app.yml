@@ -4,6 +4,31 @@
 # Use: docker-compose -f docker-compose.app.yml up -d
 
 services:
+  # Redis - Caching Layer (REQ-1767541724200-xzjz9)
+  redis:
+    image: redis:7-alpine
+    container_name: agogsaas-app-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - app_redis_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app_network
+
   # PostgreSQL - ERP Database
   postgres:
     image: pgvector/pgvector:pg16
@@ -17,7 +42,10 @@ services:
     volumes:
       - app_postgres_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
-    command: postgres -c 'max_connections=200'
+      # Mount custom PostgreSQL configuration with pg_stat_statements enabled
+      - ./backend/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    # Load custom config file with pg_stat_statements and performance tuning
+    command: postgres -c 'config_file=/etc/postgresql/postgresql.conf'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agogsaas_user -d agogsaas"]
       interval: 10s
@@ -39,14 +67,30 @@ services:
       DATABASE_URL: postgresql://agogsaas_user:${DB_PASSWORD:-changeme}@postgres:5432/agogsaas
       GRAPHQL_PLAYGROUND: ${GRAPHQL_PLAYGROUND:-false}
       GRAPHQL_INTROSPECTION: ${GRAPHQL_INTROSPECTION:-false}
-      # Agent monitoring via NATS (optional - for monitoring dashboard)
-      NATS_URL: nats://nats:4222
+      # JWT secrets for authentication
+      JWT_SECRET: ${JWT_SECRET:-development-jwt-secret-change-in-production}
+      CUSTOMER_JWT_SECRET: ${CUSTOMER_JWT_SECRET:-development-customer-jwt-secret-change-in-production}
+      SUPPLIER_JWT_SECRET: ${SUPPLIER_JWT_SECRET:-development-supplier-jwt-secret-change-in-production}
+      # Redis caching (REQ-1767541724200-xzjz9)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      # Agent communication via NATS (required for token-saving orchestration)
+      NATS_URL: nats://agogsaas-agents-nats:4222
       NATS_USER: agents
-      NATS_PASSWORD: ${NATS_PASSWORD:-}
+      NATS_PASSWORD: WBZ2y-PeJGSt2N4e_QNCVdnQNsn3Ld7qCwMt_3tDDf4
+      # SDLC Control Database (optional - for SDLC integration)
+      SDLC_DB_HOST: agogsaas-sdlc-postgres
+      SDLC_DB_PORT: 5432
+      SDLC_DB_NAME: sdlc_control
+      SDLC_DB_USER: sdlc_user
+      SDLC_DB_PASSWORD: sdlc_dev_password_2024
     ports:
       - "4001:4000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./backend/src:/app/src
@@ -56,6 +100,9 @@ services:
     networks:
       - app_network
       - agogsaas_agents_network
+      - agogsaas_sdlc_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # Frontend - React ERP Application
   frontend:
@@ -79,10 +126,14 @@ services:
 volumes:
   app_postgres_data:
     name: agogsaas_app_postgres_data
+  app_redis_data:
+    name: agogsaas_app_redis_data
 
 networks:
   app_network:
     name: agogsaas_app_network
     driver: bridge
   agogsaas_agents_network:
+    external: true
+  agogsaas_sdlc_network:
     external: true

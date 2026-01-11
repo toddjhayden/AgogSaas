@@ -216,6 +216,12 @@ extend type Mutation {
   """
   customerDisableMFA(password: String!): Boolean!
 
+  """
+  Regenerate backup codes (requires password confirmation)
+  Returns new set of backup codes (one-time use)
+  """
+  customerRegenerateBackupCodes(password: String!): [String!]!
+
   # ============================================
   # Profile Management
   # ============================================

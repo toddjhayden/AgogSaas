@@ -55,7 +55,7 @@ interface Contact {
 export const ContactManagementPage: React.FC = () => {
   const { t } = useTranslation();
   useNavigate(); // Navigation hook available
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state: { user: { id?: string } | null }) => state.user);
 
   const [filters, setFilters] = useState({
     searchTerm: '',

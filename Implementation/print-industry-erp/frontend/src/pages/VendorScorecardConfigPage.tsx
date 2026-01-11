@@ -346,7 +346,7 @@ export const VendorScorecardConfigPage: React.FC = () => {
               </label>
               <select
                 value={vendorTier}
-                onChange={(e) => setVendorTier(e.target.value as unknown)}
+                onChange={(e) => setVendorTier(e.target.value as 'STRATEGIC' | 'PREFERRED' | 'TRANSACTIONAL' | '')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">All Tiers</option>

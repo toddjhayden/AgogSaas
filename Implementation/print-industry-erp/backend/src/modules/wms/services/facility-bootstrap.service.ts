@@ -82,7 +82,7 @@ export class FacilityBootstrapService {
         warnings
       };
     } catch (error) {
-      errors.push(`Facility initialization failed: ${error.message}`);
+      errors.push(`Facility initialization failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`);
       return {
         success: false,
         facilityId,
@@ -280,7 +280,7 @@ export class FacilityBootstrapService {
         warnings
       };
     } catch (error) {
-      issues.push(`Validation failed: ${error.message}`);
+      issues.push(`Validation failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`);
       return {
         valid: false,
         issues,

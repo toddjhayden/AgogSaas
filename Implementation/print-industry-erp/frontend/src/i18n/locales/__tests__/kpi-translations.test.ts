@@ -275,12 +275,12 @@ describe('KPI Translations QA - REQ-I18N-CHINESE-1766892755202', () => {
 
   describe('Complete Translation Coverage', () => {
     it('should have no missing translations (English as baseline)', () => {
-      const getAllKeys = (obj: any, prefix = ''): string[] => {
+      const getAllKeys = (obj: Record<string, unknown>, prefix = ''): string[] => {
         let keys: string[] = [];
         for (const key in obj) {
           const fullKey = prefix ? `${prefix}.${key}` : key;
           if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-            keys = keys.concat(getAllKeys(obj[key], fullKey));
+            keys = keys.concat(getAllKeys(obj[key] as Record<string, unknown>, fullKey));
           } else {
             keys.push(fullKey);
           }
@@ -288,8 +288,8 @@ describe('KPI Translations QA - REQ-I18N-CHINESE-1766892755202', () => {
         return keys;
       };
 
-      const enKpiKeys = getAllKeys(enUS.kpis, 'kpis');
-      const zhKpiKeys = getAllKeys(zhCN.kpis, 'kpis');
+      const enKpiKeys = getAllKeys(enUS.kpis as Record<string, unknown>, 'kpis');
+      const zhKpiKeys = getAllKeys(zhCN.kpis as Record<string, unknown>, 'kpis');
 
       enKpiKeys.forEach(key => {
         expect(zhKpiKeys).toContain(key);
@@ -297,12 +297,12 @@ describe('KPI Translations QA - REQ-I18N-CHINESE-1766892755202', () => {
     });
 
     it('should have no extra translations in Chinese', () => {
-      const getAllKeys = (obj: any, prefix = ''): string[] => {
+      const getAllKeys = (obj: Record<string, unknown>, prefix = ''): string[] => {
         let keys: string[] = [];
         for (const key in obj) {
           const fullKey = prefix ? `${prefix}.${key}` : key;
           if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-            keys = keys.concat(getAllKeys(obj[key], fullKey));
+            keys = keys.concat(getAllKeys(obj[key] as Record<string, unknown>, fullKey));
           } else {
             keys.push(fullKey);
           }
@@ -310,8 +310,8 @@ describe('KPI Translations QA - REQ-I18N-CHINESE-1766892755202', () => {
         return keys;
       };
 
-      const enKpiKeys = getAllKeys(enUS.kpis, 'kpis');
-      const zhKpiKeys = getAllKeys(zhCN.kpis, 'kpis');
+      const enKpiKeys = getAllKeys(enUS.kpis as Record<string, unknown>, 'kpis');
+      const zhKpiKeys = getAllKeys(zhCN.kpis as Record<string, unknown>, 'kpis');
 
       zhKpiKeys.forEach(key => {
         expect(enKpiKeys).toContain(key);
@@ -323,7 +323,7 @@ describe('KPI Translations QA - REQ-I18N-CHINESE-1766892755202', () => {
     it('should have reasonable Chinese translation lengths', () => {
       // Chinese translations should generally be shorter than English
       // but not by too much (avoid truncated translations)
-      const checkLength = (enText: string, zhText: string, key: string) => {
+      const checkLength = (enText: string, zhText: string, _key: string) => {
         expect(zhText.length).toBeGreaterThan(0);
         // Chinese should be at least 20% of English length (accounting for character density)
         expect(zhText.length).toBeGreaterThanOrEqual(enText.length * 0.2);

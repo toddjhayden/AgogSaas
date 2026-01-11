@@ -1,0 +1,154 @@
+# Notifications Schema
+# REQ: REQ-1767925582665-67qxb
+# Centralized notification system
+
+type Notification {
+  id: ID!
+  tenantId: ID!
+  userId: ID!
+  notificationTypeId: ID!
+  title: String!
+  message: String!
+  severity: NotificationSeverity!
+  priority: NotificationPriority!
+  category: String
+  sourceEntityType: String
+  sourceEntityId: ID
+  metadata: JSON
+  isRead: Boolean!
+  readAt: DateTime
+  isArchived: Boolean!
+  archivedAt: DateTime
+  expiresAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum NotificationSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+enum NotificationPriority {
+  CRITICAL
+  HIGH
+  NORMAL
+  LOW
+}
+
+type NotificationConnection {
+  notifications: [Notification!]!
+  total: Int!
+  hasMore: Boolean!
+}
+
+type NotificationType {
+  id: ID!
+  code: String!
+  name: String!
+  description: String
+  defaultChannel: String!
+  canDisable: Boolean!
+  priority: NotificationPriority!
+}
+
+type NotificationPreference {
+  id: ID!
+  tenantId: ID!
+  userId: ID!
+  notificationTypeId: ID!
+  channel: String!
+  isEnabled: Boolean!
+  quietHoursStart: String
+  quietHoursEnd: String
+}
+
+type NotificationStats {
+  unreadCount: Int!
+  totalCount: Int!
+  criticalCount: Int!
+  warningCount: Int!
+  infoCount: Int!
+}
+
+input CreateNotificationInput {
+  userId: ID!
+  notificationTypeCode: String!
+  title: String!
+  message: String!
+  severity: NotificationSeverity
+  priority: NotificationPriority
+  category: String
+  sourceEntityType: String
+  sourceEntityId: ID
+  metadata: JSON
+  expiresInHours: Int
+  channels: [String!]
+  templateVariables: JSON
+}
+
+input UpdateNotificationPreferenceInput {
+  notificationTypeCode: String!
+  channel: String!
+  isEnabled: Boolean!
+}
+
+input SetQuietHoursInput {
+  startTime: String!
+  endTime: String!
+}
+
+type Query {
+  # Get notifications for current user
+  myNotifications(
+    unreadOnly: Boolean
+    limit: Int
+    offset: Int
+    category: String
+    severity: NotificationSeverity
+  ): NotificationConnection!
+
+  # Get unread count for current user
+  myUnreadCount: Int!
+
+  # Get notification statistics
+  myNotificationStats: NotificationStats!
+
+  # Get notification by ID
+  notification(id: ID!): Notification
+
+  # Get all notification types
+  notificationTypes: [NotificationType!]!
+
+  # Get user notification preferences
+  myNotificationPreferences: [NotificationPreference!]!
+}
+
+type Mutation {
+  # Create a notification (admin/system use)
+  createNotification(input: CreateNotificationInput!): Notification!
+
+  # Mark notification as read
+  markNotificationRead(id: ID!): Boolean!
+
+  # Mark all notifications as read
+  markAllNotificationsRead: Int!
+
+  # Archive notification
+  archiveNotification(id: ID!): Boolean!
+
+  # Delete notification
+  deleteNotification(id: ID!): Boolean!
+
+  # Update notification preferences
+  updateNotificationPreference(input: UpdateNotificationPreferenceInput!): Boolean!
+
+  # Set quiet hours
+  setQuietHours(input: SetQuietHoursInput!): Boolean!
+}
+
+type Subscription {
+  # Subscribe to new notifications for current user
+  notificationReceived: Notification!
+}

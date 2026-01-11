@@ -307,7 +307,7 @@ export const ApprovalWorkflowConfigPage: React.FC = () => {
 interface WorkflowEditorModalProps {
   workflow: ApprovalWorkflow | null;
   tenantId: string;
-  onSave: (variables: { variables: any }) => void;
+  onSave: (variables: { variables: Record<string, unknown> }) => void;
   onClose: () => void;
 }
 
@@ -360,7 +360,7 @@ const WorkflowEditorModal: React.FC<WorkflowEditorModalProps> = ({
     setSteps(steps.filter((_, i) => i !== index));
   };
 
-  const handleStepChange = (index: number, field: string, value: any) => {
+  const handleStepChange = (index: number, field: string, value: unknown) => {
     const updated = [...steps];
     updated[index] = { ...updated[index], [field]: value };
     setSteps(updated);
@@ -439,7 +439,7 @@ const WorkflowEditorModal: React.FC<WorkflowEditorModalProps> = ({
               </label>
               <select
                 value={approvalType}
-                onChange={(e) => setApprovalType(e.target.value as unknown)}
+                onChange={(e) => setApprovalType(e.target.value as 'SEQUENTIAL' | 'PARALLEL' | 'ANY_ONE')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="SEQUENTIAL">{t('approvals.sequential')}</option>

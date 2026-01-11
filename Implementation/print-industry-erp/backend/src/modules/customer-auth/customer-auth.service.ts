@@ -10,11 +10,12 @@
  * - MFA support (TOTP)
  */
 
-import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { PasswordService } from '../../common/security/password.service';
+import { TOTPService } from './totp.service';
 
 export interface CustomerJwtPayload {
   sub: string; // Customer user ID
@@ -39,7 +40,8 @@ export class CustomerAuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly passwordService: PasswordService,
-    private readonly dbPool: Pool,
+    private readonly totpService: TOTPService,
+    @Inject('DATABASE_POOL') private readonly dbPool: Pool,
   ) {}
 
   /**
@@ -165,9 +167,18 @@ export class CustomerAuthService {
         throw new BadRequestException('MFA code required');
       }
 
-      const isMfaValid = await this.validateMfaCode(user.id, mfaCode);
-      if (!isMfaValid) {
+      const mfaResult = await this.totpService.verifyUserMFA(user.id, mfaCode);
+      if (!mfaResult.valid) {
+        // Increment failed login attempts for invalid MFA
+        await this.incrementFailedLoginAttempts(user.id);
         throw new UnauthorizedException('Invalid MFA code');
+      }
+
+      // Log if backup code was used
+      if (mfaResult.usedBackupCode) {
+        await this.logActivity(user.id, user.tenant_id, 'MFA_BACKUP_CODE_USED', {
+          remainingCodes: await this.totpService.getRemainingBackupCodesCount(user.id),
+        });
       }
     }
 
@@ -349,12 +360,152 @@ export class CustomerAuthService {
   }
 
   /**
-   * Validate MFA TOTP code
+   * Enroll user in MFA (generate TOTP secret and backup codes)
    */
-  private async validateMfaCode(userId: string, code: string): Promise<boolean> {
-    // TODO: Implement TOTP validation using speakeasy or similar library
-    // For now, return false (MFA not implemented yet)
-    return false;
+  async enrollMFA(userId: string, email: string): Promise<any> {
+    // Check if user already has MFA enabled
+    const userResult = await this.dbPool.query(
+      `SELECT id, tenant_id, mfa_enabled FROM customer_users WHERE id = $1`,
+      [userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new BadRequestException('User not found');
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.mfa_enabled) {
+      throw new BadRequestException('MFA is already enabled for this account');
+    }
+
+    // Generate TOTP secret and backup codes
+    const enrollmentData = await this.totpService.generateTOTPSecret(userId, email);
+
+    // Store secret and backup codes (MFA not enabled yet - requires verification)
+    await this.totpService.storeTOTPSecret(
+      userId,
+      user.tenant_id,
+      enrollmentData.secret,
+      enrollmentData.backupCodes,
+    );
+
+    // Log enrollment initiation
+    await this.logActivity(userId, user.tenant_id, 'MFA_ENROLL_INITIATED', null);
+
+    return enrollmentData;
+  }
+
+  /**
+   * Verify MFA enrollment code and enable MFA
+   */
+  async verifyMFAEnrollment(userId: string, code: string): Promise<boolean> {
+    // Get user's stored secret
+    const userResult = await this.dbPool.query(
+      `SELECT mfa_secret, tenant_id, mfa_enabled FROM customer_users WHERE id = $1`,
+      [userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new BadRequestException('User not found');
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.mfa_enabled) {
+      throw new BadRequestException('MFA is already enabled');
+    }
+
+    if (!user.mfa_secret) {
+      throw new BadRequestException('MFA enrollment not initiated. Please enroll first.');
+    }
+
+    // Verify the code
+    const isValid = await this.totpService.verifyTOTPCode(user.mfa_secret, code);
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid verification code');
+    }
+
+    // Enable MFA
+    await this.totpService.enableMFA(userId, user.tenant_id);
+
+    // Log successful MFA activation
+    await this.logActivity(userId, user.tenant_id, 'MFA_ENABLED', null);
+
+    return true;
+  }
+
+  /**
+   * Disable MFA (requires password confirmation)
+   */
+  async disableMFA(userId: string, password: string): Promise<boolean> {
+    // Verify password
+    const userResult = await this.dbPool.query(
+      `SELECT password_hash, tenant_id, mfa_enabled FROM customer_users WHERE id = $1`,
+      [userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new BadRequestException('User not found');
+    }
+
+    const user = userResult.rows[0];
+
+    if (!user.mfa_enabled) {
+      throw new BadRequestException('MFA is not enabled for this account');
+    }
+
+    // Validate password
+    const isPasswordValid = await this.passwordService.validatePassword(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid password');
+    }
+
+    // Disable MFA
+    await this.totpService.disableMFA(userId, user.tenant_id);
+
+    // Log MFA disable
+    await this.logActivity(userId, user.tenant_id, 'MFA_DISABLED', null);
+
+    return true;
+  }
+
+  /**
+   * Regenerate backup codes (requires password confirmation)
+   */
+  async regenerateBackupCodes(userId: string, password: string): Promise<string[]> {
+    // Verify password
+    const userResult = await this.dbPool.query(
+      `SELECT password_hash, tenant_id, mfa_enabled FROM customer_users WHERE id = $1`,
+      [userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new BadRequestException('User not found');
+    }
+
+    const user = userResult.rows[0];
+
+    if (!user.mfa_enabled) {
+      throw new BadRequestException('MFA is not enabled for this account');
+    }
+
+    // Validate password
+    const isPasswordValid = await this.passwordService.validatePassword(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid password');
+    }
+
+    // Regenerate backup codes
+    const backupCodes = await this.totpService.regenerateBackupCodes(userId, user.tenant_id);
+
+    // Log backup codes regeneration
+    await this.logActivity(userId, user.tenant_id, 'MFA_BACKUP_CODES_REGENERATED', null);
+
+    return backupCodes;
   }
 
   /**

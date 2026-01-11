@@ -1171,8 +1171,8 @@ type Query {
   customerAsOf(customerCode: String!, tenantId: ID!, asOfDate: Date!): Customer
   customerHistory(customerCode: String!, tenantId: ID!): [Customer!]!
 
-  # Customer Products
-  customerProducts(
+  # Customer Product Associations (for internal CRM use)
+  customerProductAssociations(
     tenantId: ID!
     customerId: ID
     productId: ID

@@ -31,6 +31,9 @@ export class SecurityAuditService {
   /**
    * Execute query with timeout protection
    * SECURITY: Prevents long-running queries from blocking workers
+   *
+   * CRITICAL FIX (REQ-P0-1767417611151-p2oej): Use per-query timeout with query options
+   * instead of connection-level SET statement_timeout to avoid connection pool issues
    */
   private async executeQuery<T = any>(
     query: string,
@@ -38,21 +41,44 @@ export class SecurityAuditService {
     timeoutMs: number = this.QUERY_TIMEOUT_MS,
   ): Promise<T> {
     const startTime = Date.now();
+    const client = await this.pool.connect();
+
     try {
-      const result = await this.pool.query({
-        text: query,
-        values: params,
-        timeout: timeoutMs,
-      });
+      // Set statement_timeout for this specific query session
+      await client.query(`SET LOCAL statement_timeout = ${timeoutMs}`);
+      const result = await client.query(query, params);
+
       const duration = Date.now() - startTime;
       if (duration > 1000) {
-        this.logger.warn(`Slow query detected: ${duration}ms`);
+        this.logger.warn(`Slow query detected: ${duration}ms`, {
+          query: query.substring(0, 100),
+          duration,
+          params: params.length
+        });
       }
       return result.rows as T;
-    } catch (error) {
+    } catch (error: any) {
       const duration = Date.now() - startTime;
-      this.logger.error(`Query failed after ${duration}ms: ${error.message}`);
+
+      // Check if this is a timeout error
+      if (error.message?.includes('statement timeout') || error.code === '57014') {
+        this.logger.error(`Query TIMEOUT after ${duration}ms (limit: ${timeoutMs}ms)`, {
+          query: query.substring(0, 200),
+          timeout: timeoutMs,
+          duration
+        });
+        throw new Error(`Query timeout: exceeded ${timeoutMs}ms limit`);
+      }
+
+      this.logger.error(`Query failed after ${duration}ms: ${error.message}`, {
+        query: query.substring(0, 100),
+        duration,
+        errorCode: error.code
+      });
       throw error;
+    } finally {
+      // Always release client back to pool (timeout is automatically reset)
+      client.release();
     }
   }
 
@@ -187,8 +213,10 @@ export class SecurityAuditService {
       CROSS JOIN compliance_stats cs
     `;
 
-    const result = await this.pool.query(query, [tenantId, hours]);
-    const row = result.rows[0];
+    // CRITICAL FIX (REQ-P0-1767417611151-p2oej): Use executeQuery with timeout protection
+    // This complex CTE query was causing audit timeouts by bypassing timeout protection
+    const result = await this.executeQuery<any[]>(query, [tenantId, hours], 30000); // 30s timeout for complex query
+    const row = result[0];
 
     // Calculate security score (0-100)
     const securityScore = this.calculateSecurityScore(row);
@@ -297,8 +325,8 @@ export class SecurityAuditService {
     }
 
     const countQuery = `SELECT COUNT(*) FROM security_audit_events ${whereClause}`;
-    const countResult = await this.pool.query(countQuery, params);
-    const totalCount = parseInt(countResult.rows[0].count);
+    const countResult = await this.executeQuery<any[]>(countQuery, params);
+    const totalCount = parseInt(countResult[0].count);
 
     const query = `
       SELECT *
@@ -310,9 +338,9 @@ export class SecurityAuditService {
     `;
     params.push(first + 1, offset); // Get one extra to check for next page
 
-    const result = await this.pool.query(query, params);
-    const hasNextPage = result.rows.length > first;
-    const edges = result.rows.slice(0, first).map((row, index) => ({
+    const result = await this.executeQuery<any[]>(query, params);
+    const hasNextPage = result.length > first;
+    const edges = result.slice(0, first).map((row, index) => ({
       node: this.mapSecurityEvent(row),
       cursor: Buffer.from((offset + index).toString()).toString('base64'),
     }));
@@ -337,8 +365,8 @@ export class SecurityAuditService {
       SELECT * FROM get_top_suspicious_ips($1, $2, $3)
     `;
 
-    const result = await this.pool.query(query, [tenantId, hours, limit]);
-    return result.rows.map(row => ({
+    const result = await this.executeQuery<any[]>(query, [tenantId, hours, limit]);
+    return result.map(row => ({
       ipAddress: row.ip_address,
       eventCount: parseInt(row.event_count),
       failedLoginCount: parseInt(row.failed_login_count),
@@ -357,8 +385,8 @@ export class SecurityAuditService {
       SELECT * FROM get_user_security_timeline($1, $2, $3)
     `;
 
-    const result = await this.pool.query(query, [tenantId, userId, hours]);
-    return result.rows.map(row => this.mapSecurityEvent(row));
+    const result = await this.executeQuery<any[]>(query, [tenantId, userId, hours]);
+    return result.map(row => this.mapSecurityEvent(row));
   }
 
   /**
@@ -389,8 +417,8 @@ export class SecurityAuditService {
     }
 
     const countQuery = `SELECT COUNT(*) FROM security_incidents si ${whereClause}`;
-    const countResult = await this.pool.query(countQuery, params);
-    const totalCount = parseInt(countResult.rows[0].count);
+    const countResult = await this.executeQuery<any[]>(countQuery, params);
+    const totalCount = parseInt(countResult[0].count);
 
     const query = `
       SELECT
@@ -409,9 +437,9 @@ export class SecurityAuditService {
     `;
     params.push(first + 1, offset);
 
-    const result = await this.pool.query(query, params);
-    const hasNextPage = result.rows.length > first;
-    const edges = result.rows.slice(0, first).map((row, index) => ({
+    const result = await this.executeQuery<any[]>(query, params);
+    const hasNextPage = result.length > first;
+    const edges = result.slice(0, first).map((row, index) => ({
       node: this.mapSecurityIncident(row),
       cursor: Buffer.from((offset + index).toString()).toString('base64'),
     }));
@@ -445,12 +473,12 @@ export class SecurityAuditService {
       WHERE si.id = $1 AND si.tenant_id = $2
     `;
 
-    const result = await this.pool.query(query, [id, tenantId]);
-    if (result.rows.length === 0) {
+    const result = await this.executeQuery<any[]>(query, [id, tenantId]);
+    if (result.length === 0) {
       throw new Error(`Security incident ${id} not found`);
     }
 
-    return this.mapSecurityIncident(result.rows[0]);
+    return this.mapSecurityIncident(result[0]);
   }
 
   /**
@@ -483,8 +511,8 @@ export class SecurityAuditService {
 
     query += ` ORDER BY stp.severity DESC, stp.pattern_name`;
 
-    const result = await this.pool.query(query, params);
-    return result.rows.map(row => this.mapThreatPattern(row));
+    const result = await this.executeQuery<any[]>(query, params);
+    return result.map(row => this.mapThreatPattern(row));
   }
 
   /**
@@ -500,8 +528,8 @@ export class SecurityAuditService {
       ORDER BY metric_hour ASC
     `;
 
-    const result = await this.pool.query(query, [tenantId, hours]);
-    return result.rows.map(row => ({
+    const result = await this.executeQuery<any[]>(query, [tenantId, hours]);
+    return result.map(row => ({
       timestamp: row.metric_hour,
       totalEvents: parseInt(row.total_events),
       loginEvents: parseInt(row.login_events),
@@ -541,8 +569,8 @@ export class SecurityAuditService {
       ORDER BY access_count DESC
     `;
 
-    const result = await this.pool.query(query, [tenantId, hours]);
-    return result.rows.map(row => ({
+    const result = await this.executeQuery<any[]>(query, [tenantId, hours]);
+    return result.map(row => ({
       countryCode: row.country_code,
       countryName: this.getCountryName(row.country_code),
       accessCount: parseInt(row.access_count),
@@ -551,6 +579,82 @@ export class SecurityAuditService {
       uniqueUsers: parseInt(row.unique_users),
       location: null, // TODO: Add country coordinates lookup
     }));
+  }
+
+  /**
+   * Get compliance audit trail
+   * REQ-1767924916114-xhhll - Comprehensive Audit Logging
+   */
+  async getComplianceAuditTrail(
+    tenantId: number,
+    filter: {
+      framework?: string;
+      controlId?: string;
+      status?: string;
+    } = {},
+    pagination: any = {},
+  ) {
+    const { first = 50, after } = pagination;
+    const offset = after ? parseInt(Buffer.from(after, 'base64').toString()) : 0;
+
+    let whereClause = 'WHERE sca.tenant_id = $1';
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (filter.framework) {
+      whereClause += ` AND sca.framework = $${paramIndex}`;
+      params.push(filter.framework);
+      paramIndex++;
+    }
+
+    if (filter.controlId) {
+      whereClause += ` AND sca.control_id = $${paramIndex}`;
+      params.push(filter.controlId);
+      paramIndex++;
+    }
+
+    if (filter.status) {
+      whereClause += ` AND sca.compliance_status = $${paramIndex}`;
+      params.push(filter.status);
+      paramIndex++;
+    }
+
+    const countQuery = `SELECT COUNT(*) FROM security_compliance_audit sca ${whereClause}`;
+    const countResult = await this.executeQuery<any[]>(countQuery, params);
+    const totalCount = parseInt(countResult[0].count);
+
+    const query = `
+      SELECT
+        sca.*,
+        u_performed.username as performed_by_username,
+        u_reviewed.username as reviewed_by_username
+      FROM security_compliance_audit sca
+      LEFT JOIN users u_performed ON sca.performed_by_user_id = u_performed.user_id
+      LEFT JOIN users u_reviewed ON sca.reviewed_by_user_id = u_reviewed.user_id
+      ${whereClause}
+      ORDER BY sca.audit_timestamp DESC
+      LIMIT $${paramIndex}
+      OFFSET $${paramIndex + 1}
+    `;
+    params.push(first + 1, offset);
+
+    const result = await this.executeQuery<any[]>(query, params);
+    const hasNextPage = result.length > first;
+    const edges = result.slice(0, first).map((row, index) => ({
+      node: this.mapComplianceEntry(row),
+      cursor: Buffer.from((offset + index).toString()).toString('base64'),
+    }));
+
+    return {
+      edges,
+      pageInfo: {
+        hasNextPage,
+        hasPreviousPage: offset > 0,
+        startCursor: edges[0]?.cursor,
+        endCursor: edges[edges.length - 1]?.cursor,
+      },
+      totalCount,
+    };
   }
 
   // =====================================================
@@ -712,5 +816,31 @@ export class SecurityAuditService {
       IN: 'India',
     };
     return countryMap[code] || code;
+  }
+
+  private mapComplianceEntry(row: any): any {
+    return {
+      id: row.id,
+      framework: row.framework,
+      controlId: row.control_id,
+      controlDescription: row.control_description,
+      auditTimestamp: row.audit_timestamp,
+      eventDescription: row.event_description,
+      eventType: row.event_type,
+      evidenceType: row.evidence_type,
+      evidenceLocation: row.evidence_location,
+      evidenceMetadata: row.evidence_metadata,
+      performedBy: row.performed_by_user_id ? {
+        id: row.performed_by_user_id,
+        username: row.performed_by_username,
+      } : null,
+      reviewedBy: row.reviewed_by_user_id ? {
+        id: row.reviewed_by_user_id,
+        username: row.reviewed_by_username,
+      } : null,
+      complianceStatus: row.compliance_status,
+      findings: row.findings,
+      createdAt: row.created_at,
+    };
   }
 }

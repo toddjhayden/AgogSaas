@@ -46,6 +46,17 @@ interface ApprovalHistoryEntry {
   wasEscalated: boolean;
 }
 
+interface POLineItem {
+  id: string;
+  lineNumber: number;
+  materialCode: string;
+  description: string;
+  quantityOrdered: number;
+  unitOfMeasure: string;
+  unitPrice: number;
+  lineAmount: number;
+}
+
 export const PurchaseOrderApprovalPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -413,7 +424,7 @@ export const PurchaseOrderApprovalPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {po.lines.map((line: unknown) => (
+                {po.lines.map((line: POLineItem) => (
                   <tr key={line.id}>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{line.lineNumber}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{line.materialCode}</td>

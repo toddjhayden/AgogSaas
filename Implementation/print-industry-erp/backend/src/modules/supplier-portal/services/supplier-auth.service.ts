@@ -11,7 +11,7 @@
  * - Separate authentication realm from internal/customer users
  */
 
-import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
@@ -58,7 +58,7 @@ export class SupplierAuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly passwordService: PasswordService,
-    private readonly dbPool: Pool,
+    @Inject('DATABASE_POOL') private readonly dbPool: Pool,
   ) {}
 
   /**

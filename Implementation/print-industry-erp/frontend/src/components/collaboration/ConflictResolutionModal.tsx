@@ -98,7 +98,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
     }
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) {
       return t('collaboration.conflict.noValue');
     }

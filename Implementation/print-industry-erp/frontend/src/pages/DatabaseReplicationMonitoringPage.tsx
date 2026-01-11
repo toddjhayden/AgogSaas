@@ -853,7 +853,7 @@ export const DatabaseReplicationMonitoringPage: React.FC = () => {
               {
                 header: 'Timestamp',
                 accessor: 'snapshotTimestamp',
-                render: (value: string) => new Date(value).toLocaleString(),
+                render: (value: unknown) => new Date(value as string).toLocaleString(),
               },
               {
                 header: 'Role',
@@ -862,17 +862,20 @@ export const DatabaseReplicationMonitoringPage: React.FC = () => {
               {
                 header: 'Health',
                 accessor: 'healthStatus',
-                render: (value: string) => getHealthStatusBadge(value),
+                render: (value: unknown) => getHealthStatusBadge(value as string),
               },
               {
                 header: 'Lag (Bytes)',
                 accessor: 'replicationLagBytes',
-                render: (value: number) => formatBytes(value),
+                render: (value: unknown) => formatBytes(value as number),
               },
               {
                 header: 'Lag (Seconds)',
                 accessor: 'replicationLagSeconds',
-                render: (value: number | null) => (value !== null ? `${value.toFixed(2)}s` : 'N/A'),
+                render: (value: unknown) => {
+                  const numValue = value as number | null;
+                  return numValue !== null ? `${numValue.toFixed(2)}s` : 'N/A';
+                },
               },
             ]}
             loading={historyLoading}

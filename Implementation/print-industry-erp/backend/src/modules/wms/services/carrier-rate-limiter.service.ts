@@ -89,7 +89,7 @@ export class CarrierApiRateLimiterService {
     let bucket = this.buckets.get(carrierCode);
 
     if (!bucket) {
-      const limits = this.rateLimits[carrierCode] || this.rateLimits.DEFAULT;
+      const limits = (this.rateLimits as any)[carrierCode] || this.rateLimits.DEFAULT;
 
       bucket = {
         tokens: limits.burstCapacity, // Start with full burst capacity

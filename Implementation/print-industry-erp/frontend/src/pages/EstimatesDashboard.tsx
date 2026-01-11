@@ -103,7 +103,7 @@ const EstimatesDashboard: React.FC = () => {
   };
 
   // Table columns
-  const columns: ColumnDef<Estimate, any>[] = [
+  const columns: ColumnDef<Estimate, unknown>[] = [
     {
       id: 'estimateNumber',
       header: t('estimates.estimateNumber'),

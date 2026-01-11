@@ -42,7 +42,7 @@ export const PaymentProcessingPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   useAppStore(); // Facility context
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state) => state.user) as { tenantId?: string } | null;
 
   const [filters, setFilters] = useState({
     paymentType: '',

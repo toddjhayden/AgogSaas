@@ -79,7 +79,7 @@ interface ActivitySummary {
 export const CRMDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state: { user: { id?: string } | null }) => state.user);
 
   const [dateRange, _setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],

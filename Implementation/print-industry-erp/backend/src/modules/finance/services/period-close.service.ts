@@ -5,14 +5,14 @@
  * Handles month-end close procedures (Stub for Phase 3)
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 @Injectable()
 export class PeriodCloseService {
   private readonly logger = new Logger(PeriodCloseService.name);
 
-  constructor(private readonly db: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
 
   /**
    * Close financial period

@@ -215,9 +215,11 @@ export class InventoryNettingService {
         `Failed to get batch inventory levels`,
         error,
       );
+      const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error);
+
       throw new MRPEngineError(
         MRPErrorCode.INVENTORY_QUERY_FAILED,
-        `Failed to retrieve inventory levels: ${error.message}`,
+        `Failed to retrieve inventory levels: ${errorMessage}`,
         undefined,
         undefined,
         true, // retryable
@@ -304,9 +306,11 @@ export class InventoryNettingService {
         `Failed to get batch on-order schedule`,
         error,
       );
+      const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error);
+
       throw new MRPEngineError(
         MRPErrorCode.DATABASE_TIMEOUT,
-        `Failed to retrieve on-order schedule: ${error.message}`,
+        `Failed to retrieve on-order schedule: ${errorMessage}`,
         undefined,
         undefined,
         true, // retryable
@@ -385,9 +389,11 @@ export class InventoryNettingService {
         `Failed to get inventory levels with lot tracking for material ${materialId}`,
         error,
       );
+      const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error);
+
       throw new MRPEngineError(
         MRPErrorCode.INVENTORY_QUERY_FAILED,
-        `Failed to retrieve lot tracking details: ${error.message}`,
+        `Failed to retrieve lot tracking details: ${errorMessage}`,
         undefined,
         materialId,
         true,

@@ -67,13 +67,13 @@ export const FinanceDashboard: React.FC = () => {
   // Calculate totals from AR aging
   const arTotal = React.useMemo(() => {
     if (!arData?.accountsReceivableAging) return 0;
-    return arData.accountsReceivableAging.reduce((sum: number, item: any) => sum + item.total, 0);
+    return arData.accountsReceivableAging.reduce((sum: number, item: { total: number }) => sum + item.total, 0);
   }, [arData]);
 
   // Calculate totals from AP aging
   const apTotal = React.useMemo(() => {
     if (!apData?.accountsPayableAging) return 0;
-    return apData.accountsPayableAging.reduce((sum: number, item: any) => sum + item.total, 0);
+    return apData.accountsPayableAging.reduce((sum: number, item: { total: number }) => sum + item.total, 0);
   }, [apData]);
 
   // Format AR aging data for pie chart
@@ -87,11 +87,11 @@ export const FinanceDashboard: React.FC = () => {
       ];
     }
 
-    const totals = arData.accountsReceivableAging.reduce((acc: any, item: any) => ({
+    const totals = arData.accountsReceivableAging.reduce((acc: Record<string, number>, item: { current: number; days30: number; days60: number; days90?: number; over90?: number; days90Plus?: number }) => ({
       current: acc.current + item.current,
       days30: acc.days30 + item.days30,
       days60: acc.days60 + item.days60,
-      days90Plus: acc.days90Plus + (item.over90 || item.days90Plus || 0)
+      days90Plus: acc.days90Plus + (item.over90 || item.days90Plus || item.days90 || 0)
     }), { current: 0, days30: 0, days60: 0, days90Plus: 0 });
 
     return [
@@ -105,11 +105,11 @@ export const FinanceDashboard: React.FC = () => {
   // Cash flow trend data
   const cashFlowChartData = React.useMemo(() => {
     if (!cashFlowData?.cashFlowForecast) return [];
-    return cashFlowData.cashFlowForecast.map((item: unknown) => ({
+    return cashFlowData.cashFlowForecast.map((item: { date: string; endingBalance: number; cashInflows: { amount: number }[]; cashOutflows: { amount: number }[] }) => ({
       date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       balance: item.endingBalance,
-      inflows: item.cashInflows.reduce((sum: number, inflow: any) => sum + inflow.amount, 0),
-      outflows: item.cashOutflows.reduce((sum: number, outflow: any) => sum + outflow.amount, 0)
+      inflows: item.cashInflows.reduce((sum: number, inflow: { amount: number }) => sum + inflow.amount, 0),
+      outflows: item.cashOutflows.reduce((sum: number, outflow: { amount: number }) => sum + outflow.amount, 0)
     }));
   }, [cashFlowData]);
 

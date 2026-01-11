@@ -107,6 +107,7 @@ export interface CustomerPaymentMethod {
   gatewayProvider: string;
   gatewayPaymentMethodId: string;
   gatewayCustomerId?: string;
+  setup_intent_id?: string; // For bank account verification via microdeposits
   displayName?: string;
   cardBrand?: string;
   cardLast4?: string;

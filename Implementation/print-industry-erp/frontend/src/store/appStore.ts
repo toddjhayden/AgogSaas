@@ -29,7 +29,7 @@ interface AppState {
 
   // Dashboard layouts (saved custom layouts)
   dashboardLayouts: Record<string, unknown>;
-  saveDashboardLayout: (dashboardId: string, layout: any) => void;
+  saveDashboardLayout: (dashboardId: string, layout: unknown) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -63,7 +63,7 @@ export const useAppStore = create<AppState>()(
         }));
         // Update global accessor for GraphQL client
         if (typeof window !== 'undefined') {
-          (window as unknown).__getTenantId = () => tenantId;
+          (window as unknown as { __getTenantId: () => string }).__getTenantId = () => tenantId;
         }
       },
 

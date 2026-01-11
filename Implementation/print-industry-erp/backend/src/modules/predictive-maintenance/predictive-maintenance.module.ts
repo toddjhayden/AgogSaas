@@ -11,7 +11,7 @@ import { PredictiveAlertService } from './services/predictive-alert.service';
 import { ModelManagementService } from './services/model-management.service';
 import { MaintenanceRecommendationService } from './services/maintenance-recommendation.service';
 import { PredictiveMaintenanceResolver } from '../../graphql/resolvers/predictive-maintenance.resolver';
-import { DatabaseModule } from '../../common/database/database.module';
+import { DatabaseModule } from '../../database/database.module';
 
 @Module({
   imports: [DatabaseModule],

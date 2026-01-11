@@ -103,6 +103,55 @@ interface DatabasePerformanceDashboard {
   capturedAt: string;
 }
 
+interface PerformanceHistoryEntry {
+  capturedAt: string;
+  databaseHealthScore: number;
+  cacheHitRatio: number;
+  connectionPoolUtilization: number;
+}
+
+interface SlowQuery {
+  queryPreview: string;
+  calls: number;
+  meanTimeMs: number;
+  maxTimeMs: number;
+  cacheHitRatio: number | null;
+}
+
+interface TableMetric {
+  schemaname: string;
+  tablename: string;
+  totalSize: string;
+  liveTuples: number;
+  deadTuples: number;
+  deadTuplePercent: number;
+}
+
+interface IndexMetric {
+  indexname: string;
+  schemaname: string;
+  tablename: string;
+  indexSize: string;
+  indexScans: number;
+  usageCategory: 'UNUSED' | 'RARELY_USED' | 'FREQUENTLY_USED';
+}
+
+interface BloatedTable {
+  schemaName: string;
+  tableName: string;
+  totalSize: string;
+  bloatPercent: number;
+  hoursSinceVacuum: number;
+}
+
+interface UnusedIndex {
+  indexName: string;
+  schemaName: string;
+  tableName: string;
+  indexSize: string;
+  indexScans: number;
+}
+
 // =====================================================
 // MAIN COMPONENT
 // =====================================================
@@ -290,25 +339,25 @@ export const DatabasePerformanceDashboard: React.FC = () => {
   // =====================================================
 
   const historyChartData = {
-    labels: historyData?.databasePerformanceHistory?.map((h: unknown) =>
+    labels: historyData?.databasePerformanceHistory?.map((h: PerformanceHistoryEntry) =>
       new Date(h.capturedAt).toLocaleTimeString()
     ) || [],
     datasets: [
       {
         label: t('database.performance.chart.healthScore'),
-        data: historyData?.databasePerformanceHistory?.map((h: unknown) => h.databaseHealthScore) || [],
+        data: historyData?.databasePerformanceHistory?.map((h: PerformanceHistoryEntry) => h.databaseHealthScore) || [],
         borderColor: 'rgb(75, 192, 192)',
         tension: 0.1,
       },
       {
         label: t('database.performance.chart.cacheHitRatio'),
-        data: historyData?.databasePerformanceHistory?.map((h: unknown) => h.cacheHitRatio) || [],
+        data: historyData?.databasePerformanceHistory?.map((h: PerformanceHistoryEntry) => h.cacheHitRatio) || [],
         borderColor: 'rgb(54, 162, 235)',
         tension: 0.1,
       },
       {
         label: t('database.performance.chart.poolUtilization'),
-        data: historyData?.databasePerformanceHistory?.map((h: unknown) => h.connectionPoolUtilization) || [],
+        data: historyData?.databasePerformanceHistory?.map((h: PerformanceHistoryEntry) => h.connectionPoolUtilization) || [],
         borderColor: 'rgb(255, 99, 132)',
         tension: 0.1,
       },
@@ -563,7 +612,7 @@ export const DatabasePerformanceDashboard: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {slowQueriesData?.databaseSlowQueries?.map((query: any, idx: number) => (
+                    {slowQueriesData?.databaseSlowQueries?.map((query: SlowQuery, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell className="font-mono text-xs max-w-md truncate">
                           {query.queryPreview}
@@ -604,7 +653,7 @@ export const DatabasePerformanceDashboard: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tableData?.databaseTableMetrics?.map((table: any, idx: number) => (
+                    {tableData?.databaseTableMetrics?.map((table: TableMetric, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell className="font-mono">
                           {table.schemaname}.{table.tablename}
@@ -651,7 +700,7 @@ export const DatabasePerformanceDashboard: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {indexData?.databaseIndexMetrics?.map((index: any, idx: number) => (
+                    {indexData?.databaseIndexMetrics?.map((index: IndexMetric, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell className="font-mono">{index.indexname}</TableCell>
                         <TableCell className="font-mono">
@@ -705,7 +754,7 @@ export const DatabasePerformanceDashboard: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bloatedTablesData.databaseBloatedTables.map((table: any, idx: number) => (
+                    {bloatedTablesData.databaseBloatedTables.map((table: BloatedTable, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell className="font-mono">
                           {table.schemaName}.{table.tableName}
@@ -747,7 +796,7 @@ export const DatabasePerformanceDashboard: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {unusedIndexesData.databaseUnusedIndexes.map((index: any, idx: number) => (
+                    {unusedIndexesData.databaseUnusedIndexes.map((index: UnusedIndex, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell className="font-mono">{index.indexName}</TableCell>
                         <TableCell className="font-mono">

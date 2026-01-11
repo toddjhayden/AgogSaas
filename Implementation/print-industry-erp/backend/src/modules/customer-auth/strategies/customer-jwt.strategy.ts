@@ -5,7 +5,7 @@
  * REQ: REQ-STRATEGIC-AUTO-1767048328659
  */
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -16,7 +16,7 @@ import { CustomerJwtPayload } from '../customer-auth.service';
 export class CustomerJwtStrategy extends PassportStrategy(Strategy, 'customer-jwt') {
   constructor(
     private readonly configService: ConfigService,
-    private readonly dbPool: Pool,
+    @Inject('DATABASE_POOL') private readonly dbPool: Pool,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

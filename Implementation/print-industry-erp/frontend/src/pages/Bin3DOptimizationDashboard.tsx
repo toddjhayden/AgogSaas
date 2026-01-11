@@ -365,7 +365,7 @@ export const Bin3DOptimizationDashboard: React.FC = () => {
             {/* LOW Zone */}
             <div className="card bg-info-50 border-l-4 border-info-500">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                LOW Zone (0-30")
+                LOW Zone (0-30&quot;)
               </h3>
               <p className="text-sm text-gray-700 mb-3">Below waist - requires bending</p>
               <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
@@ -379,7 +379,7 @@ export const Bin3DOptimizationDashboard: React.FC = () => {
             {/* GOLDEN Zone */}
             <div className="card bg-success-50 border-l-4 border-success-500">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                GOLDEN Zone (30-60")
+                GOLDEN Zone (30-60&quot;)
               </h3>
               <p className="text-sm text-gray-700 mb-3">Waist to shoulder - OPTIMAL</p>
               <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
@@ -393,7 +393,7 @@ export const Bin3DOptimizationDashboard: React.FC = () => {
             {/* HIGH Zone */}
             <div className="card bg-warning-50 border-l-4 border-warning-500">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                HIGH Zone (60"+)
+                HIGH Zone (60&quot;+)
               </h3>
               <p className="text-sm text-gray-700 mb-3">Above shoulder - requires reaching</p>
               <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
@@ -424,7 +424,7 @@ export const Bin3DOptimizationDashboard: React.FC = () => {
                 <ul className="list-disc list-inside space-y-1">
                   <li>Reduced picker fatigue and injury risk</li>
                   <li>Heavy items stored at safe heights (below waist)</li>
-                  <li>High-velocity items in ergonomic "golden zone"</li>
+                  <li>High-velocity items in ergonomic &ldquo;golden zone&rdquo;</li>
                 </ul>
               </div>
             </div>

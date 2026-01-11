@@ -879,8 +879,8 @@ export class OperationsResolver {
     return this.mapEquipmentStatusLogRow(result.rows[0]);
   }
 
-  @Mutation('createMaintenanceRecord')
-  async createMaintenanceRecord(
+  @Mutation('createWorkCenterMaintenanceRecord')
+  async createWorkCenterMaintenanceRecord(
     @Args('input') input: any,
     @Context() context: any
   ) {

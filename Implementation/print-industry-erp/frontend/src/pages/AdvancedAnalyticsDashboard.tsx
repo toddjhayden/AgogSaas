@@ -25,6 +25,51 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 type AnalysisView = 'vendor-production' | 'customer-profitability' | 'order-cycle' | 'material-flow';
 
+// Interfaces for GraphQL data types
+interface VendorProductionImpact {
+  vendorName: string;
+  materialCategory: string;
+  avgLeadTimeDays: number;
+  onTimeDeliveryRate: number;
+  qualityRejectRate: number;
+  avgProductionDowntimeHours: number;
+  productionEfficiencyImpact: number;
+  correlation: number;
+}
+
+interface CustomerProfitability {
+  customerName: string;
+  totalRevenue: number;
+  totalCosts: number;
+  grossProfit: number;
+  profitMargin: number;
+  orderCount: number;
+  avgOrderValue: number;
+}
+
+interface OrderCycle {
+  orderId: string;
+  customerName: string;
+  quotingTime: number;
+  procurementTime: number;
+  productionTime: number;
+  qcTime: number;
+  shippingTime: number;
+  totalCycleTime: number;
+  bottleneckStage: string;
+}
+
+interface MaterialFlow {
+  materialName: string;
+  category: string;
+  vendorName: string;
+  avgLeadTimeDays: number;
+  currentStockLevel: number;
+  warehouseTurnoverDays: number;
+  productionConsumptionRate: number;
+  stockoutRisk: string;
+}
+
 export const AdvancedAnalyticsDashboard: React.FC = () => {
   const { t } = useTranslation();
   const [selectedView, setSelectedView] = useState<AnalysisView>('vendor-production');
@@ -111,7 +156,7 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
       { key: 'correlation', label: t('analytics.correlation'), sortable: true, format: (val: number) => val.toFixed(3) },
     ];
 
-    const chartData = impacts.map((item: unknown) => ({
+    const chartData = impacts.map((item: VendorProductionImpact) => ({
       name: item.vendorName,
       efficiency: item.productionEfficiencyImpact,
       onTime: item.onTimeDeliveryRate,
@@ -151,7 +196,7 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
       { key: 'avgOrderValue', label: t('analytics.avgOrderVal'), sortable: true, format: (val: number) => `$${val.toLocaleString()}` },
     ];
 
-    const chartData = profitability.map((item: unknown) => ({
+    const chartData = profitability.map((item: CustomerProfitability) => ({
       name: item.customerName,
       revenue: item.totalRevenue,
       profit: item.grossProfit,
@@ -193,15 +238,15 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
       { key: 'bottleneckStage', label: t('analytics.bottleneck'), sortable: true },
     ];
 
-    const avgCycleTime = cycles.reduce((sum: number, c: any) => sum + c.totalCycleTime, 0) / cycles.length || 0;
-    const bottleneckCounts = cycles.reduce((acc: any, c: any) => {
+    const avgCycleTime = cycles.reduce((sum: number, c: OrderCycle) => sum + c.totalCycleTime, 0) / cycles.length || 0;
+    const bottleneckCounts = cycles.reduce((acc: Record<string, number>, c: OrderCycle) => {
       acc[c.bottleneckStage] = (acc[c.bottleneckStage] || 0) + 1;
       return acc;
-    }, {});
+    }, {} as Record<string, number>);
 
     const bottleneckData = Object.entries(bottleneckCounts).map(([name, value]) => ({
       name,
-      value,
+      value: value as number,
     }));
 
     return (
@@ -238,14 +283,14 @@ export const AdvancedAnalyticsDashboard: React.FC = () => {
       { key: 'stockoutRisk', label: t('analytics.risk'), sortable: true },
     ];
 
-    const riskCounts = flows.reduce((acc: any, f: any) => {
+    const riskCounts = flows.reduce((acc: Record<string, number>, f: MaterialFlow) => {
       acc[f.stockoutRisk] = (acc[f.stockoutRisk] || 0) + 1;
       return acc;
-    }, {});
+    }, {} as Record<string, number>);
 
     const riskData = Object.entries(riskCounts).map(([name, value]) => ({
       name,
-      value,
+      value: value as number,
     }));
 
     return (

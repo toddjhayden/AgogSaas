@@ -11,6 +11,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CustomerAuthService } from './customer-auth.service';
 import { CustomerJwtStrategy } from './strategies/customer-jwt.strategy';
+import { TOTPService } from './totp.service';
 import { PasswordService } from '../../common/security/password.service';
 import { DatabaseModule } from '../../database/database.module';
 
@@ -30,10 +31,12 @@ import { DatabaseModule } from '../../database/database.module';
     DatabaseModule,
   ],
   providers: [
-    CustomerAuthService,
+    // Order matters for NestJS DI - providers with no deps first
+    PasswordService,      // No dependencies
+    TOTPService,          // Depends on PasswordService
     CustomerJwtStrategy,
-    PasswordService,
+    CustomerAuthService,  // Depends on TOTPService
   ],
-  exports: [CustomerAuthService, PasswordService],
+  exports: [CustomerAuthService, TOTPService, PasswordService],
 })
 export class CustomerAuthModule {}

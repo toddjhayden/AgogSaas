@@ -65,6 +65,22 @@ import {
  * - Health check integration
  * - Real-time statistics
  */
+
+interface DeploymentApproval {
+  deploymentId: string;
+  deploymentNumber: string;
+  title: string;
+  environment: string;
+  version: string;
+  currentStep: number;
+  totalSteps: number;
+  stepDescription: string;
+  deployedBy: string;
+  urgency: string;
+  urgencyLevel: string;
+  slaRemainingHours: number | null;
+  isOverdue: boolean;
+}
 const DeploymentApprovalPage: React.FC = () => {
   const { t } = useTranslation();
   const { userId, tenantId } = useAuth();
@@ -74,7 +90,7 @@ const DeploymentApprovalPage: React.FC = () => {
   const [urgencyFilter, setUrgencyFilter] = useState<string>('');
   const [urgencyLevelFilter, setUrgencyLevelFilter] = useState<string>('');
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [selectedDeployment, setSelectedDeployment] = useState<any>(null);
+  const [selectedDeployment, setSelectedDeployment] = useState<DeploymentApproval | null>(null);
 
   // Dialog states
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -260,7 +276,7 @@ const DeploymentApprovalPage: React.FC = () => {
 
   // Get statistics
   const stats = statsData?.getDeploymentApprovalStats || {};
-  const approvals = approvalsData?.getMyPendingDeploymentApprovals || [];
+  const approvals: DeploymentApproval[] = approvalsData?.getMyPendingDeploymentApprovals || [];
 
   // Urgency level badge color
   const getUrgencyColor = (level: string) => {
@@ -476,7 +492,7 @@ const DeploymentApprovalPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {approvals.map((approval: unknown) => (
+              {approvals.map((approval: DeploymentApproval) => (
                 <TableRow
                   key={approval.deploymentId}
                   sx={{

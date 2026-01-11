@@ -7,7 +7,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../common/database/database.service';
+import { DatabaseService } from '../../../database/database.service';
 
 export interface PredictiveAlert {
   id: string;

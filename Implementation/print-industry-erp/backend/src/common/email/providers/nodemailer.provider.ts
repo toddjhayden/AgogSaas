@@ -56,8 +56,9 @@ export class NodemailerProvider implements IEmailProvider {
 
       this.logger.log(`Email sent successfully to ${to}: ${subject}`);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to send email to ${to}:`, error);
-      throw new Error(`Email delivery failed: ${error.message}`);
+      throw new Error(`Email delivery failed: ${errorMessage}`);
     }
   }
 }

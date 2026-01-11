@@ -22,6 +22,21 @@ interface LineItem {
   lineAmount: number;
 }
 
+interface Vendor {
+  id: string;
+  vendorCode: string;
+  vendorName: string;
+}
+
+interface Material {
+  id: string;
+  materialCode: string;
+  materialName: string;
+  primaryUom: string;
+  standardCost?: number;
+  lastCost?: number;
+}
+
 export const CreatePurchaseOrderPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -81,11 +96,11 @@ export const CreatePurchaseOrderPage: React.FC = () => {
   const vendors = vendorsData?.vendors || [];
   const materials = materialsData?.materials || [];
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleLineChange = (index: number, field: string, value: any) => {
+  const handleLineChange = (index: number, field: string, value: unknown) => {
     setLines((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
@@ -98,7 +113,7 @@ export const CreatePurchaseOrderPage: React.FC = () => {
 
       // If material is selected, populate details
       if (field === 'materialId') {
-        const material = materials.find((m: unknown) => m.id === value);
+        const material = materials.find((m: Material) => m.id === value);
         if (material) {
           updated[index].materialCode = material.materialCode;
           updated[index].description = material.materialName;
@@ -207,7 +222,7 @@ export const CreatePurchaseOrderPage: React.FC = () => {
                 required
               >
                 <option value="">{t('procurement.selectVendor')}</option>
-                {vendors.map((vendor: unknown) => (
+                {vendors.map((vendor: Vendor) => (
                   <option key={vendor.id} value={vendor.id}>
                     {vendor.vendorCode} - {vendor.vendorName}
                   </option>
@@ -335,7 +350,7 @@ export const CreatePurchaseOrderPage: React.FC = () => {
                         required
                       >
                         <option value="">{t('procurement.selectMaterial')}</option>
-                        {materials.map((material: unknown) => (
+                        {materials.map((material: Material) => (
                           <option key={material.id} value={material.id}>
                             {material.materialCode} - {material.materialName}
                           </option>

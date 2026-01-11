@@ -430,6 +430,10 @@ export class FinalModulesResolver {
     @Args('workCenterId') workCenterId: string | null,
     @Args('deviceType') deviceType: string | null,
     @Args('isActive') isActive: boolean | null,
+    @Args('healthStatus') healthStatus: string | null,
+    @Args('searchTerm') searchTerm: string | null,
+    @Args('limit') limit: number = 100,
+    @Args('offset') offset: number = 0,
     @Context() context: any
   ) {
     let whereClause = `tenant_id = $1`;
@@ -456,12 +460,133 @@ export class FinalModulesResolver {
       params.push(isActive);
     }
 
+    if (healthStatus) {
+      whereClause += ` AND health_status = $${paramIndex++}`;
+      params.push(healthStatus);
+    }
+
+    if (searchTerm) {
+      whereClause += ` AND (
+        device_code ILIKE $${paramIndex} OR
+        device_name ILIKE $${paramIndex} OR
+        manufacturer ILIKE $${paramIndex} OR
+        model ILIKE $${paramIndex}
+      )`;
+      params.push(`%${searchTerm}%`);
+      paramIndex++;
+    }
+
+    params.push(limit, offset);
+
     const result = await this.db.query(
-      `SELECT * FROM iot_devices WHERE ${whereClause} ORDER BY device_code`,
+      `SELECT * FROM iot_devices
+       WHERE ${whereClause}
+       ORDER BY device_code
+       LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
       params
     );
 
     return result.rows.map(this.mapIotDeviceRow);
+  }
+
+  @Query('iotDevice')
+  async getIotDevice(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `SELECT * FROM iot_devices WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapIotDeviceRow(result.rows[0]);
+  }
+
+  @Query('iotDeviceStats')
+  async getIotDeviceStats(
+    @Args('tenantId') tenantId: string,
+    @Args('facilityId') facilityId: string | null,
+    @Context() context: any
+  ) {
+    let whereClause = `tenant_id = $1`;
+    const params: any[] = [tenantId];
+
+    if (facilityId) {
+      whereClause += ` AND facility_id = $2`;
+      params.push(facilityId);
+    }
+
+    // Get overall stats
+    const statsResult = await this.db.query(
+      `SELECT
+        COUNT(*) as total_devices,
+        COUNT(*) FILTER (WHERE is_active = true) as active_devices,
+        COUNT(*) FILTER (WHERE is_active = true AND last_heartbeat > NOW() - INTERVAL '2 minutes') as online_devices,
+        COUNT(*) FILTER (WHERE is_active = true AND (last_heartbeat IS NULL OR last_heartbeat <= NOW() - INTERVAL '2 minutes')) as offline_devices,
+        COUNT(*) FILTER (WHERE health_status = 'HEALTHY') as healthy_devices,
+        COUNT(*) FILTER (WHERE health_status = 'WARNING') as warning_devices,
+        COUNT(*) FILTER (WHERE health_status = 'CRITICAL') as critical_devices,
+        AVG(cpu_usage) as avg_cpu_usage,
+        AVG(memory_usage) as avg_memory_usage,
+        AVG(disk_usage) as avg_disk_usage,
+        AVG(network_latency) as avg_network_latency
+       FROM iot_devices
+       WHERE ${whereClause}`,
+      params
+    );
+
+    // Get device counts by type
+    const typeResult = await this.db.query(
+      `SELECT device_type, COUNT(*) as count
+       FROM iot_devices
+       WHERE ${whereClause}
+       GROUP BY device_type
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Get device counts by facility
+    const facilityResult = await this.db.query(
+      `SELECT
+        d.facility_id,
+        f.facility_name,
+        COUNT(*) as count
+       FROM iot_devices d
+       LEFT JOIN facilities f ON d.facility_id = f.id
+       WHERE d.${whereClause.replace('tenant_id', 'd.tenant_id').replace('facility_id', 'd.facility_id')}
+       GROUP BY d.facility_id, f.facility_name
+       ORDER BY count DESC`,
+      params
+    );
+
+    const stats = statsResult.rows[0];
+
+    return {
+      totalDevices: parseInt(stats.total_devices) || 0,
+      activeDevices: parseInt(stats.active_devices) || 0,
+      onlineDevices: parseInt(stats.online_devices) || 0,
+      offlineDevices: parseInt(stats.offline_devices) || 0,
+      healthyDevices: parseInt(stats.healthy_devices) || 0,
+      warningDevices: parseInt(stats.warning_devices) || 0,
+      criticalDevices: parseInt(stats.critical_devices) || 0,
+      devicesByType: typeResult.rows.map(row => ({
+        deviceType: row.device_type,
+        count: parseInt(row.count)
+      })),
+      devicesByFacility: facilityResult.rows.map(row => ({
+        facilityId: row.facility_id,
+        facilityName: row.facility_name,
+        count: parseInt(row.count)
+      })),
+      avgCpuUsage: parseFloat(stats.avg_cpu_usage) || 0,
+      avgMemoryUsage: parseFloat(stats.avg_memory_usage) || 0,
+      avgDiskUsage: parseFloat(stats.avg_disk_usage) || 0,
+      avgNetworkLatency: parseFloat(stats.avg_network_latency) || 0
+    };
   }
 
   @Query('sensorReadings')
@@ -521,6 +646,7 @@ export class FinalModulesResolver {
   @Query('equipmentEvents')
   async getEquipmentEvents(
     @Args('tenantId') tenantId: string,
+    @Args('iotDeviceId') iotDeviceId: string | null,
     @Args('workCenterId') workCenterId: string | null,
     @Args('severity') severity: string | null,
     @Args('acknowledged') acknowledged: boolean | null,
@@ -533,6 +659,11 @@ export class FinalModulesResolver {
     let whereClause = `tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramIndex = 2;
+
+    if (iotDeviceId) {
+      whereClause += ` AND iot_device_id = $${paramIndex++}`;
+      params.push(iotDeviceId);
+    }
 
     if (workCenterId) {
       whereClause += ` AND work_center_id = $${paramIndex++}`;
@@ -1248,15 +1379,32 @@ export class FinalModulesResolver {
     @Args('deviceName') deviceName: string,
     @Args('deviceType') deviceType: string | null,
     @Args('workCenterId') workCenterId: string | null,
+    @Args('manufacturer') manufacturer: string | null,
+    @Args('model') model: string | null,
+    @Args('serialNumber') serialNumber: string | null,
+    @Args('firmwareVersion') firmwareVersion: string | null,
+    @Args('ipAddress') ipAddress: string | null,
+    @Args('macAddress') macAddress: string | null,
+    @Args('connectionType') connectionType: string | null,
+    @Args('connectionConfig') connectionConfig: any | null,
+    @Args('hardwareProfile') hardwareProfile: string | null,
+    @Args('tags') tags: string[] | null,
+    @Args('metadata') metadata: any | null,
     @Context() context: any
   ) {
     const result = await this.db.query(
       `INSERT INTO iot_devices (
         tenant_id, facility_id, device_code, device_name, device_type,
-        work_center_id, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, true)
+        work_center_id, manufacturer, model, serial_number, firmware_version,
+        ip_address, mac_address, connection_type, connection_config,
+        hardware_profile, tags, metadata, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true)
       RETURNING *`,
-      [tenantId, facilityId, deviceCode, deviceName, deviceType, workCenterId]
+      [
+        tenantId, facilityId, deviceCode, deviceName, deviceType, workCenterId,
+        manufacturer, model, serialNumber, firmwareVersion, ipAddress, macAddress,
+        connectionType, connectionConfig, hardwareProfile, tags, metadata
+      ]
     );
 
     return this.mapIotDeviceRow(result.rows[0]);
@@ -1267,20 +1415,92 @@ export class FinalModulesResolver {
     @Args('id') id: string,
     @Args('deviceName') deviceName: string | null,
     @Args('isActive') isActive: boolean | null,
+    @Args('manufacturer') manufacturer: string | null,
+    @Args('model') model: string | null,
+    @Args('serialNumber') serialNumber: string | null,
+    @Args('firmwareVersion') firmwareVersion: string | null,
+    @Args('ipAddress') ipAddress: string | null,
+    @Args('macAddress') macAddress: string | null,
+    @Args('connectionType') connectionType: string | null,
+    @Args('connectionConfig') connectionConfig: any | null,
+    @Args('hardwareProfile') hardwareProfile: string | null,
+    @Args('workCenterId') workCenterId: string | null,
+    @Args('tags') tags: string[] | null,
+    @Args('metadata') metadata: any | null,
     @Context() context: any
   ) {
     const updates: string[] = [];
     const params: any[] = [];
     let paramIndex = 1;
 
-    if (deviceName) {
+    if (deviceName !== undefined && deviceName !== null) {
       updates.push(`device_name = $${paramIndex++}`);
       params.push(deviceName);
     }
 
-    if (isActive !== null) {
+    if (isActive !== null && isActive !== undefined) {
       updates.push(`is_active = $${paramIndex++}`);
       params.push(isActive);
+    }
+
+    if (manufacturer !== undefined && manufacturer !== null) {
+      updates.push(`manufacturer = $${paramIndex++}`);
+      params.push(manufacturer);
+    }
+
+    if (model !== undefined && model !== null) {
+      updates.push(`model = $${paramIndex++}`);
+      params.push(model);
+    }
+
+    if (serialNumber !== undefined && serialNumber !== null) {
+      updates.push(`serial_number = $${paramIndex++}`);
+      params.push(serialNumber);
+    }
+
+    if (firmwareVersion !== undefined && firmwareVersion !== null) {
+      updates.push(`firmware_version = $${paramIndex++}`);
+      params.push(firmwareVersion);
+    }
+
+    if (ipAddress !== undefined && ipAddress !== null) {
+      updates.push(`ip_address = $${paramIndex++}`);
+      params.push(ipAddress);
+    }
+
+    if (macAddress !== undefined && macAddress !== null) {
+      updates.push(`mac_address = $${paramIndex++}`);
+      params.push(macAddress);
+    }
+
+    if (connectionType !== undefined && connectionType !== null) {
+      updates.push(`connection_type = $${paramIndex++}`);
+      params.push(connectionType);
+    }
+
+    if (connectionConfig !== undefined && connectionConfig !== null) {
+      updates.push(`connection_config = $${paramIndex++}`);
+      params.push(connectionConfig);
+    }
+
+    if (hardwareProfile !== undefined && hardwareProfile !== null) {
+      updates.push(`hardware_profile = $${paramIndex++}`);
+      params.push(hardwareProfile);
+    }
+
+    if (workCenterId !== undefined && workCenterId !== null) {
+      updates.push(`work_center_id = $${paramIndex++}`);
+      params.push(workCenterId);
+    }
+
+    if (tags !== undefined && tags !== null) {
+      updates.push(`tags = $${paramIndex++}`);
+      params.push(tags);
+    }
+
+    if (metadata !== undefined && metadata !== null) {
+      updates.push(`metadata = $${paramIndex++}`);
+      params.push(metadata);
     }
 
     updates.push(`updated_at = NOW()`);
@@ -1293,6 +1513,129 @@ export class FinalModulesResolver {
     );
 
     return this.mapIotDeviceRow(result.rows[0]);
+  }
+
+  @Mutation('deleteIotDevice')
+  async deleteIotDevice(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
+    try {
+      await this.db.query(
+        `DELETE FROM iot_devices WHERE id = $1`,
+        [id]
+      );
+
+      return {
+        success: true,
+        message: 'Device deleted successfully'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to delete device: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`
+      };
+    }
+  }
+
+  @Mutation('rebootIotDevice')
+  async rebootIotDevice(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
+    // In a real system, this would send a command to the device
+    // For now, we'll just update the last_sync_time
+    const result = await this.db.query(
+      `UPDATE iot_devices
+       SET last_sync_time = NOW(), updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id]
+    );
+
+    return this.mapIotDeviceRow(result.rows[0]);
+  }
+
+  @Mutation('updateDeviceFirmware')
+  async updateDeviceFirmware(
+    @Args('id') id: string,
+    @Args('firmwareVersion') firmwareVersion: string,
+    @Context() context: any
+  ) {
+    const result = await this.db.query(
+      `UPDATE iot_devices
+       SET firmware_version = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [firmwareVersion, id]
+    );
+
+    return this.mapIotDeviceRow(result.rows[0]);
+  }
+
+  @Mutation('syncDeviceConfig')
+  async syncDeviceConfig(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
+    // In a real system, this would sync configuration with the device
+    // For now, we'll just update the last_sync_time
+    const result = await this.db.query(
+      `UPDATE iot_devices
+       SET last_sync_time = NOW(), updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id]
+    );
+
+    return this.mapIotDeviceRow(result.rows[0]);
+  }
+
+  @Mutation('bulkUpdateIotDevices')
+  async bulkUpdateIotDevices(
+    @Args('deviceIds') deviceIds: string[],
+    @Args('isActive') isActive: boolean | null,
+    @Args('tags') tags: string[] | null,
+    @Context() context: any
+  ) {
+    try {
+      const updates: string[] = [];
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      if (isActive !== null && isActive !== undefined) {
+        updates.push(`is_active = $${paramIndex++}`);
+        params.push(isActive);
+      }
+
+      if (tags !== null && tags !== undefined) {
+        updates.push(`tags = $${paramIndex++}`);
+        params.push(tags);
+      }
+
+      updates.push(`updated_at = NOW()`);
+
+      params.push(deviceIds);
+
+      const result = await this.db.query(
+        `UPDATE iot_devices
+         SET ${updates.join(', ')}
+         WHERE id = ANY($${paramIndex})`,
+        params
+      );
+
+      return {
+        success: true,
+        message: 'Devices updated successfully',
+        updatedCount: result.rowCount
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to update devices: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`,
+        updatedCount: 0
+      };
+    }
   }
 
   @Mutation('createSensorReading')
@@ -1320,14 +1663,15 @@ export class FinalModulesResolver {
   async acknowledgeEquipmentEvent(
     @Args('id') id: string,
     @Args('acknowledgedByUserId') acknowledgedByUserId: string,
+    @Args('resolutionNotes') resolutionNotes: string | null,
     @Context() context: any
   ) {
     const result = await this.db.query(
       `UPDATE equipment_events
-       SET acknowledged = true, acknowledged_by_user_id = $1, acknowledged_at = NOW()
-       WHERE id = $2
+       SET acknowledged = true, acknowledged_by_user_id = $1, acknowledged_at = NOW(), resolution_notes = $2
+       WHERE id = $3
        RETURNING *`,
-      [acknowledgedByUserId, id]
+      [acknowledgedByUserId, resolutionNotes, id]
     );
 
     return this.mapEquipmentEventRow(result.rows[0]);
@@ -1550,14 +1894,27 @@ export class FinalModulesResolver {
       manufacturer: row.manufacturer,
       model: row.model,
       serialNumber: row.serial_number,
+      firmwareVersion: row.firmware_version,
+      ipAddress: row.ip_address,
+      macAddress: row.mac_address,
       connectionType: row.connection_type,
       connectionConfig: row.connection_config,
+      hardwareProfile: row.hardware_profile,
       isActive: row.is_active,
+      isOnline: row.is_online,
       lastHeartbeat: row.last_heartbeat,
+      lastSyncTime: row.last_sync_time,
+      healthStatus: row.health_status,
+      cpuUsage: row.cpu_usage,
+      memoryUsage: row.memory_usage,
+      diskUsage: row.disk_usage,
+      networkLatency: row.network_latency,
+      tags: row.tags,
+      metadata: row.metadata,
       createdAt: row.created_at,
-      createdBy: row.created_by,
+      createdByUserId: row.created_by_user_id,
       updatedAt: row.updated_at,
-      updatedBy: row.updated_by
+      updatedByUserId: row.updated_by_user_id
     };
   }
 
@@ -1571,6 +1928,9 @@ export class FinalModulesResolver {
       readingValue: row.reading_value ? parseFloat(row.reading_value) : null,
       unitOfMeasure: row.unit_of_measure,
       productionRunId: row.production_run_id,
+      qualityStatus: row.quality_status,
+      alertThresholdMin: row.alert_threshold_min ? parseFloat(row.alert_threshold_min) : null,
+      alertThresholdMax: row.alert_threshold_max ? parseFloat(row.alert_threshold_max) : null,
       metadata: row.metadata,
       createdAt: row.created_at
     };
@@ -1592,6 +1952,7 @@ export class FinalModulesResolver {
       acknowledged: row.acknowledged,
       acknowledgedByUserId: row.acknowledged_by_user_id,
       acknowledgedAt: row.acknowledged_at,
+      resolutionNotes: row.resolution_notes,
       createdAt: row.created_at
     };
   }

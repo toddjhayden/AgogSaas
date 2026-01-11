@@ -230,7 +230,7 @@ const WorkflowInstanceDetailPage: React.FC = () => {
                   </Typography>
                   <Chip
                     label={t(`workflow.instances.${instance.status.toLowerCase()}`)}
-                    color={getStatusColor(instance.status) as unknown}
+                    color={getStatusColor(instance.status) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
                     sx={{ mt: 1 }}
                   />
                 </Grid>
@@ -289,7 +289,7 @@ const WorkflowInstanceDetailPage: React.FC = () => {
                       )}
                     </TimelineOppositeContent>
                     <TimelineSeparator>
-                      <TimelineDot color={getNodeStatusColor(node.status) as unknown}>
+                      <TimelineDot color={getNodeStatusColor(node.status) as 'grey' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}>
                         {getNodeStatusIcon(node.status)}
                       </TimelineDot>
                       {index < instance.nodes.length - 1 && <TimelineConnector />}

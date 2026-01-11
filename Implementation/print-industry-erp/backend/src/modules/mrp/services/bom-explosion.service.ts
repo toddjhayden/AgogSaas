@@ -203,9 +203,11 @@ export class BOMExplosionService {
         `Failed to get BOM components for product ${productId}`,
         error,
       );
+      const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error);
+
       throw new MRPEngineError(
         MRPErrorCode.DATABASE_TIMEOUT,
-        `Failed to retrieve BOM components: ${error.message}`,
+        `Failed to retrieve BOM components: ${errorMessage}`,
         productId,
         undefined,
         true, // retryable

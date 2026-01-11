@@ -30,7 +30,7 @@ interface ComponentHealth {
   lastCheck: string;
   responseTime?: number;
   error?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export const SystemStatusCard = ({ lastRefresh }: SystemStatusCardProps) => {

@@ -213,20 +213,37 @@ ${page.testCriteria.map((c: string) => `- [ ] ${c}`).join('\n')}
       reqs.push(req);
     }
 
-    // Publish all REQs to NATS
+    // Publish REQs AND spawn Liz for each one
     for (const req of reqs) {
+      // 1. Publish the REQ for tracking
       this.nc!.publish(CONFIG.reqSubject, sc.encode(JSON.stringify(req)));
-      console.log(`[UITestGen] Published: ${req.reqNumber} - ${req.title}`);
-      await new Promise(resolve => setTimeout(resolve, 50));
+      console.log(`[UITestGen] Published REQ: ${req.reqNumber}`);
+
+      // 2. SPAWN LIZ to actually test this page
+      this.nc!.publish('agog.spawn.request', sc.encode(JSON.stringify({
+        agentId: 'liz',
+        reqNumber: req.reqNumber,
+        priority: req.priority,
+        description: `UI Test: ${req.testPath} - ${req.testCriteria.join(', ')}`,
+        contextData: {
+          testPath: req.testPath,
+          testFile: req.testScope,
+          testCriteria: req.testCriteria
+        }
+      })));
+      console.log(`[UITestGen] 🚀 Spawned Liz for: ${req.reqNumber} (${req.testPath})`);
+
+      await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between spawns
     }
 
-    console.log(`[UITestGen] ✅ Generated ${reqs.length} P0 UI testing REQs for Liz`);
+    console.log(`[UITestGen] ✅ Generated ${reqs.length} UI testing REQs AND spawned Liz for each`);
 
     // Notify completion
     this.nc!.publish('agog.testing.ui.complete', sc.encode(JSON.stringify({
       source,
       reqCount: reqs.length,
       reqNumbers: reqs.map(r => r.reqNumber),
+      agentSpawned: 'liz',
       timestamp: new Date().toISOString()
     })));
   }

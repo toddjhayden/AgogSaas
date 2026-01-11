@@ -30,10 +30,87 @@ import { ValueChainExpertDaemon } from '../src/proactive/value-chain-expert.daem
 import { ProductOwnerDaemon } from '../src/proactive/product-owner.daemon';
 import { SeniorAuditorDaemon } from '../src/proactive/senior-auditor.daemon';
 import dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
+import { NatsDependencyValidator } from '../src/monitoring/nats-dependency-validator.service';
 
 dotenv.config();
 
+// =============================================================================
+// RUNTIME DEPENDENCY VALIDATION - Exit on failure
+// REQ: REQ-AUDIT-1767982074
+// =============================================================================
+async function validateRuntimeDependencies(): Promise<void> {
+  const validator = new NatsDependencyValidator();
+  await validator.validateAndExit();
+}
+
+// =============================================================================
+// FILE-BASED LOGGING - Persists to /app/logs (mounted to host)
+// =============================================================================
+const logDir = path.resolve(__dirname, '..', 'logs');
+const today = new Date().toISOString().split('T')[0];
+const logFile = path.join(logDir, `orchestrator-${today}.log`);
+
+// Ensure logs directory exists
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+// Create write stream for file logging
+const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+
+/**
+ * Log to both console and file for persistence
+ */
+function log(level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG', source: string, message: string): void {
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] [${level}] [${source}] ${message}`;
+
+  // Console output (for docker logs)
+  console.log(logLine);
+
+  // File output (persisted to host via volume mount)
+  logStream.write(logLine + '\n');
+}
+
+// Override console.log to also write to file
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+console.log = (...args: any[]) => {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] ${message}`;
+  originalConsoleLog(logLine);
+  logStream.write(logLine + '\n');
+};
+
+console.error = (...args: any[]) => {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] [ERROR] ${message}`;
+  originalConsoleError(logLine);
+  logStream.write(logLine + '\n');
+};
+
+console.warn = (...args: any[]) => {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] [WARN] ${message}`;
+  originalConsoleWarn(logLine);
+  logStream.write(logLine + '\n');
+};
+
+log('INFO', 'Startup', `Logging initialized - writing to ${logFile}`);
+
 async function startAllServices() {
+  // =============================================================================
+  // STEP 1: VALIDATE RUNTIME DEPENDENCIES - Exit on failure
+  // =============================================================================
+  await validateRuntimeDependencies();
+
   console.log('🚀 Starting Agent System with ACTUAL Workflow Recovery');
   console.log('═══════════════════════════════════════════════════════════════');
   console.log('');
@@ -240,6 +317,11 @@ async function startAllServices() {
       }
 
       console.log('\n✅ All services stopped');
+
+      // Close log stream
+      log('INFO', 'Shutdown', 'Closing log stream');
+      logStream.end();
+
       process.exit(0);
     };
 

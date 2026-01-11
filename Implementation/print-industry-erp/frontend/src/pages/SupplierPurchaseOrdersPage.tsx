@@ -24,6 +24,20 @@ import {
 import { GET_SUPPLIER_PURCHASE_ORDERS } from '../graphql/queries/supplierPortal';
 import { DataTable } from '../components/common/DataTable';
 
+// Type definition for supplier purchase order
+interface SupplierPurchaseOrder {
+  id: string;
+  poNumber: string;
+  poDate: string;
+  requestedDeliveryDate?: string;
+  lineCount: number;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  isAcknowledged: boolean;
+  hasASN: boolean;
+}
+
 const SupplierPurchaseOrdersPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -78,7 +92,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
 
   // Filter purchase orders by search term
   const filteredPOs = searchTerm
-    ? purchaseOrders.filter((po: unknown) =>
+    ? purchaseOrders.filter((po: SupplierPurchaseOrder) =>
         po.poNumber.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : purchaseOrders;
@@ -96,7 +110,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'poNumber',
       label: t('supplierPortal.purchaseOrders.poNumber'),
-      render: (row: unknown) => (
+      render: (row: SupplierPurchaseOrder) => (
         <button
           onClick={() => navigate(`/supplier/purchase-orders/${row.poNumber}`)}
           className="text-blue-600 hover:text-blue-800 font-medium"
@@ -108,12 +122,12 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'poDate',
       label: t('supplierPortal.purchaseOrders.date'),
-      render: (row: unknown) => new Date(row.poDate).toLocaleDateString(),
+      render: (row: SupplierPurchaseOrder) => new Date(row.poDate).toLocaleDateString(),
     },
     {
       id: 'requestedDeliveryDate',
       label: t('supplierPortal.purchaseOrders.deliveryDate'),
-      render: (row: unknown) =>
+      render: (row: SupplierPurchaseOrder) =>
         row.requestedDeliveryDate
           ? new Date(row.requestedDeliveryDate).toLocaleDateString()
           : 'N/A',
@@ -121,14 +135,14 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'lineCount',
       label: t('supplierPortal.purchaseOrders.lineCount'),
-      render: (row: unknown) => (
+      render: (row: SupplierPurchaseOrder) => (
         <span className="text-gray-900">{row.lineCount} lines</span>
       ),
     },
     {
       id: 'totalAmount',
       label: t('supplierPortal.purchaseOrders.amount'),
-      render: (row: unknown) => (
+      render: (row: SupplierPurchaseOrder) => (
         <span className="font-medium text-gray-900">
           {formatCurrency(row.totalAmount, row.currency)}
         </span>
@@ -137,7 +151,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'status',
       label: t('common.status'),
-      render: (row: unknown) => (
+      render: (row: SupplierPurchaseOrder) => (
         <span
           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
             row.status
@@ -150,7 +164,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'acknowledged',
       label: t('supplierPortal.purchaseOrders.acknowledged'),
-      render: (row: unknown) =>
+      render: (row: SupplierPurchaseOrder) =>
         row.isAcknowledged ? (
           <CheckCircle className="h-5 w-5 text-green-500" />
         ) : (
@@ -160,7 +174,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'asn',
       label: t('supplierPortal.asn.title'),
-      render: (row: unknown) =>
+      render: (row: SupplierPurchaseOrder) =>
         row.hasASN ? (
           <Package className="h-5 w-5 text-blue-500" />
         ) : (
@@ -170,7 +184,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
     {
       id: 'actions',
       label: t('common.actions'),
-      render: (row: unknown) => (
+      render: (row: SupplierPurchaseOrder) => (
         <div className="flex items-center space-x-2">
           {!row.isAcknowledged && (
             <button
@@ -347,7 +361,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
               </p>
               <p className="text-2xl font-bold text-gray-900">
                 {
-                  purchaseOrders.filter((po: unknown) => !po.isAcknowledged).length
+                  purchaseOrders.filter((po: SupplierPurchaseOrder) => !po.isAcknowledged).length
                 }
               </p>
             </div>
@@ -361,7 +375,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
                 {t('supplierPortal.purchaseOrders.acknowledged')}
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                {purchaseOrders.filter((po: unknown) => po.isAcknowledged).length}
+                {purchaseOrders.filter((po: SupplierPurchaseOrder) => po.isAcknowledged).length}
               </p>
             </div>
           </div>
@@ -374,7 +388,7 @@ const SupplierPurchaseOrdersPage: React.FC = () => {
                 {t('supplierPortal.asn.withASN')}
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                {purchaseOrders.filter((po: unknown) => po.hasASN).length}
+                {purchaseOrders.filter((po: SupplierPurchaseOrder) => po.hasASN).length}
               </p>
             </div>
           </div>

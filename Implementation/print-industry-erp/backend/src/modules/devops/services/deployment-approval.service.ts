@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { DatabaseService } from '../../../database/database.service';
 import { DevOpsAlertingService } from '../../wms/services/devops-alerting.service';
 import { HealthMonitorService } from '../../monitoring/services/health-monitor.service';
 
@@ -10,9 +10,18 @@ import { HealthMonitorService } from '../../monitoring/services/health-monitor.s
  * SLA tracking, health checks, and DevOps alerting integration.
  *
  * Follows the same pattern as PO approval workflow for consistency.
+ *
+ * P0/P1 Improvements Applied (REQ-DEVOPS-ROLLBACK-1767150339448):
+ * - Idempotency check for rollback operations
+ * - Rate limiting for auto-rollback (prevents rollback loops)
+ * - Retry logic for health checks (reduces false positives)
+ * - Enhanced error messages with context
+ * - Structured logging for observability
  */
 @Injectable()
 export class DeploymentApprovalService {
+  private readonly logger = new Logger(DeploymentApprovalService.name);
+
   constructor(
     private readonly db: DatabaseService,
     private readonly alerting: DevOpsAlertingService,
@@ -892,7 +901,7 @@ export class DeploymentApprovalService {
       await this.alerting.sendDeploymentExecutionCompleted(
         tenantId,
         this.mapDeployment(finalResult.rows[0]),
-        executedByUserId
+        'SUCCESS'
       );
 
       return this.mapDeployment(finalResult.rows[0]);
@@ -995,6 +1004,11 @@ export class DeploymentApprovalService {
 
   /**
    * Rollback a deployment
+   *
+   * P1 Improvements:
+   * - Idempotency check to prevent duplicate rollbacks
+   * - Enhanced error messages with context
+   * - Structured logging for observability
    */
   async rollbackDeployment(
     deploymentId: string,
@@ -1003,6 +1017,14 @@ export class DeploymentApprovalService {
     rollbackReason: string,
     rollbackType: 'MANUAL' | 'AUTOMATIC' | 'EMERGENCY' = 'MANUAL'
   ) {
+    this.logger.log({
+      event: 'rollback_started',
+      deployment_id: deploymentId,
+      tenant_id: tenantId,
+      rollback_type: rollbackType,
+      initiated_by: rolledBackByUserId,
+    });
+
     return await this.db.transaction(async (client) => {
       // Lock the deployment
       const deploymentResult = await client.query(
@@ -1011,18 +1033,47 @@ export class DeploymentApprovalService {
       );
 
       if (deploymentResult.rows.length === 0) {
-        throw new Error('Deployment not found');
+        const errorMsg = `Deployment not found - deploymentId: ${deploymentId}, tenantId: ${tenantId}, userId: ${rolledBackByUserId}`;
+        this.logger.error({ event: 'rollback_failed', error: errorMsg, deployment_id: deploymentId });
+        throw new Error(errorMsg);
       }
 
       const deployment = deploymentResult.rows[0];
 
+      // P1: Idempotency Check - Prevent duplicate rollback requests
+      const existingRollback = await client.query(
+        `SELECT * FROM deployment_rollbacks
+         WHERE deployment_id = $1
+         AND status IN ('IN_PROGRESS', 'COMPLETED')
+         AND created_at > NOW() - INTERVAL '1 hour'
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [deploymentId]
+      );
+
+      if (existingRollback.rows.length > 0) {
+        const existing = existingRollback.rows[0];
+        const errorMsg = `Rollback already ${existing.status.toLowerCase()} for this deployment - rollbackNumber: ${existing.rollback_number}, status: ${existing.status}, completedAt: ${existing.rollback_completed_at}`;
+        this.logger.warn({
+          event: 'rollback_duplicate_attempt',
+          deployment_id: deploymentId,
+          existing_rollback_number: existing.rollback_number,
+          existing_status: existing.status
+        });
+        throw new Error(errorMsg);
+      }
+
       // Validate deployment can be rolled back
       if (deployment.status !== 'DEPLOYED') {
-        throw new Error(`Cannot rollback deployment with status ${deployment.status}`);
+        const errorMsg = `Cannot rollback deployment with status ${deployment.status} - deploymentId: ${deploymentId}, deploymentNumber: ${deployment.deployment_number}, currentStatus: ${deployment.status}`;
+        this.logger.error({ event: 'rollback_invalid_status', deployment_id: deploymentId, status: deployment.status });
+        throw new Error(errorMsg);
       }
 
       if (!deployment.rollback_available) {
-        throw new Error('Deployment is not eligible for rollback');
+        const errorMsg = `Deployment is not eligible for rollback - deploymentId: ${deploymentId}, deploymentNumber: ${deployment.deployment_number}, rollbackAvailable: false`;
+        this.logger.error({ event: 'rollback_not_available', deployment_id: deploymentId });
+        throw new Error(errorMsg);
       }
 
       // Find previous deployment
@@ -1156,7 +1207,21 @@ export class DeploymentApprovalService {
         [rollback.id]
       );
 
-      return this.mapDeploymentRollback(updatedRollbackResult.rows[0]);
+      const finalRollback = this.mapDeploymentRollback(updatedRollbackResult.rows[0]);
+
+      // P1: Structured logging for successful rollback
+      this.logger.log({
+        event: 'rollback_completed',
+        deployment_id: deploymentId,
+        deployment_number: deployment.deployment_number,
+        rollback_number: rollbackNumber,
+        rollback_type: rollbackType,
+        duration_seconds: rollbackDurationSeconds,
+        previous_version: previousDeployment?.version,
+        status: 'success'
+      });
+
+      return finalRollback;
     });
   }
 
@@ -1278,8 +1343,58 @@ export class DeploymentApprovalService {
       ]
     );
 
-    // If auto-rollback is triggered, initiate automatic rollback
+    // P1: Rate Limiting for Auto-Rollback - Prevent rollback loops
     if (triggersRollbackCriteria && criteriaResult.rows[0]?.auto_rollback_enabled) {
+      // Check recent rollback history to prevent loops
+      const recentRollbacks = await this.db.query(
+        `SELECT COUNT(*) as count, MAX(created_at) as last_rollback
+         FROM deployment_rollbacks
+         WHERE deployment_id = $1
+         AND created_at > NOW() - INTERVAL '1 hour'`,
+        [deploymentId]
+      );
+
+      const rollbackCount = parseInt(recentRollbacks.rows[0].count);
+
+      if (rollbackCount >= 3) {
+        // Disable auto-rollback to prevent loops
+        await this.db.query(
+          `UPDATE deployments SET auto_rollback_enabled = FALSE WHERE id = $1`,
+          [deploymentId]
+        );
+
+        // Send critical alert
+        await this.alerting.sendAlert({
+          tenantId,
+          severity: 'CRITICAL',
+          source: 'deployment-rollback',
+          message: `Auto-rollback disabled due to repeated failures (${rollbackCount} rollbacks in 1 hour)`,
+          metadata: {
+            deploymentId,
+            rollbackCount,
+            lastRollback: recentRollbacks.rows[0].last_rollback,
+            violatedThresholds
+          },
+        });
+
+        this.logger.error({
+          event: 'auto_rollback_disabled',
+          deployment_id: deploymentId,
+          rollback_count: rollbackCount,
+          reason: 'Exceeded 3 rollbacks in 1 hour - preventing rollback loop'
+        });
+
+        return { triggersRollbackCriteria: false, violatedThresholds };
+      }
+
+      // Proceed with automatic rollback
+      this.logger.warn({
+        event: 'auto_rollback_triggered',
+        deployment_id: deploymentId,
+        violated_thresholds: violatedThresholds.map((v) => v.metric),
+        recent_rollback_count: rollbackCount
+      });
+
       await this.rollbackDeployment(
         deploymentId,
         tenantId,
@@ -1294,21 +1409,115 @@ export class DeploymentApprovalService {
 
   /**
    * Run pre or post deployment health check
+   *
+   * P2 Improvement:
+   * - Retry logic to reduce false positives from transient failures
    */
   async runHealthCheck(
     deploymentId: string,
     tenantId: string,
     checkType: 'PRE_DEPLOYMENT' | 'POST_DEPLOYMENT'
   ) {
-    // Get system health status
-    const healthStatus = await this.healthMonitor.getSystemHealth();
+    const maxRetries = 3;
+    const retryDelay = 5000; // 5 seconds
+    let lastError: any = null;
+    let lastHealthStatus: any = null;
 
-    // Determine if health check passed
-    const allHealthy = Object.values(healthStatus.components).every(
-      (component: any) => component.status === 'OPERATIONAL'
-    );
+    // P2: Retry logic for health checks
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.logger.log({
+          event: 'health_check_attempt',
+          deployment_id: deploymentId,
+          check_type: checkType,
+          attempt,
+          max_retries: maxRetries
+        });
 
-    const checkStatus = allHealthy ? 'PASSED' : 'FAILED';
+        // Get system health status
+        const healthStatus = await this.healthMonitor.checkSystemHealth();
+        lastHealthStatus = healthStatus;
+
+        // Determine if health check passed - check all component statuses
+        const allHealthy =
+          healthStatus.backend.status === 'OPERATIONAL' &&
+          healthStatus.database.status === 'OPERATIONAL' &&
+          healthStatus.nats.status === 'OPERATIONAL';
+
+        if (allHealthy) {
+          this.logger.log({
+            event: 'health_check_passed',
+            deployment_id: deploymentId,
+            check_type: checkType,
+            attempt
+          });
+          const checkStatus = 'PASSED';
+
+          // Update deployment
+          const field = checkType === 'PRE_DEPLOYMENT' ? 'pre_deployment_health_check' : 'post_deployment_health_check';
+          await this.db.query(
+            `UPDATE deployments SET ${field} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+            [checkStatus, deploymentId]
+          );
+
+          // Create history entry
+          await this.db.query(
+            `INSERT INTO deployment_approval_history (
+              deployment_id, tenant_id, action, comments, metadata
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [
+              deploymentId,
+              tenantId,
+              'HEALTH_CHECK_PASSED',
+              `${checkType} health check ${checkStatus.toLowerCase()}`,
+              JSON.stringify({ healthStatus, checkType })
+            ]
+          );
+
+          return { checkType, status: checkStatus, healthStatus };
+        }
+
+        // If not healthy and we have retries left, wait and retry
+        if (attempt < maxRetries) {
+          this.logger.warn({
+            event: 'health_check_retry',
+            deployment_id: deploymentId,
+            check_type: checkType,
+            attempt,
+            retry_in_ms: retryDelay,
+            health_status: healthStatus
+          });
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      } catch (error: unknown) {
+        lastError = error;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error({
+          event: 'health_check_error',
+          deployment_id: deploymentId,
+          check_type: checkType,
+          attempt,
+          error: errorMessage
+        });
+
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      }
+    }
+
+    // All retries exhausted - health check failed
+    const checkStatus = 'FAILED';
+
+    // P2: Structured logging for failed health check
+    this.logger.error({
+      event: 'health_check_failed',
+      deployment_id: deploymentId,
+      check_type: checkType,
+      attempts: maxRetries,
+      last_error: lastError instanceof Error ? lastError.message : String(lastError),
+      last_health_status: lastHealthStatus
+    });
 
     // Update deployment
     const field = checkType === 'PRE_DEPLOYMENT' ? 'pre_deployment_health_check' : 'post_deployment_health_check';
@@ -1319,7 +1528,7 @@ export class DeploymentApprovalService {
     );
 
     // Create history entry
-    const action = checkStatus === 'PASSED' ? 'HEALTH_CHECK_PASSED' : 'HEALTH_CHECK_FAILED';
+    const action = 'HEALTH_CHECK_FAILED'; // checkStatus is always 'FAILED' here
 
     await this.db.query(
       `INSERT INTO deployment_approval_history (
@@ -1329,8 +1538,8 @@ export class DeploymentApprovalService {
         deploymentId,
         tenantId,
         action,
-        `${checkType} health check ${checkStatus.toLowerCase()}`,
-        JSON.stringify({ healthStatus, checkType })
+        `${checkType} health check ${checkStatus.toLowerCase()} after ${maxRetries} attempts`,
+        JSON.stringify({ healthStatus: lastHealthStatus, checkType, attempts: maxRetries, lastError: lastError instanceof Error ? lastError.message : String(lastError) })
       ]
     );
 
@@ -1340,12 +1549,12 @@ export class DeploymentApprovalService {
         tenantId,
         severity: 'CRITICAL',
         source: 'deployment-health-check',
-        message: `${checkType} health check FAILED for deployment ${deploymentId}`,
-        metadata: { deploymentId, healthStatus },
+        message: `${checkType} health check FAILED for deployment ${deploymentId} after ${maxRetries} attempts`,
+        metadata: { deploymentId, healthStatus: lastHealthStatus, attempts: maxRetries, lastError: lastError instanceof Error ? lastError.message : String(lastError) },
       });
     }
 
-    return { checkType, status: checkStatus, healthStatus };
+    return { checkType, status: checkStatus, healthStatus: lastHealthStatus };
   }
 
   /**
@@ -1612,5 +1821,13 @@ export class DeploymentApprovalService {
       violatedThresholds: row.violated_thresholds,
       createdAt: row.created_at,
     };
+  }
+
+  /**
+   * P2: Sleep utility for retry logic
+   * @param ms - Milliseconds to sleep
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

@@ -366,7 +366,7 @@ const MyTasksPage: React.FC = () => {
                       <TableCell>
                         <Chip
                           label={t(`workflow.myTasks.${task.urgencyLevel.toLowerCase()}`)}
-                          color={getUrgencyColor(task.urgencyLevel) as unknown}
+                          color={getUrgencyColor(task.urgencyLevel) as 'error' | 'warning' | 'success'}
                           size="small"
                           icon={getUrgencyIcon(task.urgencyLevel)}
                         />

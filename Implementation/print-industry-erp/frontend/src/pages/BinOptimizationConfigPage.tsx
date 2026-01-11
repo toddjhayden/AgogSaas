@@ -704,8 +704,8 @@ const BinOptimizationConfigPage: React.FC = () => {
                     facility-specific customization and better alignment with business priorities.
                   </p>
                   <p>
-                    <strong>Recommended Approach:</strong> Start with the default "Balanced" configuration, then
-                    adjust based on your facility's specific needs and priorities.
+                    <strong>Recommended Approach:</strong> Start with the default &ldquo;Balanced&rdquo; configuration, then
+                    adjust based on your facility&apos;s specific needs and priorities.
                   </p>
                 </div>
               </div>

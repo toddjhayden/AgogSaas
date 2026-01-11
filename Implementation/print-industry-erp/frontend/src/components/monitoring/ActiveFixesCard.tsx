@@ -3,6 +3,14 @@ import { Card, CardContent, Typography, Alert, List, ListItem, ListItemText, Chi
 import { GET_ACTIVE_FIXES } from '@graphql/queries';
 import { useEffect } from 'react';
 
+interface ActiveFix {
+  reqNumber: string;
+  status: string;
+  title: string;
+  owner: string;
+  priority: string;
+}
+
 interface ActiveFixesCardProps {
   lastRefresh: Date;
 }
@@ -28,7 +36,7 @@ export const ActiveFixesCard = ({ lastRefresh }: ActiveFixesCardProps) => {
           <Alert severity="info">No active fixes</Alert>
         ) : (
           <List>
-            {fixes.map((fix: unknown) => (
+            {fixes.map((fix: ActiveFix) => (
               <ListItem key={fix.reqNumber} divider>
                 <ListItemText
                   primary={

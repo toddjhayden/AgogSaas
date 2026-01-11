@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import {
   QualityGateConfig,
@@ -17,7 +17,7 @@ import {
 export class QualityGateService {
   private readonly logger = new Logger(QualityGateService.name);
 
-  constructor(private readonly pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Get active quality gate configuration

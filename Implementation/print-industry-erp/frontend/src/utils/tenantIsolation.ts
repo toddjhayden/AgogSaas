@@ -114,9 +114,9 @@ export function useTenantContext() {
  * Call this in App.tsx to handle tenant isolation violations
  */
 export function setupAuthorizationErrorHandler(
-  onError: (error: { message: string; path?: any }) => void
+  onError: (error: { message: string; path?: unknown }) => void
 ) {
   if (typeof window !== 'undefined') {
-    (window as unknown).__notifyAuthorizationError = onError;
+    (window as unknown as { __notifyAuthorizationError: typeof onError }).__notifyAuthorizationError = onError;
   }
 }

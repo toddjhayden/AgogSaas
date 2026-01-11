@@ -1,6 +1,7 @@
 /**
  * Security Audit GraphQL Resolver
  * REQ-DEVOPS-SECURITY-1767150339448
+ * REQ-1767924916114-xhhll - Comprehensive Audit Logging
  *
  * Provides GraphQL API for security audit dashboard:
  * - Security overview and metrics
@@ -14,11 +15,17 @@
  * - Added RolesGuard for RBAC (SECURITY_ADMIN, SECURITY_ANALYST)
  * - Removed tenant fallback defaults
  * - Added proper tenant context validation
+ *
+ * COMPREHENSIVE AUDIT LOGGING (Cynthia - Research):
+ * - Implemented all 6 mutation operations
+ * - Added compliance audit trail query
+ * - All mutations require user context for audit trail
  */
 
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { UseGuards, UnauthorizedException } from '@nestjs/common';
 import { SecurityAuditService } from '../../modules/security/services/security-audit.service';
+import { SecurityAuditMutationsService } from '../../modules/security/services/security-audit-mutations.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -29,6 +36,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class SecurityAuditResolver {
   constructor(
     private readonly securityAuditService: SecurityAuditService,
+    private readonly securityAuditMutationsService: SecurityAuditMutationsService,
   ) {}
 
   @Query()
@@ -132,17 +140,11 @@ export class SecurityAuditResolver {
     if (!tenantId) {
       throw new UnauthorizedException('Tenant context required');
     }
-    // TODO: Implement compliance audit trail query
-    return {
-      edges: [],
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor: null,
-        endCursor: null,
-      },
-      totalCount: 0,
-    };
+    return this.securityAuditService.getComplianceAuditTrail(
+      tenantId,
+      { framework, controlId, status },
+      pagination,
+    );
   }
 
   @Query()
@@ -171,7 +173,7 @@ export class SecurityAuditResolver {
   }
 
   // =====================================================
-  // MUTATIONS (Stubs for future implementation)
+  // MUTATIONS (Fully Implemented - REQ-1767924916114-xhhll)
   // =====================================================
 
   @Mutation()
@@ -179,8 +181,17 @@ export class SecurityAuditResolver {
     @Args('input') input: any,
     @Context() context: any,
   ) {
-    // TODO: Implement incident creation
-    throw new Error('Not implemented');
+    const tenantId = context.req.tenantId;
+    const userId = context.req.user?.userId;
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context required');
+    }
+    if (!userId) {
+      throw new UnauthorizedException('User context required');
+    }
+
+    return this.securityAuditMutationsService.createSecurityIncident(tenantId, input, userId);
   }
 
   @Mutation()
@@ -189,8 +200,17 @@ export class SecurityAuditResolver {
     @Args('input') input: any,
     @Context() context: any,
   ) {
-    // TODO: Implement incident update
-    throw new Error('Not implemented');
+    const tenantId = context.req.tenantId;
+    const userId = context.req.user?.userId;
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context required');
+    }
+    if (!userId) {
+      throw new UnauthorizedException('User context required');
+    }
+
+    return this.securityAuditMutationsService.updateSecurityIncident(tenantId, id, input, userId);
   }
 
   @Mutation()
@@ -198,8 +218,17 @@ export class SecurityAuditResolver {
     @Args('input') input: any,
     @Context() context: any,
   ) {
-    // TODO: Implement threat pattern upsert
-    throw new Error('Not implemented');
+    const tenantId = context.req.tenantId;
+    const userId = context.req.user?.userId;
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context required');
+    }
+    if (!userId) {
+      throw new UnauthorizedException('User context required');
+    }
+
+    return this.securityAuditMutationsService.upsertThreatPattern(tenantId, input, userId);
   }
 
   @Mutation()
@@ -208,8 +237,17 @@ export class SecurityAuditResolver {
     @Args('enabled') enabled: boolean,
     @Context() context: any,
   ) {
-    // TODO: Implement threat pattern toggle
-    throw new Error('Not implemented');
+    const tenantId = context.req.tenantId;
+    const userId = context.req.user?.userId;
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context required');
+    }
+    if (!userId) {
+      throw new UnauthorizedException('User context required');
+    }
+
+    return this.securityAuditMutationsService.toggleThreatPattern(tenantId, id, enabled, userId);
   }
 
   @Mutation()
@@ -217,8 +255,17 @@ export class SecurityAuditResolver {
     @Args('input') input: any,
     @Context() context: any,
   ) {
-    // TODO: Implement manual event logging
-    throw new Error('Not implemented');
+    const tenantId = context.req.tenantId;
+    const userId = context.req.user?.userId;
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context required');
+    }
+    if (!userId) {
+      throw new UnauthorizedException('User context required');
+    }
+
+    return this.securityAuditMutationsService.logSecurityEvent(tenantId, input, userId);
   }
 
   @Mutation()
@@ -226,7 +273,16 @@ export class SecurityAuditResolver {
     @Args('input') input: any,
     @Context() context: any,
   ) {
-    // TODO: Implement compliance audit entry
-    throw new Error('Not implemented');
+    const tenantId = context.req.tenantId;
+    const userId = context.req.user?.userId;
+
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context required');
+    }
+    if (!userId) {
+      throw new UnauthorizedException('User context required');
+    }
+
+    return this.securityAuditMutationsService.addComplianceAuditEntry(tenantId, input, userId);
   }
 }

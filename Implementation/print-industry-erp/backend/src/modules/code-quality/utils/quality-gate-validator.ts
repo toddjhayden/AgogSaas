@@ -178,7 +178,7 @@ export async function validateAgentDeliverable(
   } catch (error) {
     // Handle timeout or error
     const status =
-      error.message === 'Validation timeout'
+      (error instanceof Error ? error.message : String(error)) === 'Validation timeout'
         ? ValidationStatus.TIMEOUT
         : ValidationStatus.ERROR;
 
@@ -199,7 +199,7 @@ export async function validateAgentDeliverable(
       validationId,
       status,
       validationDurationMs,
-      [error.message],
+      [(error instanceof Error ? error.message : String(error))],
     ]);
 
     throw error;

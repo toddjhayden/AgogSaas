@@ -20,14 +20,19 @@
  */
 
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { VendorPerformanceResolver } from '../../graphql/resolvers/vendor-performance.resolver';
 import { POApprovalWorkflowResolver } from '../../graphql/resolvers/po-approval-workflow.resolver';
 import { VendorPerformanceService } from './services/vendor-performance.service';
 import { VendorTierClassificationService } from './services/vendor-tier-classification.service';
 import { VendorAlertEngineService } from './services/vendor-alert-engine.service';
 import { ApprovalWorkflowService } from './services/approval-workflow.service';
+import { VendorPerformanceScheduler } from './schedulers/vendor-performance.scheduler';
 
 @Module({
+  imports: [
+    ScheduleModule.forRoot(),
+  ],
   providers: [
     VendorPerformanceResolver,
     POApprovalWorkflowResolver,
@@ -35,12 +40,14 @@ import { ApprovalWorkflowService } from './services/approval-workflow.service';
     VendorTierClassificationService,
     VendorAlertEngineService,
     ApprovalWorkflowService,
+    VendorPerformanceScheduler,
   ],
   exports: [
     VendorPerformanceService,
     VendorTierClassificationService,
     VendorAlertEngineService,
     ApprovalWorkflowService,
+    VendorPerformanceScheduler,
   ],
 })
 export class ProcurementModule {}

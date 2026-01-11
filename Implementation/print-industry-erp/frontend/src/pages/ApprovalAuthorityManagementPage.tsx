@@ -251,7 +251,7 @@ export const ApprovalAuthorityManagementPage: React.FC = () => {
 interface GrantAuthorityModalProps {
   tenantId: string;
   grantedByUserId: string;
-  onSave: (variables: { variables: any }) => void;
+  onSave: (variables: { variables: Record<string, unknown> }) => void;
   onClose: () => void;
 }
 

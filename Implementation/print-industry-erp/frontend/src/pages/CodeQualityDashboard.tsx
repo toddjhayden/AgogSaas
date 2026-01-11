@@ -43,6 +43,68 @@ import {
   GET_QUALITY_GATE_VALIDATIONS,
 } from '../graphql/queries/codeQuality';
 
+// Type definitions for GraphQL query results
+interface TrendData {
+  commitSha: string;
+  reqNumber: string;
+  createdAt: string;
+  qualityGatePassed: boolean;
+  lineCoverage?: number;
+  maxComplexity?: number;
+  totalLintIssues?: number;
+  criticalSecurityIssues?: number;
+}
+
+interface ValidationResult {
+  id: string;
+  reqNumber: string;
+  agentName: string;
+  status: string;
+  overallPassed: boolean;
+  lintingPassed: boolean | null;
+  typeCheckingPassed: boolean | null;
+  unitTestsPassed: boolean | null;
+  coverageCheckPassed: boolean | null;
+  securityCheckPassed: boolean | null;
+  validationDurationMs?: number;
+  createdAt: string;
+}
+
+interface AgentPassRate {
+  agentName: string;
+  totalValidations: number;
+  passedValidations: number;
+  failedValidations: number;
+  passRatePct?: number;
+  avgValidationTimeMs?: number;
+}
+
+interface BypassRecord {
+  id: string;
+  reqNumber: string;
+  bypassedAt: string;
+  bypassedBy: string;
+  bypassReason: string;
+  bypassedViolations?: string[];
+  followUpIssueNumber?: string;
+  followUpCompleted?: boolean;
+  postmortemCompleted?: boolean;
+}
+
+interface PipelineMetric {
+  id: string;
+  pipelineId: string;
+  branch: string;
+  pipelineType: string;
+  totalDurationSeconds: number;
+  lintDurationSeconds?: number;
+  testDurationSeconds?: number;
+  buildDurationSeconds?: number;
+  securityScanDurationSeconds?: number;
+  cacheHitRate?: number;
+  status: string;
+}
+
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -160,20 +222,20 @@ export const CodeQualityDashboard = () => {
   const validations = validationsData?.qualityGateValidations || [];
 
   const recentTrends = trends.slice(0, 10);
-  const passedCount = recentTrends.filter((t: unknown) => t.qualityGatePassed).length;
+  const passedCount = recentTrends.filter((t: TrendData) => t.qualityGatePassed).length;
   const passRate = recentTrends.length > 0 ? (passedCount / recentTrends.length) * 100 : 0;
 
   const avgCoverage = recentTrends.length > 0
-    ? recentTrends.reduce((sum: number, t: any) => sum + (t.lineCoverage || 0), 0) / recentTrends.length
+    ? recentTrends.reduce((sum: number, t: { lineCoverage?: number }) => sum + (t.lineCoverage || 0), 0) / recentTrends.length
     : 0;
 
   const totalSecurityIssues = recentTrends.reduce(
-    (sum: number, t: any) => sum + (t.criticalSecurityIssues || 0),
+    (sum: number, t: { criticalSecurityIssues?: number }) => sum + (t.criticalSecurityIssues || 0),
     0
   );
 
   const avgPipelineTime = pipelineMetrics.length > 0
-    ? pipelineMetrics.reduce((sum: number, p: any) => sum + (p.totalDurationSeconds || 0), 0) /
+    ? pipelineMetrics.reduce((sum: number, p: { totalDurationSeconds?: number }) => sum + (p.totalDurationSeconds || 0), 0) /
       pipelineMetrics.length / 60 // Convert to minutes
     : 0;
 
@@ -370,7 +432,7 @@ export const CodeQualityDashboard = () => {
                 </Typography>
                 <Chart
                   type="line"
-                  data={trends.slice(0, 20).reverse().map((t: unknown) => ({
+                  data={trends.slice(0, 20).reverse().map((t: TrendData) => ({
                     date: new Date(t.createdAt).toLocaleDateString(),
                     passRate: t.qualityGatePassed ? 100 : 0,
                     coverage: t.lineCoverage || 0,
@@ -392,7 +454,7 @@ export const CodeQualityDashboard = () => {
                 </Typography>
                 <Chart
                   type="line"
-                  data={trends.slice(0, 20).reverse().map((t: unknown) => ({
+                  data={trends.slice(0, 20).reverse().map((t: TrendData) => ({
                     date: new Date(t.createdAt).toLocaleDateString(),
                     coverage: t.lineCoverage || 0,
                   }))}
@@ -413,7 +475,7 @@ export const CodeQualityDashboard = () => {
                 </Typography>
                 <Chart
                   type="line"
-                  data={trends.slice(0, 20).reverse().map((t: unknown) => ({
+                  data={trends.slice(0, 20).reverse().map((t: TrendData) => ({
                     date: new Date(t.createdAt).toLocaleDateString(),
                     complexity: t.maxComplexity || 0,
                   }))}
@@ -447,7 +509,7 @@ export const CodeQualityDashboard = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {trends.slice(0, 15).map((trend: unknown) => (
+                      {trends.slice(0, 15).map((trend: TrendData) => (
                         <TableRow key={trend.commitSha}>
                           <TableCell>
                             <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
@@ -552,7 +614,7 @@ export const CodeQualityDashboard = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {validations.map((validation: unknown) => (
+                        {validations.map((validation: ValidationResult) => (
                           <TableRow
                             key={validation.id}
                             hover
@@ -693,7 +755,7 @@ export const CodeQualityDashboard = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {agentPassRates.map((agent: unknown) => (
+                        {agentPassRates.map((agent: AgentPassRate) => (
                           <TableRow key={agent.agentName}>
                             <TableCell>
                               <Typography variant="body1" fontWeight="medium">
@@ -721,9 +783,9 @@ export const CodeQualityDashboard = () => {
                                     variant="determinate"
                                     value={agent.passRatePct || 0}
                                     color={
-                                      agent.passRatePct >= 90
+                                      (agent.passRatePct || 0) >= 90
                                         ? 'success'
-                                        : agent.passRatePct >= 70
+                                        : (agent.passRatePct || 0) >= 70
                                         ? 'warning'
                                         : 'error'
                                     }
@@ -754,7 +816,7 @@ export const CodeQualityDashboard = () => {
                 </Typography>
                 <Chart
                   type="bar"
-                  data={agentPassRates.map((agent: unknown) => ({
+                  data={agentPassRates.map((agent: AgentPassRate) => ({
                     agent: agent.agentName,
                     passRate: agent.passRatePct || 0,
                   }))}
@@ -797,7 +859,7 @@ export const CodeQualityDashboard = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {bypasses.map((bypass: unknown) => (
+                        {bypasses.map((bypass: BypassRecord) => (
                           <TableRow key={bypass.id}>
                             <TableCell>
                               <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
@@ -824,9 +886,9 @@ export const CodeQualityDashboard = () => {
                                     variant="outlined"
                                   />
                                 ))}
-                                {bypass.bypassedViolations?.length > 2 && (
+                                {(bypass.bypassedViolations?.length || 0) > 2 && (
                                   <Chip
-                                    label={`+${bypass.bypassedViolations.length - 2}`}
+                                    label={`+${(bypass.bypassedViolations?.length || 0) - 2}`}
                                     size="small"
                                   />
                                 )}
@@ -891,7 +953,7 @@ export const CodeQualityDashboard = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {pipelineMetrics.map((pipeline: unknown) => (
+                        {pipelineMetrics.map((pipeline: PipelineMetric) => (
                           <TableRow key={pipeline.id}>
                             <TableCell>
                               <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
@@ -982,7 +1044,7 @@ export const CodeQualityDashboard = () => {
                 </Typography>
                 <Chart
                   type="line"
-                  data={pipelineMetrics.slice(0, 15).reverse().map((p: unknown) => ({
+                  data={pipelineMetrics.slice(0, 15).reverse().map((p: PipelineMetric) => ({
                     id: p.pipelineId.substring(0, 8),
                     duration: Math.round(p.totalDurationSeconds / 60),
                   }))}
@@ -1004,12 +1066,12 @@ export const CodeQualityDashboard = () => {
                 <Chart
                   type="bar"
                   data={pipelineMetrics
-                    .filter((p: unknown) => p.cacheHitRate !== null)
+                    .filter((p: PipelineMetric) => p.cacheHitRate !== null && p.cacheHitRate !== undefined)
                     .slice(0, 15)
                     .reverse()
-                    .map((p: unknown) => ({
+                    .map((p: PipelineMetric) => ({
                       id: p.pipelineId.substring(0, 8),
-                      cacheHit: (p.cacheHitRate * 100).toFixed(0),
+                      cacheHit: ((p.cacheHitRate || 0) * 100).toFixed(0),
                     }))}
                   xKey="id"
                   yKey="cacheHit"

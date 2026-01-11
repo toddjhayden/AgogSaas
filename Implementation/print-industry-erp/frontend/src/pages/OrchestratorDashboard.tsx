@@ -44,6 +44,35 @@ import {
   ROLLBACK_WORKFLOW,
 } from '@graphql/queries';
 
+// Type definitions for orchestrator data
+interface Escalation {
+  priority: string;
+  req_number: string;
+  reason: string;
+  action_required?: string;
+  timestamp: string;
+}
+
+interface Workflow {
+  reqNumber: string;
+  title: string;
+  currentStage: string;
+  currentAgent: string;
+  status: string;
+  elapsedMinutes: number;
+  assignedTo: string;
+}
+
+interface StrategicDecision {
+  decision_id: string;
+  req_number: string;
+  strategic_agent: string;
+  decision: string;
+  decision_confidence: string;
+  reasoning: string;
+  timestamp: string;
+}
+
 export const OrchestratorDashboard = () => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -353,7 +382,7 @@ export const OrchestratorDashboard = () => {
           </Typography>
           <Card>
             <CardContent>
-              {escalationsData.escalationQueue.map((escalation: any, index: number) => (
+              {escalationsData.escalationQueue.map((escalation: Escalation, index: number) => (
                 <Alert severity={getPriorityColor(escalation.priority)} key={index} sx={{ mb: 2 }}>
                   <AlertTitle>
                     {escalation.req_number} - {escalation.priority}
@@ -409,7 +438,7 @@ export const OrchestratorDashboard = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                workflowsData?.activeWorkflows?.map((workflow: unknown) => (
+                workflowsData?.activeWorkflows?.map((workflow: Workflow) => (
                   <TableRow key={workflow.reqNumber}>
                     <TableCell>{workflow.reqNumber}</TableCell>
                     <TableCell>{workflow.title}</TableCell>
@@ -478,7 +507,7 @@ export const OrchestratorDashboard = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                decisionsData?.strategicDecisions?.map((decision: unknown) => (
+                decisionsData?.strategicDecisions?.map((decision: StrategicDecision) => (
                   <TableRow key={decision.decision_id}>
                     <TableCell>{decision.req_number}</TableCell>
                     <TableCell>{decision.strategic_agent}</TableCell>

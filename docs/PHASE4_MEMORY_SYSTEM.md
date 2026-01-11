@@ -35,13 +35,43 @@ Phase 4 provides intelligent memory and learning capabilities for AI agents usin
 ### 2. PostgreSQL + pgvector
 
 - **Extension:** pgvector
+- **Database:** `agent_memory` (dedicated database for agent memories)
+- **User:** `agent_user`
+- **Port:** 5434 (external), 5432 (internal to Docker)
+- **Container:** `agogsaas-agents-postgres`
+- **Connection String (Docker):** `postgresql://agent_user:agent_dev_password_2024@agent-postgres:5432/agent_memory`
+- **Connection String (Host):** `postgresql://agent_user:agent_dev_password_2024@localhost:5434/agent_memory`
 - **Table:** `memories`
-- **Index Type:** IVFFlat (cosine similarity)
+- **Index Type:** HNSW (Hierarchical Navigable Small World) with cosine similarity
 - **Search Speed:** <10ms for 100K vectors
 
-### 3. MCP Memory Client
+### 3. SDLC Control Database (Additional Infrastructure)
 
-Located at: `backend/src/mcp/mcp-client.service.ts`
+- **Database:** `sdlc_control`
+- **User:** `sdlc_user`
+- **Port:** 5435 (external), 5432 (internal to Docker)
+- **Container:** `agogsaas-sdlc-postgres`
+- **Purpose:** Entity DAG, Kanban board, and column governance for software development lifecycle management
+- **Migrations:** `agent-backend/migrations/sdlc-control/`
+- **Connection String (Docker):** `postgresql://sdlc_user:sdlc_dev_password_2024@sdlc-db:5432/sdlc_control`
+- **Connection String (Host):** `postgresql://sdlc_user:sdlc_dev_password_2024@localhost:5435/sdlc_control`
+
+### 4. MCP Memory Client
+
+Located at:
+- App Backend: `Implementation/print-industry-erp/backend/src/mcp/mcp-client.service.ts`
+- Agent Backend: `Implementation/print-industry-erp/agent-backend/src/mcp/mcp-client.service.ts`
+
+**Important:** Both implementations should use the agent memory database connection string. The default fallback in the code currently points to the wrong database (`agogsaas` on port 5433) and should use:
+```typescript
+// Container context (default in docker-compose.agents.yml)
+const connectionString = process.env.DATABASE_URL ||
+  'postgresql://agent_user:agent_dev_password_2024@agent-postgres:5432/agent_memory';
+
+// Host context (connecting from outside Docker)
+const connectionString = process.env.DATABASE_URL ||
+  'postgresql://agent_user:agent_dev_password_2024@localhost:5434/agent_memory';
+```
 
 **Methods:**
 - `storeMemory()` - Save agent memory with embedding
@@ -66,10 +96,10 @@ Located at: `backend/src/mcp/mcp-client.service.ts`
 docker-compose up -d
 
 # 2. Pull embedding model
-docker exec agogsaas-ollama ollama pull nomic-embed-text
+docker exec agogsaas-agents-ollama ollama pull nomic-embed-text
 
-# 3. Verify setup
-docker exec agogsaas-backend npm run test:memory
+# 3. Verify setup (run manual test with the MCP client)
+docker exec agogsaas-agents-backend node -e "const {MCPMemoryClient}=require('./dist/mcp/mcp-client.service.js'); console.log('MCP Client loaded successfully')"
 ```
 
 ## Usage Examples
@@ -136,25 +166,30 @@ const recent = await client.getAgentMemories('cynthia', 10);
 ## Database Schema
 
 ```sql
-CREATE TABLE memories (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-  tenant_id UUID,
-  agent_id VARCHAR(50) NOT NULL,
+CREATE TABLE IF NOT EXISTS memories (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  agent_id VARCHAR(100) NOT NULL,
   memory_type VARCHAR(50) NOT NULL,
   content TEXT NOT NULL,
-  embedding vector(768),              -- Ollama nomic-embed-text
-  metadata JSONB,
-  accessed_at TIMESTAMP,
+  embedding vector(768),              -- Ollama nomic-embed-text (768 dimensions)
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  accessed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   access_count INTEGER DEFAULT 0,
-  relevance_score DECIMAL(5,4),
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  relevance_score FLOAT DEFAULT 0.0
 );
 
--- Vector similarity index
-CREATE INDEX idx_memories_embedding
-  ON memories USING ivfflat (embedding vector_cosine_ops);
+-- Vector similarity index using HNSW for fast approximate nearest neighbor search
+CREATE INDEX IF NOT EXISTS idx_memories_embedding
+  ON memories USING hnsw (embedding vector_cosine_ops);
+
+-- Additional indexes for filtering
+CREATE INDEX IF NOT EXISTS idx_memories_agent_id ON memories(agent_id);
+CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
+CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
 ```
+
+**Note on Vector Storage:** The database schema uses the native `vector(768)` type from pgvector (see migration `V1.0.0__init_agent_memory.sql:22`). However, the current MCP client implementation stores embeddings as JSON-stringified arrays (text format) for compatibility with the `pg` library, then casts to vector type during queries using `$1::vector` (see `mcp-client.service.ts:57,79`). This approach works correctly but adds minimal overhead. A future optimization could store directly as binary vector format for improved performance.
 
 ## Memory Types
 
@@ -176,27 +211,44 @@ Recommended memory types for different agents:
 - **Speed:** ~50ms per text (nomic-embed-text)
 - **Throughput:** ~20 embeddings/second
 - **Model Size:** 274MB download
+- **Text Truncation:**
+  - **Recommended:** 1,500 characters (~2,000 tokens safely under the 8,192 token limit)
+  - **Note:** Current implementations have inconsistent truncation limits:
+    - Agent Backend: 1,500 characters (`agent-backend/src/mcp/mcp-client.service.ts:156`)
+    - App Backend: 8,000 characters (`backend/src/mcp/mcp-client.service.ts:156`)
+  - **Model Limit:** nomic-embed-text supports up to 8,192 tokens of context
+  - **Recommendation:** Standardize to 1,500 characters for consistency and safety
 
 ### Semantic Search
 
 - **10K memories:** <5ms
 - **100K memories:** <10ms
-- **1M memories:** <50ms (with IVFFlat index)
+- **1M memories:** <50ms (with HNSW index)
 
 ## Testing
 
 ### Run Phase 4 Tests
 
 ```bash
-# Inside container
-docker exec agogsaas-backend npm run test:memory
+# Test the MCP Memory Client (manual verification)
+# Note: Automated test suite for memory system is pending implementation
 
-# Expected output:
-# ✅ Stored memory 1
-# ✅ Stored memory 2
-# ✅ Found 3 relevant memories
-# ✅ Semantic search working
-# ✅ ALL TESTS PASSED!
+# Quick test - store and retrieve a memory
+docker exec -it agogsaas-agents-backend node --eval "
+const {MCPMemoryClient} = require('./dist/mcp/mcp-client.service.js');
+(async () => {
+  const client = new MCPMemoryClient();
+  const id = await client.storeMemory({
+    agent_id: 'test',
+    memory_type: 'test',
+    content: 'This is a test memory'
+  });
+  console.log('✅ Stored memory:', id);
+  const memories = await client.getAgentMemories('test', 5);
+  console.log('✅ Retrieved', memories.length, 'memories');
+  await client.close();
+})();
+"
 ```
 
 ### Manual Testing
@@ -206,7 +258,7 @@ docker exec agogsaas-backend npm run test:memory
 curl http://localhost:11434/api/tags
 
 # Check model is installed
-docker exec agogsaas-ollama ollama list
+docker exec agogsaas-agents-ollama ollama list
 
 # Test embedding generation
 curl -X POST http://localhost:11434/api/embeddings \
@@ -225,13 +277,19 @@ curl -X POST http://localhost:11434/api/embeddings \
 # Ollama health
 curl http://localhost:11434/api/tags
 
-# PostgreSQL pgvector
-docker exec agogsaas-postgres psql -U agogsaas_user -d agogsaas \
+# PostgreSQL Health Check (as used in docker-compose)
+docker exec agogsaas-agents-postgres pg_isready -U agent_user -d agent_memory
+
+# PostgreSQL pgvector extension (Agent Memory DB)
+docker exec agogsaas-agents-postgres psql -U agent_user -d agent_memory \
   -c "SELECT extname FROM pg_extension WHERE extname='vector'"
 
 # Memory count
-docker exec agogsaas-postgres psql -U agogsaas_user -d agogsaas \
+docker exec agogsaas-agents-postgres psql -U agent_user -d agent_memory \
   -c "SELECT COUNT(*) FROM memories"
+
+# SDLC Database Health Check
+docker exec agogsaas-sdlc-postgres pg_isready -U sdlc_user -d sdlc_control
 ```
 
 ### Dashboard Integration
@@ -248,7 +306,7 @@ Memory metrics are visible in the monitoring dashboard:
 
 **Fix:**
 ```bash
-docker exec agogsaas-ollama ollama pull nomic-embed-text
+docker exec agogsaas-agents-ollama ollama pull nomic-embed-text
 ```
 
 ### Slow Embeddings
@@ -262,16 +320,22 @@ docker exec agogsaas-ollama ollama pull nomic-embed-text
 **Check:**
 ```bash
 curl http://localhost:11434/api/tags
-docker logs agogsaas-ollama
+docker logs agogsaas-agents-ollama
 ```
 
 ## Integration with Layer 3 (Orchestration)
 
-Agents automatically store memories during workflow execution:
+**Note:** The following is an example of how the orchestrator *could* integrate with the memory system. This integration is not yet implemented in `agent-backend/src/orchestration/orchestrator.service.ts`. This serves as a reference for future implementation.
 
 ```typescript
-// In orchestrator.service.ts
+// EXAMPLE INTEGRATION (Not yet implemented in orchestrator.service.ts)
+// Future integration point for storing agent learnings automatically
+
+import { MCPMemoryClient } from '../mcp/mcp-client.service';
+
 async function handleAgentCompletion(agentResult: any) {
+  const memoryClient = new MCPMemoryClient();
+
   // Store agent's work in memory
   await memoryClient.storeMemory({
     agent_id: agentResult.agent,
@@ -279,18 +343,21 @@ async function handleAgentCompletion(agentResult: any) {
     content: agentResult.summary,
     metadata: {
       feature: agentResult.feature,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      req_number: agentResult.req_number
     }
   });
 
-  // Search for related past work
+  // Search for related past work to provide context to agents
   const relatedMemories = await memoryClient.searchMemories({
     query: agentResult.summary,
     agent_id: agentResult.agent,
     limit: 3
   });
 
-  // Agent can learn from past work!
+  await memoryClient.close();
+
+  // Agents learn from past work across feature development!
 }
 ```
 

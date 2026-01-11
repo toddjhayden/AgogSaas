@@ -5,12 +5,12 @@
  * REQ: REQ-STRATEGIC-AUTO-1767116143666 - Supply Chain Visibility & Supplier Portal
  */
 
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 @Injectable()
 export class SupplierPortalService {
-  constructor(private readonly dbPool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly dbPool: Pool) {}
 
   /**
    * Get supplier dashboard metrics

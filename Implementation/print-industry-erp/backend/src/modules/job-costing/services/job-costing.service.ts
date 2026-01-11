@@ -85,12 +85,13 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error initializing job cost: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error initializing job cost: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -124,11 +125,12 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
-      this.logger.error(`Error getting job cost: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting job cost: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -159,11 +161,12 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
-      this.logger.error(`Error getting job cost by job ID: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting job cost by job ID: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -231,8 +234,9 @@ export class JobCostingService {
         jobCosts: result.rows.map(row => this.mapJobCost(row)),
         totalCount,
       };
-    } catch (error) {
-      this.logger.error(`Error listing job costs: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error listing job costs: ${errorMessage}`);
       return {
         jobCosts: [],
         totalCount: 0,
@@ -365,12 +369,13 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error updating actual costs: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error updating actual costs: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -426,12 +431,13 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error incrementing cost: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error incrementing cost: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -496,12 +502,13 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error rolling up production costs: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error rolling up production costs: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -582,12 +589,13 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(finalResult.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error adding final adjustment: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error adding final adjustment: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -649,12 +657,13 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error reconciling job cost: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error reconciling job cost: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -711,12 +720,13 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error closing job costing: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error closing job costing: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -766,11 +776,12 @@ export class JobCostingService {
         success: true,
         jobCost: this.mapJobCost(result.rows[0]),
       };
-    } catch (error) {
-      this.logger.error(`Error updating job cost status: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error updating job cost status: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -816,19 +827,20 @@ export class JobCostingService {
         jobId: row.job_id,
         jobNumber: row.job_number,
         customerName: row.customer_name,
-        jobDescription: row.job_description,
-        revenue: parseFloat(row.revenue),
-        totalCost: parseFloat(row.total_cost),
-        grossProfit: parseFloat(row.gross_profit),
-        grossMargin: parseFloat(row.gross_margin),
-        estimatedCost: row.estimated_cost ? parseFloat(row.estimated_cost) : undefined,
-        costVariance: row.cost_variance ? parseFloat(row.cost_variance) : undefined,
-        costVariancePercentage: row.cost_variance_percentage ? parseFloat(row.cost_variance_percentage) : undefined,
+        jobDescription: row.job_description ?? undefined,
+        revenue: parseFloat(row.revenue || '0'),
+        totalCost: parseFloat(row.total_cost || '0'),
+        grossProfit: parseFloat(row.gross_profit || '0'),
+        grossMargin: parseFloat(row.gross_margin || '0'),
+        estimatedCost: row.estimated_cost != null ? parseFloat(row.estimated_cost) : undefined,
+        costVariance: row.cost_variance != null ? parseFloat(row.cost_variance) : undefined,
+        costVariancePercentage: row.cost_variance_percentage != null ? parseFloat(row.cost_variance_percentage) : undefined,
         status: row.status as JobCostStatus,
-        costingDate: row.costing_date,
+        costingDate: row.costing_date ? new Date(row.costing_date) : undefined,
       };
-    } catch (error) {
-      this.logger.error(`Error getting job profitability: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting job profitability: ${errorMessage}`);
       return null;
     }
   }
@@ -849,8 +861,9 @@ export class JobCostingService {
 
       const jobCostId = jobCostResult.rows[0].id;
       return await this.getJobProfitability(jobCostId, tenantId);
-    } catch (error) {
-      this.logger.error(`Error getting job profitability by job ID: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting job profitability by job ID: ${errorMessage}`);
       return null;
     }
   }
@@ -871,8 +884,9 @@ export class JobCostingService {
 
       const jobCostId = jobCostResult.rows[0].id;
       return await this.getJobCostHistory(jobCostId, tenantId);
-    } catch (error) {
-      this.logger.error(`Error getting job cost history by job ID: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting job cost history by job ID: ${errorMessage}`);
       return [];
     }
   }
@@ -945,16 +959,16 @@ export class JobCostingService {
         jobId: row.job_id,
         jobNumber: row.job_number,
         customerName: row.customer_name,
-        jobDescription: row.job_description,
-        revenue: parseFloat(row.revenue),
-        totalCost: parseFloat(row.total_cost),
-        grossProfit: parseFloat(row.gross_profit),
-        grossMargin: parseFloat(row.gross_margin),
-        estimatedCost: row.estimated_cost ? parseFloat(row.estimated_cost) : undefined,
-        costVariance: row.cost_variance ? parseFloat(row.cost_variance) : undefined,
-        costVariancePercentage: row.cost_variance_percentage ? parseFloat(row.cost_variance_percentage) : undefined,
+        jobDescription: row.job_description ?? undefined,
+        revenue: parseFloat(row.revenue || '0'),
+        totalCost: parseFloat(row.total_cost || '0'),
+        grossProfit: parseFloat(row.gross_profit || '0'),
+        grossMargin: parseFloat(row.gross_margin || '0'),
+        estimatedCost: row.estimated_cost != null ? parseFloat(row.estimated_cost) : undefined,
+        costVariance: row.cost_variance != null ? parseFloat(row.cost_variance) : undefined,
+        costVariancePercentage: row.cost_variance_percentage != null ? parseFloat(row.cost_variance_percentage) : undefined,
         status: row.status as JobCostStatus,
-        costingDate: row.costing_date,
+        costingDate: row.costing_date ? new Date(row.costing_date) : undefined,
       }));
 
       // Calculate summary statistics
@@ -967,11 +981,12 @@ export class JobCostingService {
           summary,
         },
       };
-    } catch (error) {
-      this.logger.error(`Error generating variance report: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error generating variance report: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -991,8 +1006,9 @@ export class JobCostingService {
       const result = await this.db.query(query, [jobCostId, tenantId]);
 
       return result.rows.map(row => this.mapJobCostUpdate(row));
-    } catch (error) {
-      this.logger.error(`Error getting job cost history: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting job cost history: ${errorMessage}`);
       return [];
     }
   }
@@ -1067,41 +1083,41 @@ export class JobCostingService {
       id: row.id,
       tenantId: row.tenant_id,
       jobId: row.job_id,
-      estimateId: row.estimate_id,
-      totalAmount: parseFloat(row.total_amount),
-      totalCost: parseFloat(row.total_cost),
-      materialCost: parseFloat(row.material_cost),
-      laborCost: parseFloat(row.labor_cost),
-      equipmentCost: parseFloat(row.equipment_cost),
-      overheadCost: parseFloat(row.overhead_cost),
-      outsourcingCost: parseFloat(row.outsourcing_cost),
-      otherCost: parseFloat(row.other_cost),
-      estimatedMaterialCost: row.estimated_material_cost ? parseFloat(row.estimated_material_cost) : undefined,
-      estimatedLaborCost: row.estimated_labor_cost ? parseFloat(row.estimated_labor_cost) : undefined,
-      estimatedEquipmentCost: row.estimated_equipment_cost ? parseFloat(row.estimated_equipment_cost) : undefined,
-      estimatedOverheadCost: row.estimated_overhead_cost ? parseFloat(row.estimated_overhead_cost) : undefined,
-      estimatedOutsourcingCost: row.estimated_outsourcing_cost ? parseFloat(row.estimated_outsourcing_cost) : undefined,
-      estimatedTotalCost: row.estimated_total_cost ? parseFloat(row.estimated_total_cost) : undefined,
-      grossProfit: parseFloat(row.gross_profit),
-      grossProfitMargin: parseFloat(row.gross_profit_margin),
-      costVariance: row.cost_variance ? parseFloat(row.cost_variance) : undefined,
-      costVariancePercentage: row.cost_variance_percentage ? parseFloat(row.cost_variance_percentage) : undefined,
-      materialVariance: row.material_variance ? parseFloat(row.material_variance) : undefined,
-      laborVariance: row.labor_variance ? parseFloat(row.labor_variance) : undefined,
-      equipmentVariance: row.equipment_variance ? parseFloat(row.equipment_variance) : undefined,
+      estimateId: row.estimate_id ?? undefined,
+      totalAmount: parseFloat(row.total_amount || '0'),
+      totalCost: parseFloat(row.total_cost || '0'),
+      materialCost: parseFloat(row.material_cost || '0'),
+      laborCost: parseFloat(row.labor_cost || '0'),
+      equipmentCost: parseFloat(row.equipment_cost || '0'),
+      overheadCost: parseFloat(row.overhead_cost || '0'),
+      outsourcingCost: parseFloat(row.outsourcing_cost || '0'),
+      otherCost: parseFloat(row.other_cost || '0'),
+      estimatedMaterialCost: row.estimated_material_cost != null ? parseFloat(row.estimated_material_cost) : undefined,
+      estimatedLaborCost: row.estimated_labor_cost != null ? parseFloat(row.estimated_labor_cost) : undefined,
+      estimatedEquipmentCost: row.estimated_equipment_cost != null ? parseFloat(row.estimated_equipment_cost) : undefined,
+      estimatedOverheadCost: row.estimated_overhead_cost != null ? parseFloat(row.estimated_overhead_cost) : undefined,
+      estimatedOutsourcingCost: row.estimated_outsourcing_cost != null ? parseFloat(row.estimated_outsourcing_cost) : undefined,
+      estimatedTotalCost: row.estimated_total_cost != null ? parseFloat(row.estimated_total_cost) : undefined,
+      grossProfit: parseFloat(row.gross_profit || '0'),
+      grossProfitMargin: parseFloat(row.gross_profit_margin || '0'),
+      costVariance: row.cost_variance != null ? parseFloat(row.cost_variance) : undefined,
+      costVariancePercentage: row.cost_variance_percentage != null ? parseFloat(row.cost_variance_percentage) : undefined,
+      materialVariance: row.material_variance != null ? parseFloat(row.material_variance) : undefined,
+      laborVariance: row.labor_variance != null ? parseFloat(row.labor_variance) : undefined,
+      equipmentVariance: row.equipment_variance != null ? parseFloat(row.equipment_variance) : undefined,
       status: row.status as JobCostStatus,
-      costingDate: row.costing_date,
-      notes: row.notes,
-      isReconciled: row.is_reconciled,
-      reconciledAt: row.reconciled_at,
-      reconciledBy: row.reconciled_by,
-      lastRollupAt: row.last_rollup_at,
-      lastRollupSource: row.last_rollup_source as RollupSource,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      completedAt: row.completed_at,
-      createdBy: row.created_by,
-      updatedBy: row.updated_by,
+      costingDate: row.costing_date ? new Date(row.costing_date) : undefined,
+      notes: row.notes ?? undefined,
+      isReconciled: Boolean(row.is_reconciled),
+      reconciledAt: row.reconciled_at ? new Date(row.reconciled_at) : undefined,
+      reconciledBy: row.reconciled_by ?? undefined,
+      lastRollupAt: row.last_rollup_at ? new Date(row.last_rollup_at) : undefined,
+      lastRollupSource: row.last_rollup_source ? (row.last_rollup_source as RollupSource) : undefined,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+      createdBy: row.created_by ?? undefined,
+      updatedBy: row.updated_by ?? undefined,
     };
   }
 
@@ -1114,17 +1130,17 @@ export class JobCostingService {
       tenantId: row.tenant_id,
       jobCostId: row.job_cost_id,
       updateSource: row.update_source as UpdateSource,
-      sourceId: row.source_id,
+      sourceId: row.source_id ?? undefined,
       costCategory: row.cost_category as CostCategory,
-      costDelta: parseFloat(row.cost_delta),
-      previousTotal: parseFloat(row.previous_total),
-      newTotal: parseFloat(row.new_total),
-      quantity: row.quantity ? parseFloat(row.quantity) : undefined,
-      unitCost: row.unit_cost ? parseFloat(row.unit_cost) : undefined,
-      description: row.description,
-      updateMetadata: row.update_metadata,
-      createdAt: row.created_at,
-      createdBy: row.created_by,
+      costDelta: parseFloat(row.cost_delta || '0'),
+      previousTotal: parseFloat(row.previous_total || '0'),
+      newTotal: parseFloat(row.new_total || '0'),
+      quantity: row.quantity != null ? parseFloat(row.quantity) : undefined,
+      unitCost: row.unit_cost != null ? parseFloat(row.unit_cost) : undefined,
+      description: row.description ?? undefined,
+      updateMetadata: row.update_metadata ?? undefined,
+      createdAt: new Date(row.created_at),
+      createdBy: row.created_by ?? undefined,
     };
   }
 }

@@ -18,7 +18,7 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; mfa?: string }>({});
 
-  const from = (location.state as unknown)?.from || '/dashboard';
+  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname || '/dashboard';
 
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
@@ -53,7 +53,7 @@ export const LoginPage: React.FC = () => {
     } catch (error: unknown) {
       console.error('Login failed:', error);
 
-      const errorMessage = error.message || '';
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
       if (errorMessage.includes('MFA')) {
         setShowMfaInput(true);

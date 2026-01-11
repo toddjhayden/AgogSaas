@@ -48,7 +48,8 @@ export const ApprovalActionModal: React.FC<ApprovalActionModalProps> = ({
       setComments('');
       onClose();
     } catch (err: unknown) {
-      setError(err.message || t('common.error'));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || t('common.error'));
     } finally {
       setIsSubmitting(false);
     }

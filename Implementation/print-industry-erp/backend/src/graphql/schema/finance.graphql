@@ -424,27 +424,29 @@ type PaymentApplication {
 }
 
 """
-CostAllocation - Cost allocation rules for job costing
+CostPool - Overhead cost pool for allocation
+REQ-1767541724200-2fb1a: Cost Allocation Engine
 """
-type CostAllocation {
+type CostPool {
   id: ID!
   tenantId: ID!
 
   # Identification
-  allocationCode: String!
-  allocationName: String!
+  poolCode: String!
+  poolName: String!
   description: String
 
+  # Type and behavior
+  poolType: PoolType!
+  costBehavior: CostBehavior!
+
   # Source
-  sourceType: String!
   sourceAccountId: ID
 
-  # Method
-  allocationMethod: AllocationMethod!
-  allocationBasis: String
-
-  # Rules
-  allocationRules: JSON
+  # Amount
+  currentPoolAmount: Float!
+  periodYear: Int
+  periodMonth: Int
 
   # Status
   isActive: Boolean!
@@ -452,8 +454,229 @@ type CostAllocation {
   # Audit
   createdAt: DateTime!
   createdBy: ID
-  updatedAt: DateTime
+  updatedAt: DateTime!
   updatedBy: ID
+}
+
+"""
+CostDriver - Allocation basis/driver for distributing costs
+REQ-1767541724200-2fb1a: Cost Allocation Engine
+"""
+type CostDriver {
+  id: ID!
+  tenantId: ID!
+
+  # Identification
+  driverCode: String!
+  driverName: String!
+  description: String
+
+  # Type
+  driverType: DriverType!
+  unitOfMeasure: String!
+
+  # Calculation
+  calculationMethod: CalculationMethod!
+  sourceTable: String
+  sourceColumn: String
+  sourceQuery: String
+
+  # Status
+  isActive: Boolean!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime!
+  updatedBy: ID
+}
+
+"""
+AllocationRule - Rule for allocating costs from pool to jobs
+REQ-1767541724200-2fb1a: Cost Allocation Engine
+"""
+type AllocationRule {
+  id: ID!
+  tenantId: ID!
+
+  # Identification
+  ruleCode: String!
+  ruleName: String!
+  description: String
+
+  # Pool and driver
+  costPoolId: ID!
+  costDriverId: ID!
+  costPool: CostPool
+  costDriver: CostDriver
+
+  # Method
+  allocationMethod: AllocationMethod!
+  targetType: TargetType!
+  targetCostCategory: String!
+
+  # Rate
+  rateType: RateType!
+  predeterminedRate: Float
+
+  # Filters
+  allocationFilters: JSON
+  allocationPriority: Int!
+
+  # Effective dates
+  effectiveFrom: Date!
+  effectiveTo: Date
+
+  # Status
+  isActive: Boolean!
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime!
+  updatedBy: ID
+}
+
+"""
+AllocationRun - Execution of cost allocation process
+REQ-1767541724200-2fb1a: Cost Allocation Engine
+"""
+type AllocationRun {
+  id: ID!
+  tenantId: ID!
+
+  # Identification
+  runNumber: String!
+  runDescription: String
+
+  # Period
+  periodYear: Int!
+  periodMonth: Int!
+
+  # Type
+  allocationType: AllocationType!
+  includedPools: [String!]
+  includedJobs: [String!]
+
+  # Execution
+  startedAt: DateTime!
+  completedAt: DateTime
+  executionDurationMs: Int
+  status: AllocationRunStatus!
+
+  # Metrics
+  totalPoolsProcessed: Int!
+  totalAmountAllocated: Float!
+  totalJobsAffected: Int!
+  totalAllocationsCreated: Int!
+
+  # Error handling
+  errorMessage: String
+  errorDetails: JSON
+
+  # Reversal
+  isReversed: Boolean!
+  reversedAt: DateTime
+  reversedBy: ID
+  reversalRunId: ID
+
+  # Audit
+  createdBy: ID
+
+  # Relationships
+  allocations: [JobCostAllocation!]!
+}
+
+"""
+JobCostAllocation - Individual cost allocation to a job
+REQ-1767541724200-2fb1a: Cost Allocation Engine
+"""
+type JobCostAllocation {
+  id: ID!
+  tenantId: ID!
+
+  # References
+  allocationRunId: ID!
+  jobCostId: ID!
+  jobId: ID!
+  costPoolId: ID!
+  allocationRuleId: ID!
+  costDriverId: ID!
+
+  # Driver quantities
+  driverQuantity: Float!
+  totalDriverQuantity: Float!
+
+  # Rate and amount
+  allocationRate: Float!
+  allocationPercentage: Float
+  allocatedAmount: Float!
+
+  # Category
+  costCategory: String!
+
+  # Metadata
+  allocationMetadata: JSON
+
+  # Audit
+  createdAt: DateTime!
+
+  # Relationships
+  allocationRun: AllocationRun
+  costPool: CostPool
+  allocationRule: AllocationRule
+}
+
+"""
+DriverMeasurement - Actual measurement of cost driver for a job
+REQ-1767541724200-2fb1a: Cost Allocation Engine
+"""
+type DriverMeasurement {
+  id: ID!
+  tenantId: ID!
+
+  # Job and driver
+  jobId: ID!
+  costDriverId: ID!
+  costDriver: CostDriver
+
+  # Period
+  periodYear: Int!
+  periodMonth: Int!
+
+  # Measurement
+  measurementDate: Date!
+  measuredQuantity: Float!
+  unitOfMeasure: String!
+
+  # Source
+  measurementSource: MeasurementSource!
+  sourceId: ID
+  sourceReference: String
+  notes: String
+
+  # Audit
+  createdAt: DateTime!
+  createdBy: ID
+  updatedAt: DateTime!
+  updatedBy: ID
+}
+
+"""
+AllocationSummary - Summary of allocations for a job
+REQ-1767541724200-2fb1a: Cost Allocation Engine
+"""
+type AllocationSummary {
+  jobId: ID!
+  jobCostId: ID!
+  allocationMonth: Date!
+  totalAllocationRuns: Int!
+  totalPoolsAllocated: Int!
+  totalAllocatedAmount: Float!
+  overheadAllocated: Float!
+  equipmentAllocated: Float!
+  otherAllocated: Float!
+  lastAllocationDate: DateTime!
 }
 
 # =====================================================
@@ -618,6 +841,74 @@ enum AllocationMethod {
   STEP_DOWN
   RECIPROCAL
   ACTIVITY_BASED
+  PROPORTIONAL
+}
+
+# Cost Allocation Engine Enums (REQ-1767541724200-2fb1a)
+
+enum PoolType {
+  OVERHEAD
+  SHARED_SERVICES
+  FACILITY
+  EQUIPMENT
+  ADMINISTRATION
+  INDIRECT_LABOR
+}
+
+enum CostBehavior {
+  FIXED
+  VARIABLE
+  SEMI_VARIABLE
+  STEP_FIXED
+}
+
+enum DriverType {
+  LABOR_HOURS
+  MACHINE_HOURS
+  MATERIAL_COST
+  DIRECT_LABOR_COST
+  UNITS_PRODUCED
+  SQUARE_FOOTAGE
+  HEADCOUNT
+  TRANSACTION_COUNT
+}
+
+enum CalculationMethod {
+  ACTUAL
+  STANDARD
+  BUDGETED
+  MOVING_AVERAGE
+}
+
+enum TargetType {
+  JOB
+  DEPARTMENT
+  PRODUCT
+  CUSTOMER
+  PROJECT
+}
+
+enum AllocationRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  PARTIALLY_COMPLETED
+}
+
+enum AllocationType {
+  FULL
+  INCREMENTAL
+  SPECIFIC_POOL
+  SPECIFIC_JOB
+}
+
+enum MeasurementSource {
+  MANUAL
+  PRODUCTION_ORDER
+  TIME_TRACKING
+  MATERIAL_CONSUMPTION
+  SYSTEM_CALCULATED
 }
 
 # =====================================================
@@ -724,11 +1015,86 @@ extend type Query {
     endDate: Date
   ): [Payment!]!
 
-  """Get cost allocation"""
-  costAllocation(id: ID!): CostAllocation
+  # ====== COST ALLOCATION ENGINE (REQ-1767541724200-2fb1a) ======
 
-  """List cost allocations"""
-  costAllocations(tenantId: ID!): [CostAllocation!]!
+  """Get cost pool by ID"""
+  costPool(id: ID!): CostPool
+
+  """List cost pools"""
+  costPools(
+    tenantId: ID!
+    poolType: PoolType
+    isActive: Boolean
+    periodYear: Int
+    periodMonth: Int
+  ): [CostPool!]!
+
+  """Get cost driver by ID"""
+  costDriver(id: ID!): CostDriver
+
+  """List cost drivers"""
+  costDrivers(
+    tenantId: ID!
+    driverType: DriverType
+    isActive: Boolean
+  ): [CostDriver!]!
+
+  """Get allocation rule by ID"""
+  allocationRule(id: ID!): AllocationRule
+
+  """List allocation rules"""
+  allocationRules(
+    tenantId: ID!
+    costPoolId: ID
+    costDriverId: ID
+    isActive: Boolean
+    effectiveDate: Date
+  ): [AllocationRule!]!
+
+  """Get allocation run by ID"""
+  allocationRun(id: ID!): AllocationRun
+
+  """List allocation runs"""
+  allocationRuns(
+    tenantId: ID!
+    periodYear: Int
+    periodMonth: Int
+    status: AllocationRunStatus
+    fromDate: Date
+    toDate: Date
+  ): [AllocationRun!]!
+
+  """Get job cost allocations for a job"""
+  jobCostAllocations(
+    tenantId: ID!
+    jobId: ID
+    jobCostId: ID
+    allocationRunId: ID
+    costPoolId: ID
+    periodYear: Int
+    periodMonth: Int
+  ): [JobCostAllocation!]!
+
+  """Get driver measurement by ID"""
+  driverMeasurement(id: ID!): DriverMeasurement
+
+  """List driver measurements"""
+  driverMeasurements(
+    tenantId: ID!
+    jobId: ID
+    costDriverId: ID
+    periodYear: Int
+    periodMonth: Int
+    measurementSource: MeasurementSource
+  ): [DriverMeasurement!]!
+
+  """Get allocation summary for a job"""
+  allocationSummary(
+    tenantId: ID!
+    jobId: ID!
+    periodYear: Int!
+    periodMonth: Int!
+  ): AllocationSummary
 
   # ====== REPORTS ======
 
@@ -820,11 +1186,43 @@ extend type Mutation {
     applications: [PaymentApplicationInput!]!
   ): Payment!
 
-  """Create cost allocation"""
-  createCostAllocation(input: CreateCostAllocationInput!): CostAllocation!
+  # ====== COST ALLOCATION ENGINE (REQ-1767541724200-2fb1a) ======
 
-  """Run cost allocation"""
-  runCostAllocation(id: ID!, periodYear: Int!, periodMonth: Int!): JournalEntry!
+  """Create cost pool"""
+  createCostPool(input: CreateCostPoolInput!): CostPool!
+
+  """Update cost pool"""
+  updateCostPool(id: ID!, input: UpdateCostPoolInput!): CostPool!
+
+  """Delete cost pool"""
+  deleteCostPool(id: ID!): Boolean!
+
+  """Create cost driver"""
+  createCostDriver(input: CreateCostDriverInput!): CostDriver!
+
+  """Update cost driver"""
+  updateCostDriver(id: ID!, input: UpdateCostDriverInput!): CostDriver!
+
+  """Delete cost driver"""
+  deleteCostDriver(id: ID!): Boolean!
+
+  """Create allocation rule"""
+  createAllocationRule(input: CreateAllocationRuleInput!): AllocationRule!
+
+  """Update allocation rule"""
+  updateAllocationRule(id: ID!, input: UpdateAllocationRuleInput!): AllocationRule!
+
+  """Delete allocation rule"""
+  deleteAllocationRule(id: ID!): Boolean!
+
+  """Create driver measurement"""
+  createDriverMeasurement(input: CreateDriverMeasurementInput!): DriverMeasurement!
+
+  """Run cost allocation process"""
+  runAllocation(input: RunAllocationInput!): AllocationRun!
+
+  """Reverse allocation run"""
+  reverseAllocationRun(id: ID!): AllocationRun!
 }
 
 # =====================================================
@@ -928,11 +1326,102 @@ input PaymentApplicationInput {
   amountApplied: Float!
 }
 
-input CreateCostAllocationInput {
-  allocationCode: String!
-  allocationName: String!
+# Cost Allocation Engine Input Types (REQ-1767541724200-2fb1a)
+
+input CreateCostPoolInput {
+  poolCode: String!
+  poolName: String!
   description: String
-  sourceType: String!
+  poolType: PoolType!
+  costBehavior: CostBehavior!
+  sourceAccountId: ID
+  currentPoolAmount: Float
+  periodYear: Int
+  periodMonth: Int
+  isActive: Boolean
+  createdBy: ID
+}
+
+input UpdateCostPoolInput {
+  poolName: String
+  description: String
+  currentPoolAmount: Float
+  isActive: Boolean
+  updatedBy: ID
+}
+
+input CreateCostDriverInput {
+  driverCode: String!
+  driverName: String!
+  description: String
+  driverType: DriverType!
+  unitOfMeasure: String!
+  calculationMethod: CalculationMethod!
+  sourceTable: String
+  sourceColumn: String
+  sourceQuery: String
+  isActive: Boolean
+  createdBy: ID
+}
+
+input UpdateCostDriverInput {
+  driverName: String
+  description: String
+  isActive: Boolean
+  updatedBy: ID
+}
+
+input CreateAllocationRuleInput {
+  ruleCode: String!
+  ruleName: String!
+  description: String
+  costPoolId: ID!
+  costDriverId: ID!
   allocationMethod: AllocationMethod!
-  allocationRules: JSON
+  targetType: TargetType!
+  targetCostCategory: String!
+  rateType: RateType!
+  predeterminedRate: Float
+  allocationFilters: JSON
+  allocationPriority: Int
+  effectiveFrom: Date!
+  effectiveTo: Date
+  isActive: Boolean
+  createdBy: ID
+}
+
+input UpdateAllocationRuleInput {
+  ruleName: String
+  description: String
+  predeterminedRate: Float
+  allocationFilters: JSON
+  allocationPriority: Int
+  effectiveTo: Date
+  isActive: Boolean
+  updatedBy: ID
+}
+
+input CreateDriverMeasurementInput {
+  jobId: ID!
+  costDriverId: ID!
+  periodYear: Int!
+  periodMonth: Int!
+  measurementDate: Date!
+  measuredQuantity: Float!
+  unitOfMeasure: String!
+  measurementSource: MeasurementSource!
+  sourceId: ID
+  sourceReference: String
+  notes: String
+  createdBy: ID
+}
+
+input RunAllocationInput {
+  runDescription: String
+  periodYear: Int!
+  periodMonth: Int!
+  allocationType: AllocationType!
+  includedPools: [String!]
+  includedJobs: [String!]
+  createdBy: ID
 }

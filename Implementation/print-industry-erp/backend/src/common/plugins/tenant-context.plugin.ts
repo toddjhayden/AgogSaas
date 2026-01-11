@@ -12,32 +12,31 @@
  */
 
 import { Plugin } from '@nestjs/apollo';
-import {
-  ApolloServerPlugin,
-  GraphQLRequestListener,
-} from 'apollo-server-plugin-base';
+import type { ApolloServerPlugin, GraphQLRequestListener, BaseContext } from '@apollo/server';
 import { Logger } from '@nestjs/common';
 
 @Plugin()
-export class TenantContextPlugin implements ApolloServerPlugin {
+export class TenantContextPlugin implements ApolloServerPlugin<BaseContext> {
   private readonly logger = new Logger(TenantContextPlugin.name);
 
-  async requestDidStart(): Promise<GraphQLRequestListener> {
+  async requestDidStart(): Promise<GraphQLRequestListener<BaseContext>> {
+    const logger = this.logger;
+
     return {
       /**
        * Called after the response is sent
        * Clean up database connection from context
        */
       async willSendResponse(requestContext) {
-        const dbClient = requestContext.context.dbClient;
+        const dbClient = (requestContext.contextValue as any).dbClient;
 
         if (dbClient) {
           try {
             // Release the database client back to the pool
             dbClient.release();
-            this.logger.debug('Database client released for tenant context');
+            logger.debug('Database client released for tenant context');
           } catch (error) {
-            this.logger.error('Failed to release database client', error);
+            logger.error('Failed to release database client', error);
           }
         }
       },
@@ -47,15 +46,15 @@ export class TenantContextPlugin implements ApolloServerPlugin {
        * Ensure cleanup happens even on errors
        */
       async didEncounterErrors(requestContext) {
-        const dbClient = requestContext.context.dbClient;
+        const dbClient = (requestContext.contextValue as any).dbClient;
 
         if (dbClient) {
           try {
             // Release the database client back to the pool
             dbClient.release();
-            this.logger.warn('Database client released after error');
+            logger.warn('Database client released after error');
           } catch (error) {
-            this.logger.error('Failed to release database client after error', error);
+            logger.error('Failed to release database client after error', error);
           }
         }
       },

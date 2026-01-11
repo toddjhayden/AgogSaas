@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, Inject } from '@nestjs/common';
 import { QualityGateService } from '../../modules/code-quality/services/quality-gate.service';
 import { Pool } from 'pg';
 import {
@@ -18,7 +18,7 @@ import {
 export class CodeQualityResolver {
   constructor(
     private readonly qualityGateService: QualityGateService,
-    private readonly pool: Pool,
+    @Inject('DATABASE_POOL') private readonly pool: Pool,
   ) {}
 
   // =====================================================

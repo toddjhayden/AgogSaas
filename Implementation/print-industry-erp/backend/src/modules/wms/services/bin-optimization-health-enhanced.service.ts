@@ -19,7 +19,14 @@ import { Pool, PoolClient } from 'pg';
 export interface HealthCheckResult {
   status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY';
   message: string;
-  [key: string]: any;
+  secondsAgo?: number;
+  lastRefresh?: any;
+  accuracy?: number | null;
+  sampleSize?: number;
+  aisleCount?: number;
+  queryTimeMs?: number;
+  processingTimeMs?: number;
+  error?: string;
 }
 
 export interface RemediationAction {
@@ -65,7 +72,7 @@ export class BinOptimizationHealthEnhancedService {
     // Auto-remediation if enabled
     if (autoRemediate) {
       // 1. Auto-refresh cache if unhealthy
-      if (checks[0].status === 'UNHEALTHY') {
+      if (checks[0].status === 'UNHEALTHY' && checks[0].secondsAgo !== undefined) {
         const cacheRefreshAction = await this.autoRefreshCache(checks[0].secondsAgo, tenantId);
         remediationActions.push(cacheRefreshAction);
 
@@ -79,7 +86,8 @@ export class BinOptimizationHealthEnhancedService {
       }
 
       // 2. Schedule ML retraining if degraded
-      if (checks[1].status === 'DEGRADED' || checks[1].status === 'UNHEALTHY') {
+      if ((checks[1].status === 'DEGRADED' || checks[1].status === 'UNHEALTHY') &&
+          checks[1].accuracy !== undefined && checks[1].accuracy !== null) {
         const mlRetrainingAction = await this.scheduleMlRetraining(checks[1].accuracy, tenantId);
         remediationActions.push(mlRetrainingAction);
 
@@ -93,7 +101,8 @@ export class BinOptimizationHealthEnhancedService {
       }
 
       // 3. Alert DevOps on database performance issues
-      if (checks[3].status === 'DEGRADED' || checks[3].status === 'UNHEALTHY') {
+      if ((checks[3].status === 'DEGRADED' || checks[3].status === 'UNHEALTHY') &&
+          checks[3].queryTimeMs !== undefined) {
         await this.alertDevOps(
           'Database performance degraded',
           checks[3].status === 'UNHEALTHY' ? 'CRITICAL' : 'WARNING',
@@ -102,7 +111,7 @@ export class BinOptimizationHealthEnhancedService {
       }
 
       // 4. Alert DevOps on algorithm performance issues
-      if (checks[4].status === 'DEGRADED') {
+      if (checks[4].status === 'DEGRADED' && checks[4].processingTimeMs !== undefined) {
         await this.alertDevOps(
           'Algorithm performance degraded',
           'WARNING',
@@ -166,7 +175,7 @@ export class BinOptimizationHealthEnhancedService {
       return {
         action: 'CACHE_REFRESHED',
         successful: false,
-        errorMessage: error.message,
+        errorMessage: error instanceof Error ? error.message : String(error),
       };
     } finally {
       client.release();
@@ -233,7 +242,7 @@ export class BinOptimizationHealthEnhancedService {
       return {
         action: 'ML_RETRAINING_SCHEDULED',
         successful: false,
-        errorMessage: error.message,
+        errorMessage: error instanceof Error ? error.message : String(error),
       };
     } finally {
       client.release();
@@ -352,10 +361,11 @@ export class BinOptimizationHealthEnhancedService {
         secondsAgo,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         status: 'UNHEALTHY',
-        message: `Cache check failed: ${error.message}`,
-        error: error.message,
+        message: `Cache check failed: ${errorMessage}`,
+        error: errorMessage,
       };
     }
   }
@@ -407,10 +417,11 @@ export class BinOptimizationHealthEnhancedService {
         sampleSize: total,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         status: 'DEGRADED',
-        message: `ML accuracy check failed: ${error.message}`,
-        error: error.message,
+        message: `ML accuracy check failed: ${errorMessage}`,
+        error: errorMessage,
       };
     }
   }
@@ -430,10 +441,11 @@ export class BinOptimizationHealthEnhancedService {
         aisleCount,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         status: 'DEGRADED',
-        message: `Congestion cache check failed: ${error.message}`,
-        error: error.message,
+        message: `Congestion cache check failed: ${errorMessage}`,
+        error: errorMessage,
       };
     }
   }
@@ -460,10 +472,11 @@ export class BinOptimizationHealthEnhancedService {
         queryTimeMs: elapsed,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         status: 'UNHEALTHY',
-        message: `Database performance check failed: ${error.message}`,
-        error: error.message,
+        message: `Database performance check failed: ${errorMessage}`,
+        error: errorMessage,
       };
     }
   }
@@ -491,10 +504,11 @@ export class BinOptimizationHealthEnhancedService {
         processingTimeMs: elapsed,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         status: 'DEGRADED',
-        message: `Algorithm test failed: ${error.message}`,
-        error: error.message,
+        message: `Algorithm test failed: ${errorMessage}`,
+        error: errorMessage,
       };
     }
   }

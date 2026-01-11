@@ -97,6 +97,67 @@ export interface WorkflowStatus {
   directive?: WorkflowDirective;
 }
 
+export interface BoardConfiguration {
+  id: string;
+  boardCode: string;
+  boardName: string;
+  description?: string;
+  routingTags: string[];
+  routingMode: 'any' | 'all';
+  displayOrder: number;
+  color: string;
+  icon?: string;
+  visibleToAgents: string[];
+  managedByBu?: string;
+  showAllPhases: boolean;
+  allowedPhases: string[];
+  autoAssignAgent?: string;
+  status: 'draft' | 'published' | 'archived';
+  boardVersion: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy?: string;
+}
+
+export interface Tag {
+  tagName: string;
+  description?: string;
+  category: 'domain' | 'technology' | 'workflow' | 'priority' | 'other';
+  color: string;
+  usageCount: number;
+  status: 'active' | 'deprecated' | 'archived';
+  requiresApproval: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface BoardStats {
+  boardCode: string;
+  boardName: string;
+  status: string;
+  routingTags: string[];
+  requestCount: number;
+  backlogCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  blockedCount: number;
+}
+
+export interface TagStats {
+  tagName: string;
+  category: string;
+  color: string;
+  status: string;
+  registryCount: number;
+  actualUsageCount: number;
+  approvedBy?: string;
+  approvedAt?: string;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -667,6 +728,201 @@ export class SDLCApiClient {
       'PUT',
       `/api/workflow/directive/${directiveId}/progress`,
       { completedItems }
+    );
+
+    return response.success;
+  }
+
+  // =========================================================================
+  // Board Configuration Methods (REQ-SDLC-1767972294)
+  // =========================================================================
+
+  /**
+   * Get all published boards
+   */
+  async getBoards(): Promise<BoardConfiguration[]> {
+    const response = await this.request<{ boards: BoardConfiguration[] }>(
+      'GET',
+      '/api/agent/boards'
+    );
+
+    return response.data?.boards || [];
+  }
+
+  /**
+   * Get a specific board by code
+   */
+  async getBoard(boardCode: string): Promise<BoardConfiguration | null> {
+    const response = await this.request<{ board: BoardConfiguration }>(
+      'GET',
+      `/api/agent/boards/${boardCode}`
+    );
+
+    return response.data?.board || null;
+  }
+
+  /**
+   * Get requests for a specific board
+   */
+  async getBoardRequests(boardCode: string): Promise<OwnerRequest[]> {
+    const response = await this.request<{ requests: OwnerRequest[]; board: BoardConfiguration }>(
+      'GET',
+      `/api/agent/boards/${boardCode}/requests`
+    );
+
+    return response.data?.requests || [];
+  }
+
+  /**
+   * Create a new board (draft status)
+   */
+  async createBoard(board: {
+    boardCode: string;
+    boardName: string;
+    description?: string;
+    routingTags?: string[];
+    routingMode?: 'any' | 'all';
+    displayOrder?: number;
+    color?: string;
+    icon?: string;
+    visibleToAgents?: string[];
+    managedByBu?: string;
+    showAllPhases?: boolean;
+    allowedPhases?: string[];
+    autoAssignAgent?: string;
+    createdBy?: string;
+  }): Promise<boolean> {
+    const response = await this.request<{ boardCode: string; status: string }>(
+      'POST',
+      '/api/agent/boards',
+      board
+    );
+
+    return response.success;
+  }
+
+  /**
+   * Publish a board (move from draft to published)
+   */
+  async publishBoard(boardCode: string, publishedBy?: string): Promise<boolean> {
+    const response = await this.request<any>(
+      'POST',
+      `/api/agent/boards/${boardCode}/publish`,
+      { publishedBy }
+    );
+
+    return response.success;
+  }
+
+  /**
+   * Archive a board
+   */
+  async archiveBoard(boardCode: string, archivedBy?: string): Promise<boolean> {
+    const response = await this.request<any>(
+      'POST',
+      `/api/agent/boards/${boardCode}/archive`,
+      { archivedBy }
+    );
+
+    return response.success;
+  }
+
+  /**
+   * Get board statistics
+   */
+  async getBoardStats(): Promise<BoardStats[]> {
+    const response = await this.request<{ stats: BoardStats[] }>(
+      'GET',
+      '/api/agent/boards/stats'
+    );
+
+    return response.data?.stats || [];
+  }
+
+  // =========================================================================
+  // Tag Management Methods (REQ-SDLC-1767972294)
+  // =========================================================================
+
+  /**
+   * Get all active tags
+   */
+  async getTags(category?: string, status?: string): Promise<Tag[]> {
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+    if (status) params.set('status', status);
+
+    const path = `/api/agent/tags${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await this.request<{ tags: Tag[] }>('GET', path);
+
+    return response.data?.tags || [];
+  }
+
+  /**
+   * Get tag usage statistics
+   */
+  async getTagStats(): Promise<TagStats[]> {
+    const response = await this.request<{ stats: TagStats[] }>(
+      'GET',
+      '/api/agent/tags/stats'
+    );
+
+    return response.data?.stats || [];
+  }
+
+  /**
+   * Create a new tag
+   */
+  async createTag(tag: {
+    tagName: string;
+    description?: string;
+    category?: string;
+    color?: string;
+    requiresApproval?: boolean;
+    createdBy?: string;
+  }): Promise<boolean> {
+    const response = await this.request<{ tagName: string }>(
+      'POST',
+      '/api/agent/tags',
+      tag
+    );
+
+    return response.success;
+  }
+
+  /**
+   * Approve a tag
+   */
+  async approveTag(tagName: string, approvedBy?: string): Promise<boolean> {
+    const response = await this.request<any>(
+      'POST',
+      `/api/agent/tags/${tagName}/approve`,
+      { approvedBy }
+    );
+
+    return response.success;
+  }
+
+  /**
+   * Update tags on a request
+   */
+  async updateRequestTags(reqNumber: string, tags: string[]): Promise<boolean> {
+    const response = await this.request<{ reqNumber: string; tags: string[] }>(
+      'PUT',
+      `/api/agent/requests/${reqNumber}/tags`,
+      { tags }
+    );
+
+    return response.success;
+  }
+
+  /**
+   * Update tags on a recommendation
+   */
+  async updateRecommendationTags(recNumber: string, tags: string[]): Promise<boolean> {
+    const response = await this.request<{ recNumber: string; tags: string[] }>(
+      'PUT',
+      `/api/agent/recommendations/${recNumber}/tags`,
+      { tags }
     );
 
     return response.success;

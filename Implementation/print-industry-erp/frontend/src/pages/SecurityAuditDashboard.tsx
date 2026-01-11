@@ -59,6 +59,29 @@ import {
   GET_THREAT_PATTERNS,
 } from '../graphql/queries/securityAudit';
 
+interface SuspiciousIP {
+  ipAddress: string;
+  eventCount: number;
+  failedLoginCount: number;
+  riskScore: number;
+  countries?: string[];
+  blocked: boolean;
+}
+
+interface SecurityIncidentEdge {
+  node: {
+    id: string;
+    incidentNumber: string;
+    title: string;
+    severity: string;
+    status: string;
+    detectedAt: string;
+    assignedTo?: {
+      username: string;
+    };
+  };
+}
+
 interface SecurityOverviewData {
   securityOverview: {
     timeRange: string;
@@ -145,7 +168,7 @@ const SecurityAuditDashboard: React.FC = () => {
 
   const overview = data?.securityOverview;
 
-  const getScoreColor = (score: number): string => {
+  const getScoreColor = (score: number): 'success' | 'info' | 'warning' | 'error' => {
     if (score >= 90) return 'success';
     if (score >= 70) return 'info';
     if (score >= 50) return 'warning';
@@ -239,13 +262,13 @@ const SecurityAuditDashboard: React.FC = () => {
               <LinearProgress
                 variant="determinate"
                 value={overview?.securityScore || 0}
-                color={getScoreColor(overview?.securityScore || 0) as unknown}
+                color={getScoreColor(overview?.securityScore || 0)}
                 sx={{ mb: 1 }}
               />
               <Chip
                 label={overview?.trend}
                 size="small"
-                color={getScoreColor(overview?.securityScore || 0) as unknown}
+                color={getScoreColor(overview?.securityScore || 0)}
               />
             </CardContent>
           </Card>
@@ -478,7 +501,7 @@ const SecurityAuditDashboard: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {suspiciousIPsData?.suspiciousIPs?.map((ip: any, index: number) => (
+                  {suspiciousIPsData?.suspiciousIPs?.map((ip: SuspiciousIP, index: number) => (
                     <TableRow key={index}>
                       <TableCell>
                         <Typography variant="body2" fontFamily="monospace">
@@ -550,7 +573,7 @@ const SecurityAuditDashboard: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {incidentsData?.securityIncidents?.edges?.map((edge: unknown) => {
+                  {incidentsData?.securityIncidents?.edges?.map((edge: SecurityIncidentEdge) => {
                     const incident = edge.node;
                     return (
                       <TableRow key={incident.id}>
@@ -663,7 +686,7 @@ const SecurityAuditDashboard: React.FC = () => {
                   variant="determinate"
                   value={overview?.complianceScore || 0}
                   sx={{ flexGrow: 1 }}
-                  color={getScoreColor(overview?.complianceScore || 0) as unknown}
+                  color={getScoreColor(overview?.complianceScore || 0)}
                 />
               </Box>
             </Grid>

@@ -25,7 +25,8 @@ export interface CreatePaymentDto {
   transactionId?: string;
   paidByName?: string;
   bankAccountId?: string;
-  applyToInvoices?: ApplyPaymentToInvoiceDto[]; // Auto-apply to invoices
+  applyToInvoices?: ApplyPaymentToInvoiceDto[]; // Auto-apply to invoices with specific amounts
+  invoiceIds?: string[]; // Alternative: simple array of invoice IDs (amount distributed evenly)
   notes?: string;
   referenceNumber?: string;
   postToGL?: boolean; // Auto-post to GL

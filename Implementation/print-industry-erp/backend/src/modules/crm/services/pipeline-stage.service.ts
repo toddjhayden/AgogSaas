@@ -4,13 +4,13 @@
  * Handles sales pipeline stage configuration and management
  */
 
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PipelineStage } from '../interfaces/crm.interfaces';
 
 @Injectable()
 export class PipelineStageService {
-  constructor(private readonly pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Get all pipeline stages for a tenant

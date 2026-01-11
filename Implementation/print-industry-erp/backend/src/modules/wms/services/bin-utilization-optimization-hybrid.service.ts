@@ -721,7 +721,7 @@ export class BinUtilizationOptimizationHybridService extends BinUtilizationOptim
         this.affinityCache.set(materialId, {
           materialId,
           affinityMaterials,
-          totalCoPickOrders: affinityMaterials.reduce((sum, am) => sum + am.coPickCount, 0)
+          totalCoPickOrders: affinityMaterials.reduce((sum: number, am: any) => sum + am.coPickCount, 0)
         });
       }
 

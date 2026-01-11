@@ -5,7 +5,7 @@
 
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { Pool } from 'pg';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject } from '@nestjs/common';
 import { PaymentGatewayService } from '../../modules/payments/services/payment-gateway.service';
 import { StripeGatewayService } from '../../modules/payments/services/stripe-gateway.service';
 import {
@@ -22,7 +22,7 @@ export class PaymentGatewayResolver {
   private readonly logger = new Logger(PaymentGatewayResolver.name);
 
   constructor(
-    private readonly db: Pool,
+    @Inject('DATABASE_POOL') private readonly db: Pool,
     private readonly paymentGateway: PaymentGatewayService,
     private readonly stripeGateway: StripeGatewayService,
   ) {}
@@ -361,11 +361,13 @@ export class PaymentGatewayResolver {
 
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error(`Refund failed: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Refund failed: ${errorMessage}`, errorStack);
 
       return {
         success: false,
-        errorMessage: error.message,
+        errorMessage,
       };
 
     } finally {

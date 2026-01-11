@@ -266,7 +266,7 @@ export class BinOptimizationDataQualityService {
       };
     } catch (error) {
       await client.query('ROLLBACK');
-      throw new Error(`Dimension verification failed: ${error.message}`);
+      throw new Error(`Dimension verification failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`);
     } finally {
       client.release();
     }
@@ -372,7 +372,7 @@ export class BinOptimizationDataQualityService {
       return failureId;
     } catch (error) {
       await client.query('ROLLBACK');
-      throw new Error(`Failed to record capacity validation failure: ${error.message}`);
+      throw new Error(`Failed to record capacity validation failure: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`);
     } finally {
       client.release();
     }
@@ -469,7 +469,7 @@ export class BinOptimizationDataQualityService {
       };
     } catch (error) {
       await client.query('ROLLBACK');
-      throw new Error(`Cross-dock cancellation failed: ${error.message}`);
+      throw new Error(`Cross-dock cancellation failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`);
     } finally {
       client.release();
     }
@@ -527,7 +527,7 @@ export class BinOptimizationDataQualityService {
         failedRemediationCount: parseInt(row.failed_remediation_count) || 0,
       }));
     } catch (error) {
-      throw new Error(`Failed to get data quality metrics: ${error.message}`);
+      throw new Error(`Failed to get data quality metrics: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`);
     }
   }
 

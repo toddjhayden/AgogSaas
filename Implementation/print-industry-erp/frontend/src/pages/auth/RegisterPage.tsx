@@ -112,7 +112,7 @@ export const RegisterPage: React.FC = () => {
     } catch (error: unknown) {
       console.error('Registration failed:', error);
 
-      const errorMessage = error.message || '';
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
       if (errorMessage.includes('already exists')) {
         toast.error(t('auth.emailExists', 'An account with this email already exists'));

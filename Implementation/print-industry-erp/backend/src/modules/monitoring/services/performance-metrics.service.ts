@@ -44,7 +44,7 @@ interface ApiMetric {
 
 type MetricEntry = QueryMetric | ApiMetric;
 
-interface PerformanceOverview {
+export interface PerformanceOverview {
   timeRange: string;
   healthScore: number;
   status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'CRITICAL';
@@ -63,7 +63,7 @@ interface PerformanceOverview {
   topBottlenecks: PerformanceBottleneck[];
 }
 
-interface PerformanceBottleneck {
+export interface PerformanceBottleneck {
   type: 'SLOW_QUERY' | 'HIGH_CPU' | 'MEMORY_LEAK' | 'CONNECTION_POOL_EXHAUSTION' | 'N_PLUS_ONE_QUERY' | 'UNINDEXED_QUERY' | 'LARGE_PAYLOAD';
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   description: string;
@@ -72,7 +72,7 @@ interface PerformanceBottleneck {
   affectedEndpoints: string[];
 }
 
-interface SlowQuery {
+export interface SlowQuery {
   id: string;
   queryHash: string;
   queryPreview: string;
@@ -83,7 +83,7 @@ interface SlowQuery {
   occurrenceCount: number;
 }
 
-interface EndpointMetric {
+export interface EndpointMetric {
   endpoint: string;
   method: string;
   totalRequests: number;
@@ -99,7 +99,7 @@ interface EndpointMetric {
   trend: 'IMPROVING' | 'STABLE' | 'DEGRADING' | 'CRITICAL';
 }
 
-interface ResourceMetric {
+export interface ResourceMetric {
   timestamp: Date;
   cpuUsagePercent: number;
   memoryUsedMB: number;
@@ -275,7 +275,7 @@ export class PerformanceMetricsService implements OnModuleInit, OnModuleDestroy 
       const memUsage = process.memoryUsage();
 
       const metric = {
-        tenantId: 'system', // System-level metrics
+        tenantId: '00000000-0000-0000-0000-000000000000', // System-level metrics (null UUID)
         cpuUsagePercent: ((cpuUsage.user + cpuUsage.system) / 1000000).toFixed(2),
         memoryUsedMb: Math.round(memUsage.heapUsed / 1024 / 1024),
         memoryTotalMb: Math.round(memUsage.heapTotal / 1024 / 1024),
@@ -302,6 +302,98 @@ export class PerformanceMetricsService implements OnModuleInit, OnModuleDestroy 
         console.error('[PerformanceMetrics] Failed to record system metrics:', error);
       }
     }, 10000);
+  }
+
+  /**
+   * Check database cache hit ratio and create alerts if needed
+   * REQ: REQ-P0-1768072324474-mqj8f
+   * Target: 95%+ (WARNING at 90-95%, CRITICAL below 90%)
+   */
+  async checkCacheHitRatio(tenantId: string = '00000000-0000-0000-0000-000000000000'): Promise<{
+    cacheHitRatio: number;
+    status: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+    alert?: any;
+  }> {
+    try {
+      const result = await this.db.query(`
+        SELECT
+          ROUND(
+            (SUM(heap_blks_hit)::NUMERIC / NULLIF(SUM(heap_blks_hit + heap_blks_read), 0)) * 100,
+            2
+          ) AS cache_hit_ratio
+        FROM pg_statio_user_tables
+      `);
+
+      const cacheHitRatio = parseFloat(result.rows[0]?.cache_hit_ratio || '100');
+
+      if (cacheHitRatio < 90) {
+        // CRITICAL alert
+        const alert = {
+          name: 'DatabaseCacheHitRatioCritical',
+          severity: 'critical' as const,
+          source: 'PerformanceMetricsService',
+          message: `Database cache hit ratio is critically low: ${cacheHitRatio}% (target: 95%+)`,
+          labels: {
+            component: 'database',
+            metric: 'cache_hit_ratio',
+            severity_level: 'critical'
+          },
+          annotations: {
+            cache_hit_ratio: cacheHitRatio.toString(),
+            threshold: '95',
+            recommendation: 'Consider increasing shared_buffers or investigating query patterns. Current setting: 256MB'
+          },
+          startsAt: new Date(),
+          fingerprint: `cache-hit-ratio-critical-${Math.floor(cacheHitRatio)}`
+        };
+
+        console.log('[PerformanceMetrics] CRITICAL: Cache hit ratio:', cacheHitRatio + '%');
+
+        return {
+          cacheHitRatio,
+          status: 'CRITICAL',
+          alert
+        };
+      } else if (cacheHitRatio < 95) {
+        // WARNING alert
+        const alert = {
+          name: 'DatabaseCacheHitRatioLow',
+          severity: 'warning' as const,
+          source: 'PerformanceMetricsService',
+          message: `Database cache hit ratio is below target: ${cacheHitRatio}% (target: 95%+)`,
+          labels: {
+            component: 'database',
+            metric: 'cache_hit_ratio',
+            severity_level: 'warning'
+          },
+          annotations: {
+            cache_hit_ratio: cacheHitRatio.toString(),
+            threshold: '95',
+            recommendation: 'Monitor query patterns and consider tuning shared_buffers if ratio continues to degrade'
+          },
+          startsAt: new Date(),
+          fingerprint: `cache-hit-ratio-warning-${Math.floor(cacheHitRatio)}`
+        };
+
+        console.log('[PerformanceMetrics] WARNING: Cache hit ratio:', cacheHitRatio + '%');
+
+        return {
+          cacheHitRatio,
+          status: 'WARNING',
+          alert
+        };
+      }
+
+      // Healthy state
+      return {
+        cacheHitRatio,
+        status: 'HEALTHY'
+      };
+
+    } catch (error) {
+      console.error('[PerformanceMetrics] Failed to check cache hit ratio:', error);
+      throw error;
+    }
   }
 
   /**

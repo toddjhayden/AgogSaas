@@ -42,6 +42,45 @@ import {
 } from '../graphql/queries/predictiveMaintenance';
 import { toast } from 'react-hot-toast';
 
+// Type definitions for predictive maintenance data structures
+interface PredictiveMaintenanceAlert {
+  id: string;
+  alertType: string;
+  workCenterId: string;
+  predictedFailureMode: string;
+  failureProbability: number | null;
+  timeToFailureHours: number | null;
+  severity: string;
+  urgency: string;
+}
+
+interface EquipmentHealthScore {
+  id: string;
+  workCenterId: string;
+  overallHealthScore: number;
+  healthStatus: string;
+  trendDirection: string;
+  sensorHealthScore: number | null;
+  oeeHealthScore: number | null;
+  anomalyDetected: boolean;
+}
+
+interface MaintenanceRecommendation {
+  id: string;
+  recommendationType: string;
+  workCenterId: string;
+  currentMaintenanceStrategy: string;
+  recommendedMaintenanceStrategy: string;
+  projectedCostSavings: number | null;
+  roiPercentage: number | null;
+  implementationPriority: string;
+}
+
+interface EquipmentByHealthStatus {
+  status: string;
+  count: number;
+}
+
 export const PredictiveMaintenanceDashboard: React.FC = () => {
   const { t } = useTranslation();
   const [selectedFacility, setSelectedFacility] = useState<string | null>(null);
@@ -164,7 +203,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Alert Type',
       accessorKey: 'alertType',
-      cell: (row: unknown) => (
+      cell: (row: PredictiveMaintenanceAlert) => (
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />
           <span className="font-medium">{row.alertType?.replace(/_/g, ' ')}</span>
@@ -174,7 +213,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Equipment',
       accessorKey: 'workCenterId',
-      cell: (row: unknown) => <span className="text-sm">{row.workCenterId}</span>,
+      cell: (row: PredictiveMaintenanceAlert) => <span className="text-sm">{row.workCenterId}</span>,
     },
     {
       header: 'Failure Mode',
@@ -183,7 +222,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Probability',
       accessorKey: 'failureProbability',
-      cell: (row: unknown) =>
+      cell: (row: PredictiveMaintenanceAlert) =>
         row.failureProbability ? (
           <Badge variant="outline">{(row.failureProbability * 100).toFixed(1)}%</Badge>
         ) : (
@@ -193,7 +232,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Time to Failure',
       accessorKey: 'timeToFailureHours',
-      cell: (row: unknown) =>
+      cell: (row: PredictiveMaintenanceAlert) =>
         row.timeToFailureHours ? (
           <div className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
@@ -206,21 +245,21 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Severity',
       accessorKey: 'severity',
-      cell: (row: unknown) => (
-        <Badge variant={getSeverityColor(row.severity) as unknown}>{row.severity}</Badge>
+      cell: (row: PredictiveMaintenanceAlert) => (
+        <Badge variant={getSeverityColor(row.severity) as 'default' | 'secondary' | 'destructive' | 'outline'}>{row.severity}</Badge>
       ),
     },
     {
       header: 'Urgency',
       accessorKey: 'urgency',
-      cell: (row: unknown) => (
-        <Badge variant={getUrgencyColor(row.urgency) as unknown}>{row.urgency}</Badge>
+      cell: (row: PredictiveMaintenanceAlert) => (
+        <Badge variant={getUrgencyColor(row.urgency) as 'default' | 'secondary' | 'destructive' | 'outline'}>{row.urgency}</Badge>
       ),
     },
     {
       header: 'Actions',
       accessorKey: 'id',
-      cell: (row: unknown) => (
+      cell: (row: PredictiveMaintenanceAlert) => (
         <Button
           size="sm"
           variant="outline"
@@ -238,12 +277,12 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Equipment',
       accessorKey: 'workCenterId',
-      cell: (row: unknown) => <span className="font-medium">{row.workCenterId}</span>,
+      cell: (row: EquipmentHealthScore) => <span className="font-medium">{row.workCenterId}</span>,
     },
     {
       header: 'Overall Health',
       accessorKey: 'overallHealthScore',
-      cell: (row: unknown) => (
+      cell: (row: EquipmentHealthScore) => (
         <div className="flex items-center gap-2">
           <div className="flex-1 bg-gray-200 rounded-full h-2">
             <div
@@ -266,8 +305,8 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Status',
       accessorKey: 'healthStatus',
-      cell: (row: unknown) => (
-        <Badge variant={getHealthStatusColor(row.healthStatus) as unknown}>
+      cell: (row: EquipmentHealthScore) => (
+        <Badge variant={getHealthStatusColor(row.healthStatus) as 'default' | 'secondary' | 'destructive' | 'outline'}>
           {row.healthStatus}
         </Badge>
       ),
@@ -275,7 +314,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Trend',
       accessorKey: 'trendDirection',
-      cell: (row: unknown) =>
+      cell: (row: EquipmentHealthScore) =>
         row.trendDirection === 'IMPROVING' ? (
           <div className="flex items-center gap-1 text-green-600">
             <TrendingUp className="h-4 w-4" />
@@ -294,21 +333,21 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Sensor Health',
       accessorKey: 'sensorHealthScore',
-      cell: (row: unknown) => (
+      cell: (row: EquipmentHealthScore) => (
         <span className="text-sm">{row.sensorHealthScore?.toFixed(0) || '-'}</span>
       ),
     },
     {
       header: 'OEE Health',
       accessorKey: 'oeeHealthScore',
-      cell: (row: unknown) => (
+      cell: (row: EquipmentHealthScore) => (
         <span className="text-sm">{row.oeeHealthScore?.toFixed(0) || '-'}</span>
       ),
     },
     {
       header: 'Anomaly',
       accessorKey: 'anomalyDetected',
-      cell: (row: unknown) =>
+      cell: (row: EquipmentHealthScore) =>
         row.anomalyDetected ? (
           <Badge variant="destructive">
             <Bell className="h-3 w-3 mr-1" />
@@ -325,7 +364,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Type',
       accessorKey: 'recommendationType',
-      cell: (row: unknown) => (
+      cell: (row: MaintenanceRecommendation) => (
         <Badge variant="outline">{row.recommendationType?.replace(/_/g, ' ')}</Badge>
       ),
     },
@@ -344,7 +383,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Cost Savings',
       accessorKey: 'projectedCostSavings',
-      cell: (row: unknown) =>
+      cell: (row: MaintenanceRecommendation) =>
         row.projectedCostSavings ? (
           <span className="font-medium text-green-600">
             ${row.projectedCostSavings.toLocaleString()}
@@ -356,7 +395,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'ROI',
       accessorKey: 'roiPercentage',
-      cell: (row: unknown) =>
+      cell: (row: MaintenanceRecommendation) =>
         row.roiPercentage ? (
           <Badge variant="default">{row.roiPercentage.toFixed(1)}%</Badge>
         ) : (
@@ -366,7 +405,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Priority',
       accessorKey: 'implementationPriority',
-      cell: (row: unknown) => (
+      cell: (row: MaintenanceRecommendation) => (
         <Badge
           variant={
             row.implementationPriority === 'URGENT' ? 'destructive' : 'default'
@@ -379,7 +418,7 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
     {
       header: 'Actions',
       accessorKey: 'id',
-      cell: (row: unknown) => (
+      cell: (row: MaintenanceRecommendation) => (
         <Button
           size="sm"
           variant="outline"
@@ -483,13 +522,13 @@ export const PredictiveMaintenanceDashboard: React.FC = () => {
               type="pie"
               data={{
                 labels: dashboard.equipmentByHealthStatus.map(
-                  (item: unknown) => item.status
+                  (item: EquipmentByHealthStatus) => item.status
                 ),
                 datasets: [
                   {
                     label: 'Equipment Count',
                     data: dashboard.equipmentByHealthStatus.map(
-                      (item: unknown) => item.count
+                      (item: EquipmentByHealthStatus) => item.count
                     ),
                     backgroundColor: [
                       '#10b981', // EXCELLENT - green

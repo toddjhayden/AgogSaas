@@ -4,13 +4,13 @@
  * Handles CRM notes attached to various entities
  */
 
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { Note, CreateNoteInput } from '../interfaces/crm.interfaces';
 
 @Injectable()
 export class NoteService {
-  constructor(private readonly pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly pool: Pool) {}
 
   /**
    * Create a new note

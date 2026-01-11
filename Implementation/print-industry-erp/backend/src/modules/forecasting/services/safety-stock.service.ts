@@ -330,7 +330,7 @@ export class SafetyStockService {
       };
     } catch (error) {
       // If receipts table doesn't exist or query fails, return default values
-      console.warn('Failed to fetch lead time statistics, using defaults:', error.message);
+      console.warn('Failed to fetch lead time statistics, using defaults:', (error instanceof Error ? error.message : String(error)));
       return {
         avgLeadTime: 14,
         stdDevLeadTime: 3

@@ -126,9 +126,9 @@ export class EstimatingResolver {
   // MUTATIONS - Operations
   // =====================================================
 
-  @Mutation('addOperation')
-  async addOperation(@Args('input') input: any) {
-    this.logger.log(`Mutation: addOperation to estimate ${input.estimateId}`);
+  @Mutation('addEstimateOperation')
+  async addEstimateOperation(@Args('input') input: any) {
+    this.logger.log(`Mutation: addEstimateOperation to estimate ${input.estimateId}`);
     const result = await this.estimatingService.addOperation(input);
 
     if (!result.success) {
@@ -138,13 +138,13 @@ export class EstimatingResolver {
     return result.operation;
   }
 
-  @Mutation('updateOperation')
-  async updateOperation(
+  @Mutation('updateEstimateOperation')
+  async updateEstimateOperation(
     @Args('operationId') operationId: string,
     @Args('tenantId') tenantId: string,
     @Args('input') input: any
   ) {
-    this.logger.log(`Mutation: updateOperation(${operationId})`);
+    this.logger.log(`Mutation: updateEstimateOperation(${operationId})`);
     const result = await this.estimatingService.updateOperation(operationId, tenantId, input);
 
     if (!result.success) {
@@ -154,12 +154,12 @@ export class EstimatingResolver {
     return result.operation;
   }
 
-  @Mutation('deleteOperation')
-  async deleteOperation(
+  @Mutation('deleteEstimateOperation')
+  async deleteEstimateOperation(
     @Args('operationId') operationId: string,
     @Args('tenantId') tenantId: string
   ) {
-    this.logger.log(`Mutation: deleteOperation(${operationId})`);
+    this.logger.log(`Mutation: deleteEstimateOperation(${operationId})`);
     return await this.estimatingService.deleteOperation(operationId, tenantId);
   }
 
@@ -167,9 +167,9 @@ export class EstimatingResolver {
   // MUTATIONS - Materials
   // =====================================================
 
-  @Mutation('addMaterial')
-  async addMaterial(@Args('input') input: any) {
-    this.logger.log(`Mutation: addMaterial to estimate ${input.estimateId}`);
+  @Mutation('addEstimateMaterial')
+  async addEstimateMaterial(@Args('input') input: any) {
+    this.logger.log(`Mutation: addEstimateMaterial to estimate ${input.estimateId}`);
     const result = await this.estimatingService.addMaterial(input);
 
     if (!result.success) {
@@ -179,28 +179,12 @@ export class EstimatingResolver {
     return result.material;
   }
 
-  @Mutation('updateMaterial')
-  async updateMaterial(
-    @Args('materialId') materialId: string,
-    @Args('tenantId') tenantId: string,
-    @Args('input') input: any
-  ) {
-    this.logger.log(`Mutation: updateMaterial(${materialId})`);
-    const result = await this.estimatingService.updateMaterial(materialId, tenantId, input);
-
-    if (!result.success) {
-      throw new Error(result.error);
-    }
-
-    return result.material;
-  }
-
-  @Mutation('deleteMaterial')
-  async deleteMaterial(
+  @Mutation('deleteEstimateMaterial')
+  async deleteEstimateMaterial(
     @Args('materialId') materialId: string,
     @Args('tenantId') tenantId: string
   ) {
-    this.logger.log(`Mutation: deleteMaterial(${materialId})`);
+    this.logger.log(`Mutation: deleteEstimateMaterial(${materialId})`);
     return await this.estimatingService.deleteMaterial(materialId, tenantId);
   }
 

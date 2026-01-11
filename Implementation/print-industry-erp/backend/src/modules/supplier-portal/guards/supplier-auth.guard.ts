@@ -5,7 +5,7 @@
  * REQ: REQ-STRATEGIC-AUTO-1767116143666 - Supply Chain Visibility & Supplier Portal
  */
 
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Inject } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { JwtService } from '@nestjs/jwt';
 import { Pool } from 'pg';
@@ -15,7 +15,7 @@ import { SupplierJwtPayload } from '../services/supplier-auth.service';
 export class SupplierAuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly dbPool: Pool,
+    @Inject('DATABASE_POOL') private readonly dbPool: Pool,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -85,9 +85,10 @@ export class SupplierAuthGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      if (error.name === 'TokenExpiredError') {
+      const errorName = error instanceof Error && 'name' in error ? (error as any).name : '';
+      if (errorName === 'TokenExpiredError') {
         throw new UnauthorizedException('Token has expired');
-      } else if (error.name === 'JsonWebTokenError') {
+      } else if (errorName === 'JsonWebTokenError') {
         throw new UnauthorizedException('Invalid token');
       }
       throw error;

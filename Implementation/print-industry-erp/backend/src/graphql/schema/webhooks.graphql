@@ -1,0 +1,280 @@
+# Webhook System Schema
+# REQ-1767925582664-n6du5
+
+# =====================================================
+# TYPES
+# =====================================================
+
+type WebhookSubscription {
+  id: ID!
+  tenantId: ID!
+  name: String!
+  description: String
+  endpointUrl: String!
+  isActive: Boolean!
+  eventTypes: [String!]!
+  eventFilters: JSON
+  secretKey: String!
+  signatureHeader: String!
+  signatureAlgorithm: String!
+  maxRetryAttempts: Int!
+  retryBackoffMultiplier: Float!
+  initialRetryDelaySeconds: Int!
+  maxRetryDelaySeconds: Int!
+  maxEventsPerMinute: Int
+  maxEventsPerHour: Int
+  maxEventsPerDay: Int
+  timeoutSeconds: Int!
+  customHeaders: JSON
+  totalEventsSent: Int!
+  totalEventsFailed: Int!
+  lastSuccessfulDeliveryAt: DateTime
+  lastFailedDeliveryAt: DateTime
+  consecutiveFailures: Int!
+  healthStatus: HealthStatus!
+  healthCheckedAt: DateTime
+  autoDisabledAt: DateTime
+  autoDisabledReason: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String!
+  updatedBy: String
+}
+
+type WebhookEvent {
+  id: ID!
+  tenantId: ID!
+  eventType: String!
+  eventVersion: String!
+  eventTimestamp: DateTime!
+  eventData: JSON!
+  eventMetadata: JSON
+  sourceEntityType: String
+  sourceEntityId: ID
+  totalSubscriptionsMatched: Int!
+  totalDeliveriesSucceeded: Int!
+  totalDeliveriesFailed: Int!
+  totalDeliveriesPending: Int!
+  createdAt: DateTime!
+}
+
+type WebhookDelivery {
+  id: ID!
+  tenantId: ID!
+  subscriptionId: ID!
+  eventId: ID!
+  attemptNumber: Int!
+  deliveryStatus: DeliveryStatus!
+  requestUrl: String!
+  requestHeaders: JSON
+  requestBody: JSON!
+  requestSignature: String
+  responseStatusCode: Int
+  responseHeaders: JSON
+  responseBody: String
+  responseTimeMs: Int
+  errorMessage: String
+  errorCode: String
+  errorDetails: JSON
+  nextRetryAt: DateTime
+  retryCount: Int!
+  sentAt: DateTime
+  completedAt: DateTime
+  createdAt: DateTime!
+}
+
+type WebhookEventType {
+  eventType: String!
+  category: String!
+  displayName: String!
+  description: String!
+  currentVersion: String!
+  deprecated: Boolean!
+  deprecatedAt: DateTime
+  replacementEventType: String
+  payloadSchema: JSON
+  examplePayload: JSON
+  isEnabled: Boolean!
+  totalEventsPublished: Int!
+  lastPublishedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type WebhookDeliveryLog {
+  id: ID!
+  tenantId: ID!
+  deliveryId: ID!
+  logLevel: LogLevel!
+  logMessage: String!
+  logData: JSON
+  createdAt: DateTime!
+}
+
+type WebhookStats {
+  totalSubscriptions: Int!
+  activeSubscriptions: Int!
+  totalEventsSent: Int!
+  totalEventsSucceeded: Int!
+  totalEventsFailed: Int!
+  averageResponseTimeMs: Float!
+  healthySubscriptions: Int!
+  degradedSubscriptions: Int!
+  failingSubscriptions: Int!
+  suspendedSubscriptions: Int!
+}
+
+type TestWebhookResponse {
+  success: Boolean!
+  statusCode: Int
+  responseTime: Int
+  error: String
+}
+
+# =====================================================
+# ENUMS
+# =====================================================
+
+enum HealthStatus {
+  HEALTHY
+  DEGRADED
+  FAILING
+  SUSPENDED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENDING
+  SUCCEEDED
+  FAILED
+  ABANDONED
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+# =====================================================
+# INPUT TYPES
+# =====================================================
+
+input CreateWebhookSubscriptionInput {
+  name: String!
+  description: String
+  endpointUrl: String!
+  eventTypes: [String!]!
+  eventFilters: JSON
+  maxRetryAttempts: Int
+  retryBackoffMultiplier: Float
+  initialRetryDelaySeconds: Int
+  maxRetryDelaySeconds: Int
+  maxEventsPerMinute: Int
+  maxEventsPerHour: Int
+  maxEventsPerDay: Int
+  timeoutSeconds: Int
+  customHeaders: JSON
+}
+
+input UpdateWebhookSubscriptionInput {
+  name: String
+  description: String
+  endpointUrl: String
+  eventTypes: [String!]
+  eventFilters: JSON
+  isActive: Boolean
+  maxRetryAttempts: Int
+  retryBackoffMultiplier: Float
+  initialRetryDelaySeconds: Int
+  maxRetryDelaySeconds: Int
+  maxEventsPerMinute: Int
+  maxEventsPerHour: Int
+  maxEventsPerDay: Int
+  timeoutSeconds: Int
+  customHeaders: JSON
+}
+
+input PublishWebhookEventInput {
+  eventType: String!
+  eventData: JSON!
+  eventMetadata: JSON
+  sourceEntityType: String
+  sourceEntityId: ID
+}
+
+input ListWebhookSubscriptionsInput {
+  isActive: Boolean
+  healthStatus: HealthStatus
+  eventType: String
+  limit: Int
+  offset: Int
+}
+
+input ListWebhookEventsInput {
+  eventType: String
+  sourceEntityType: String
+  sourceEntityId: ID
+  startDate: DateTime
+  endDate: DateTime
+  limit: Int
+  offset: Int
+}
+
+input ListWebhookDeliveriesInput {
+  subscriptionId: ID
+  eventId: ID
+  deliveryStatus: DeliveryStatus
+  startDate: DateTime
+  endDate: DateTime
+  limit: Int
+  offset: Int
+}
+
+# =====================================================
+# QUERIES
+# =====================================================
+
+type Query {
+  # Subscriptions
+  webhookSubscription(id: ID!): WebhookSubscription
+  webhookSubscriptions(input: ListWebhookSubscriptionsInput): [WebhookSubscription!]!
+
+  # Events
+  webhookEvent(id: ID!): WebhookEvent
+  webhookEvents(input: ListWebhookEventsInput): [WebhookEvent!]!
+
+  # Deliveries
+  webhookDelivery(id: ID!): WebhookDelivery
+  webhookDeliveries(input: ListWebhookDeliveriesInput): [WebhookDelivery!]!
+  webhookDeliveryLogs(deliveryId: ID!): [WebhookDeliveryLog!]!
+
+  # Event Types
+  webhookEventTypes(category: String): [WebhookEventType!]!
+  webhookEventType(eventType: String!): WebhookEventType
+
+  # Statistics
+  webhookStats: WebhookStats!
+}
+
+# =====================================================
+# MUTATIONS
+# =====================================================
+
+type Mutation {
+  # Subscription Management
+  createWebhookSubscription(input: CreateWebhookSubscriptionInput!): WebhookSubscription!
+  updateWebhookSubscription(id: ID!, input: UpdateWebhookSubscriptionInput!): WebhookSubscription!
+  deleteWebhookSubscription(id: ID!): Boolean!
+
+  # Subscription Actions
+  testWebhookSubscription(id: ID!): TestWebhookResponse!
+  regenerateWebhookSecret(id: ID!): String!
+
+  # Event Publishing
+  publishWebhookEvent(input: PublishWebhookEventInput!): WebhookEvent!
+
+  # Delivery Management
+  retryWebhookDelivery(id: ID!): Boolean!
+}

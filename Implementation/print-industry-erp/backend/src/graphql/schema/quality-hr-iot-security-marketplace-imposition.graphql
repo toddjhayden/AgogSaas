@@ -360,17 +360,33 @@ type IotDevice {
   manufacturer: String
   model: String
   serialNumber: String
+  firmwareVersion: String
+  ipAddress: String
+  macAddress: String
 
   connectionType: String
   connectionConfig: JSON
 
+  hardwareProfile: String
+
   isActive: Boolean!
+  isOnline: Boolean
   lastHeartbeat: DateTime
+  lastSyncTime: DateTime
+
+  healthStatus: String
+  cpuUsage: Float
+  memoryUsage: Float
+  diskUsage: Float
+  networkLatency: Float
+
+  tags: [String]
+  metadata: JSON
 
   createdAt: DateTime!
-  createdBy: ID
+  createdByUserId: ID
   updatedAt: DateTime
-  updatedBy: ID
+  updatedByUserId: ID
 }
 
 type SensorReading {
@@ -386,6 +402,10 @@ type SensorReading {
 
   productionRunId: ID
 
+  qualityStatus: String
+  alertThresholdMin: Float
+  alertThresholdMax: Float
+
   metadata: JSON
 
   createdAt: DateTime!
@@ -395,7 +415,7 @@ type EquipmentEvent {
   id: ID!
   tenantId: ID!
 
-  workCenterId: ID!
+  workCenterId: ID
   iotDeviceId: ID
 
   eventTimestamp: DateTime!
@@ -413,6 +433,7 @@ type EquipmentEvent {
   acknowledged: Boolean!
   acknowledgedByUserId: ID
   acknowledgedAt: DateTime
+  resolutionNotes: String
 
   createdAt: DateTime!
 }
@@ -422,6 +443,39 @@ enum EventSeverity {
   WARNING
   ERROR
   CRITICAL
+}
+
+type DeviceTypeCount {
+  deviceType: String!
+  count: Int!
+}
+
+type DeviceFacilityCount {
+  facilityId: ID!
+  facilityName: String
+  count: Int!
+}
+
+type IotDeviceStats {
+  totalDevices: Int!
+  activeDevices: Int!
+  onlineDevices: Int!
+  offlineDevices: Int!
+  healthyDevices: Int!
+  warningDevices: Int!
+  criticalDevices: Int!
+  devicesByType: [DeviceTypeCount!]!
+  devicesByFacility: [DeviceFacilityCount!]!
+  avgCpuUsage: Float
+  avgMemoryUsage: Float
+  avgDiskUsage: Float
+  avgNetworkLatency: Float
+}
+
+type OperationResult {
+  success: Boolean!
+  message: String
+  updatedCount: Int
 }
 
 # =====================================================
@@ -903,7 +957,18 @@ type Query {
     workCenterId: ID
     deviceType: String
     isActive: Boolean
+    healthStatus: String
+    searchTerm: String
+    limit: Int = 100
+    offset: Int = 0
   ): [IotDevice!]!
+
+  iotDevice(id: ID!): IotDevice
+
+  iotDeviceStats(
+    tenantId: ID!
+    facilityId: ID
+  ): IotDeviceStats
 
   sensorReadings(
     tenantId: ID!
@@ -918,6 +983,7 @@ type Query {
 
   equipmentEvents(
     tenantId: ID!
+    iotDeviceId: ID
     workCenterId: ID
     severity: EventSeverity
     acknowledged: Boolean
@@ -1115,13 +1181,53 @@ type Mutation {
     deviceName: String!
     deviceType: String
     workCenterId: ID
+    manufacturer: String
+    model: String
+    serialNumber: String
+    firmwareVersion: String
+    ipAddress: String
+    macAddress: String
+    connectionType: String
+    connectionConfig: JSON
+    hardwareProfile: String
+    tags: [String]
+    metadata: JSON
   ): IotDevice!
 
   updateIotDevice(
     id: ID!
     deviceName: String
     isActive: Boolean
+    manufacturer: String
+    model: String
+    serialNumber: String
+    firmwareVersion: String
+    ipAddress: String
+    macAddress: String
+    connectionType: String
+    connectionConfig: JSON
+    hardwareProfile: String
+    workCenterId: ID
+    tags: [String]
+    metadata: JSON
   ): IotDevice!
+
+  deleteIotDevice(id: ID!): OperationResult!
+
+  rebootIotDevice(id: ID!): IotDevice!
+
+  updateDeviceFirmware(
+    id: ID!
+    firmwareVersion: String!
+  ): IotDevice!
+
+  syncDeviceConfig(id: ID!): IotDevice!
+
+  bulkUpdateIotDevices(
+    deviceIds: [ID!]!
+    isActive: Boolean
+    tags: [String]
+  ): OperationResult!
 
   createSensorReading(
     tenantId: ID!
@@ -1134,6 +1240,7 @@ type Mutation {
   acknowledgeEquipmentEvent(
     id: ID!
     acknowledgedByUserId: ID!
+    resolutionNotes: String
   ): EquipmentEvent!
 
   # Security

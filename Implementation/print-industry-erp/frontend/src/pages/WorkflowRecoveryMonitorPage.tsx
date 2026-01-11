@@ -91,9 +91,9 @@ interface RetryState {
 interface DLQMessage {
   dlqId: string;
   source: DLQSource;
-  payload: any;
+  payload: Record<string, unknown>;
   error: string;
-  metadata: any;
+  metadata: Record<string, unknown>;
   status: DLQStatus;
   assignedTo?: string;
   resolution?: string;

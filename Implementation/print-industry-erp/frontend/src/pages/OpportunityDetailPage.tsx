@@ -103,7 +103,7 @@ export const OpportunityDetailPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state: { user: { id?: string } | null }) => state.user);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'history'>('overview');
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -200,7 +200,7 @@ export const OpportunityDetailPage: React.FC = () => {
   const notes: Note[] = notesData?.getNotesByOpportunity || [];
   const pipelineStages = stagesData?.getPipelineStages || [];
 
-  const currentStage = pipelineStages.find((s: unknown) => s.id === opportunity?.pipelineStageId);
+  const currentStage = pipelineStages.find((s: { id: string; stageName: string }) => s.id === opportunity?.pipelineStageId);
 
   const resetActivityForm = () => {
     setActivityFormData({

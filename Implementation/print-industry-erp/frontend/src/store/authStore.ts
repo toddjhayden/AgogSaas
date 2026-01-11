@@ -301,8 +301,8 @@ useAuthStore.getState()._initCrossTabSync();
 
 // Setup global accessors for Apollo Client (to avoid circular dependency)
 if (typeof window !== 'undefined') {
-  (window as unknown).__getAccessToken = () => useAuthStore.getState().accessToken;
-  (window as unknown).__refreshAccessToken = () => useAuthStore.getState().refreshAccessToken();
+  (window as unknown as { __getAccessToken: () => string | null }).__getAccessToken = () => useAuthStore.getState().accessToken;
+  (window as unknown as { __refreshAccessToken: () => Promise<boolean> }).__refreshAccessToken = () => useAuthStore.getState().refreshAccessToken();
 }
 
 // Auto-refresh token before expiration

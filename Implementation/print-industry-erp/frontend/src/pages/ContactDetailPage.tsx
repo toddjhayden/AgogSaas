@@ -103,7 +103,7 @@ export const ContactDetailPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state: { user: { id?: string } | null }) => state.user);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes'>('overview');
   const [showActivityModal, setShowActivityModal] = useState(false);

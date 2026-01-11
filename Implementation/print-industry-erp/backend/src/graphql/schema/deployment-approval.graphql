@@ -1,7 +1,5 @@
-"""
-Deployment Approval Workflow Schema
-Manages approval workflows for production deployments
-"""
+# Deployment Approval Workflow Schema
+# Manages approval workflows for production deployments
 
 """
 Deployment represents a deployment request that requires approval

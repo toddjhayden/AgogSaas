@@ -118,7 +118,7 @@ export const ErrorFixMappingCard: FC<ErrorFixMappingCardProps> = ({ lastRefresh 
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): 'success' | 'primary' | 'warning' | 'default' => {
     switch (status) {
       case 'HAS_FIX':
         return 'success';
@@ -202,7 +202,7 @@ export const ErrorFixMappingCard: FC<ErrorFixMappingCardProps> = ({ lastRefresh 
                       <Chip
                         icon={getStatusIcon(mapping.status) || undefined}
                         label={mapping.reqId}
-                        color={getStatusColor(mapping.status) as unknown}
+                        color={getStatusColor(mapping.status)}
                         size="small"
                       />
                     </Box>

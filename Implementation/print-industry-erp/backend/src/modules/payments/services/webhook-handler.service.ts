@@ -9,7 +9,7 @@
  * - Payment method updates
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import Stripe from 'stripe';
 import { StripeGatewayService } from './stripe-gateway.service';
@@ -26,7 +26,7 @@ export class WebhookHandlerService {
   private readonly logger = new Logger(WebhookHandlerService.name);
 
   constructor(
-    private readonly db: Pool,
+    @Inject('DATABASE_POOL') private readonly db: Pool,
     private readonly stripeGateway: StripeGatewayService,
     private readonly paymentService: PaymentService,
   ) {}
@@ -96,7 +96,7 @@ export class WebhookHandlerService {
       this.logger.log(`Webhook event processed successfully: ${event.type} (${event.id})`);
 
     } catch (error) {
-      this.logger.error(`Webhook processing failed: ${error.message}`, error.stack);
+      this.logger.error(`Webhook processing failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`, (error instanceof Error ? error.stack : undefined));
       throw error;
     } finally {
       client.release();

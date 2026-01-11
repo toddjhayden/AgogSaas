@@ -1106,11 +1106,11 @@ export class WMSResolver {
 
     } catch (error) {
       // Error has already been logged by orchestrator
-      console.error(`Failed to manifest shipment ${id}:`, error.message);
+      console.error(`Failed to manifest shipment ${id}:`, (error instanceof Error ? error.message : String(error)));
 
       // Return user-friendly error message
       throw new Error(
-        error.message || `Failed to manifest shipment ${id}. Please check shipment details and try again.`
+        (error instanceof Error ? error.message : String(error)) || `Failed to manifest shipment ${id}. Please check shipment details and try again.`
       );
     }
   }

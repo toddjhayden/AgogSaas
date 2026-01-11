@@ -22,7 +22,9 @@ export class WorkflowPersistenceService {
   private pool: Pool;
 
   constructor() {
-    const dbUrl = process.env.DATABASE_URL || 'postgresql://agent_user:agent_dev_password_2024@agent-postgres:5432/agent_memory';
+    // Use DATABASE_URL if set (for Docker), otherwise use localhost:5434 (external port mapping)
+    const dbUrl = process.env.DATABASE_URL ||
+      'postgresql://agent_user:agent_dev_password_2024@localhost:5434/agent_memory';
     this.pool = new Pool({ connectionString: dbUrl });
   }
 
@@ -116,7 +118,7 @@ export class WorkflowPersistenceService {
     const query = `
       UPDATE agent_workflows
       SET status = 'blocked',
-          metadata = metadata || jsonb_build_object('block_reason', $2),
+          metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('block_reason', $2::text),
           updated_at = NOW()
       WHERE req_number = $1
     `;

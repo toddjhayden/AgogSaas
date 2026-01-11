@@ -27,6 +27,11 @@ import {
   EstimateMaterialResult,
   EstimateListResult,
   EstimateStatus,
+  OperationType,
+  DependencyType,
+  CostCalculationMethod,
+  MaterialCategory,
+  CostSource,
 } from '../interfaces/estimating.interface';
 
 @Injectable()
@@ -113,12 +118,13 @@ export class EstimatingService {
         success: true,
         estimate: this.mapEstimate(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error creating estimate: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error creating estimate: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -148,11 +154,12 @@ export class EstimatingService {
         success: true,
         estimate: this.mapEstimate(result.rows[0]),
       };
-    } catch (error) {
-      this.logger.error(`Error getting estimate: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting estimate: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -180,11 +187,12 @@ export class EstimatingService {
         success: true,
         estimate: this.mapEstimate(result.rows[0]),
       };
-    } catch (error) {
-      this.logger.error(`Error getting estimate by number: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting estimate by number: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -262,8 +270,9 @@ export class EstimatingService {
         estimates: result.rows.map(row => this.mapEstimate(row)),
         totalCount,
       };
-    } catch (error) {
-      this.logger.error(`Error listing estimates: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error listing estimates: ${errorMessage}`);
       return {
         estimates: [],
         totalCount: 0,
@@ -382,12 +391,13 @@ export class EstimatingService {
         success: true,
         estimate: this.mapEstimate(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error updating estimate: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error updating estimate: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -414,8 +424,9 @@ export class EstimatingService {
       }
 
       return false;
-    } catch (error) {
-      this.logger.error(`Error deleting estimate: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error deleting estimate: ${errorMessage}`);
       return false;
     }
   }
@@ -505,12 +516,13 @@ export class EstimatingService {
         success: true,
         operation: this.mapEstimateOperation(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error adding operation: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error adding operation: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -649,12 +661,13 @@ export class EstimatingService {
         success: true,
         operation: this.mapEstimateOperation(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error updating operation: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error updating operation: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -698,9 +711,10 @@ export class EstimatingService {
 
       this.logger.log(`Deleted operation ${operationId}`);
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error deleting operation: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error deleting operation: ${errorMessage}`);
       return false;
     } finally {
       client.release();
@@ -783,12 +797,13 @@ export class EstimatingService {
         success: true,
         material: this.mapEstimateMaterial(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error adding material: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error adding material: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -880,12 +895,13 @@ export class EstimatingService {
         success: true,
         material: this.mapEstimateMaterial(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error updating material: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error updating material: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -929,9 +945,10 @@ export class EstimatingService {
 
       this.logger.log(`Deleted material ${materialId}`);
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error deleting material: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error deleting material: ${errorMessage}`);
       return false;
     } finally {
       client.release();
@@ -955,8 +972,9 @@ export class EstimatingService {
       await client.query('SELECT rollup_estimate_costs($1, $2)', [estimateId, tenantId]);
 
       this.logger.log(`Recalculated costs for estimate ${estimateId}`);
-    } catch (error) {
-      this.logger.error(`Error recalculating estimate costs: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error recalculating estimate costs: ${errorMessage}`);
       throw error;
     }
   }
@@ -991,12 +1009,13 @@ export class EstimatingService {
         success: true,
         estimate: this.mapEstimate(result.rows[0]),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Error recalculating estimate: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error recalculating estimate: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     } finally {
       client.release();
@@ -1038,11 +1057,12 @@ export class EstimatingService {
         success: true,
         estimate: this.mapEstimate(result.rows[0]),
       };
-    } catch (error) {
-      this.logger.error(`Error approving estimate: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error approving estimate: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -1082,11 +1102,12 @@ export class EstimatingService {
         success: true,
         estimate: this.mapEstimate(result.rows[0]),
       };
-    } catch (error) {
-      this.logger.error(`Error rejecting estimate: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error rejecting estimate: ${errorMessage}`);
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }

@@ -456,7 +456,7 @@ input DateRangeInput {
 
 type Query {
   # Control chart data retrieval
-  spcControlChartData(filter: SPCChartDataFilterInput!): [SPCControlChartDataPoint!]! @complexity(value: 10, multipliers: ["filter.limit"])
+  spcControlChartData(filter: SPCChartDataFilterInput!): [SPCControlChartDataPoint!]!
 
   # Control limits
   spcControlLimits(

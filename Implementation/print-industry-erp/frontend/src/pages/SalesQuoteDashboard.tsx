@@ -108,7 +108,7 @@ const SalesQuoteDashboard: React.FC = () => {
   };
 
   // Table columns
-  const columns: ColumnDef<Quote, any>[] = [
+  const columns: ColumnDef<Quote, unknown>[] = [
     {
       id: 'quoteNumber',
       header: t('salesQuotes.quoteNumber'),

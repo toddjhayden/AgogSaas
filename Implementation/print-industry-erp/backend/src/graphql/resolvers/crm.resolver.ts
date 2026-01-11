@@ -42,7 +42,10 @@ export class CrmResolver {
   // =====================================================
 
   @Query('getContact')
-  async getContact(@Args('id') id: string, @Context() context: any) {
+  async getContact(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.contactService.getContactById(tenantId, id);
   }
@@ -50,7 +53,7 @@ export class CrmResolver {
   @Query('getContactsByCustomer')
   async getContactsByCustomer(
     @Args('customerId') customerId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.contactService.getContactsByCustomer(tenantId, customerId);
@@ -59,7 +62,7 @@ export class CrmResolver {
   @Query('getContactsByOwner')
   async getContactsByOwner(
     @Args('ownerUserId') ownerUserId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.contactService.getContactsByOwner(tenantId, ownerUserId);
@@ -68,7 +71,7 @@ export class CrmResolver {
   @Query('searchContacts')
   async searchContacts(
     @Args('searchTerm') searchTerm: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.contactService.searchContacts(tenantId, searchTerm);
@@ -77,10 +80,10 @@ export class CrmResolver {
   @Query('getContactsRequiringFollowUp')
   async getContactsRequiringFollowUp(
     @Args('ownerUserId') ownerUserId: string | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
-    return this.contactService.getContactsRequiringFollowUp(tenantId, ownerUserId);
+    return this.contactService.getContactsRequiringFollowUp(tenantId, ownerUserId ?? undefined);
   }
 
   // =====================================================
@@ -88,13 +91,18 @@ export class CrmResolver {
   // =====================================================
 
   @Query('getPipelineStages')
-  async getPipelineStages(@Context() context: any) {
+  async getPipelineStages(
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.pipelineStageService.getPipelineStages(tenantId);
   }
 
   @Query('getPipelineStage')
-  async getPipelineStage(@Args('id') id: string, @Context() context: any) {
+  async getPipelineStage(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.pipelineStageService.getPipelineStageById(tenantId, id);
   }
@@ -104,7 +112,10 @@ export class CrmResolver {
   // =====================================================
 
   @Query('getOpportunity')
-  async getOpportunity(@Args('id') id: string, @Context() context: any) {
+  async getOpportunity(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.opportunityService.getOpportunityById(tenantId, id);
   }
@@ -112,7 +123,7 @@ export class CrmResolver {
   @Query('getOpportunitiesByCustomer')
   async getOpportunitiesByCustomer(
     @Args('customerId') customerId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.opportunityService.getOpportunitiesByCustomer(tenantId, customerId);
@@ -122,16 +133,16 @@ export class CrmResolver {
   async getOpportunitiesByOwner(
     @Args('ownerUserId') ownerUserId: string,
     @Args('status') status: string | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
-    return this.opportunityService.getOpportunitiesByOwner(tenantId, ownerUserId, status);
+    return this.opportunityService.getOpportunitiesByOwner(tenantId, ownerUserId, status ?? undefined);
   }
 
   @Query('getOpportunitiesByStage')
   async getOpportunitiesByStage(
     @Args('pipelineStageId') pipelineStageId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.opportunityService.getOpportunitiesByStage(tenantId, pipelineStageId);
@@ -140,25 +151,25 @@ export class CrmResolver {
   @Query('getPipelineSummary')
   async getPipelineSummary(
     @Args('ownerUserId') ownerUserId: string | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
-    return this.opportunityService.getPipelineSummary(tenantId, ownerUserId);
+    return this.opportunityService.getPipelineSummary(tenantId, ownerUserId ?? undefined);
   }
 
   @Query('getOpportunitiesRequiringAction')
   async getOpportunitiesRequiringAction(
     @Args('ownerUserId') ownerUserId: string | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
-    return this.opportunityService.getOpportunitiesRequiringAction(tenantId, ownerUserId);
+    return this.opportunityService.getOpportunitiesRequiringAction(tenantId, ownerUserId ?? undefined);
   }
 
   @Query('getOpportunityStageHistory')
   async getOpportunityStageHistory(
     @Args('opportunityId') opportunityId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.opportunityService.getStageHistory(tenantId, opportunityId);
@@ -169,7 +180,10 @@ export class CrmResolver {
   // =====================================================
 
   @Query('getActivity')
-  async getActivity(@Args('id') id: string, @Context() context: any) {
+  async getActivity(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.activityService.getActivityById(tenantId, id);
   }
@@ -177,7 +191,7 @@ export class CrmResolver {
   @Query('getActivitiesByOpportunity')
   async getActivitiesByOpportunity(
     @Args('opportunityId') opportunityId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.activityService.getActivitiesByOpportunity(tenantId, opportunityId);
@@ -186,7 +200,7 @@ export class CrmResolver {
   @Query('getActivitiesByContact')
   async getActivitiesByContact(
     @Args('contactId') contactId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.activityService.getActivitiesByContact(tenantId, contactId);
@@ -195,7 +209,7 @@ export class CrmResolver {
   @Query('getActivitiesByCustomer')
   async getActivitiesByCustomer(
     @Args('customerId') customerId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.activityService.getActivitiesByCustomer(tenantId, customerId);
@@ -205,7 +219,7 @@ export class CrmResolver {
   async getActivitiesByOwner(
     @Args('ownerUserId') ownerUserId: string,
     @Args('limit') limit: number | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.activityService.getActivitiesByOwner(tenantId, ownerUserId, limit || 50);
@@ -215,10 +229,10 @@ export class CrmResolver {
   async getRecentActivities(
     @Args('ownerUserId') ownerUserId: string | null,
     @Args('limit') limit: number | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
-    return this.activityService.getRecentActivities(tenantId, ownerUserId, limit || 20);
+    return this.activityService.getRecentActivities(tenantId, ownerUserId ?? undefined, limit || 20);
   }
 
   @Query('getActivitySummary')
@@ -226,7 +240,7 @@ export class CrmResolver {
     @Args('ownerUserId') ownerUserId: string,
     @Args('startDate') startDate: Date,
     @Args('endDate') endDate: Date,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     return this.activityService.getActivitySummary(tenantId, ownerUserId, startDate, endDate);
@@ -237,7 +251,10 @@ export class CrmResolver {
   // =====================================================
 
   @Query('getNote')
-  async getNote(@Args('id') id: string, @Context() context: any) {
+  async getNote(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     return this.noteService.getNoteById(tenantId, id, userId);
@@ -246,7 +263,7 @@ export class CrmResolver {
   @Query('getNotesByOpportunity')
   async getNotesByOpportunity(
     @Args('opportunityId') opportunityId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -256,7 +273,7 @@ export class CrmResolver {
   @Query('getNotesByContact')
   async getNotesByContact(
     @Args('contactId') contactId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -266,7 +283,7 @@ export class CrmResolver {
   @Query('getNotesByCustomer')
   async getNotesByCustomer(
     @Args('customerId') customerId: string,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -280,7 +297,7 @@ export class CrmResolver {
   @Mutation('createContact')
   async createContact(
     @Args('input') input: CreateContactInput,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -290,7 +307,7 @@ export class CrmResolver {
   @Mutation('updateContact')
   async updateContact(
     @Args('input') input: UpdateContactInput,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -298,7 +315,10 @@ export class CrmResolver {
   }
 
   @Mutation('deleteContact')
-  async deleteContact(@Args('id') id: string, @Context() context: any) {
+  async deleteContact(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     await this.contactService.deleteContact(tenantId, id, userId);
@@ -312,7 +332,7 @@ export class CrmResolver {
   @Mutation('createOpportunity')
   async createOpportunity(
     @Args('input') input: CreateOpportunityInput,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -322,7 +342,7 @@ export class CrmResolver {
   @Mutation('updateOpportunity')
   async updateOpportunity(
     @Args('input') input: UpdateOpportunityInput,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -330,7 +350,10 @@ export class CrmResolver {
   }
 
   @Mutation('deleteOpportunity')
-  async deleteOpportunity(@Args('id') id: string, @Context() context: any) {
+  async deleteOpportunity(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     await this.opportunityService.deleteOpportunity(tenantId, id, userId);
@@ -344,7 +367,7 @@ export class CrmResolver {
   @Mutation('createActivity')
   async createActivity(
     @Args('input') input: CreateActivityInput,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
@@ -356,15 +379,18 @@ export class CrmResolver {
     @Args('id') id: string,
     @Args('outcome') outcome: string | null,
     @Args('nextSteps') nextSteps: string | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
-    return this.activityService.markActivityCompleted(tenantId, id, userId, outcome, nextSteps);
+    return this.activityService.markActivityCompleted(tenantId, id, userId, outcome ?? undefined, nextSteps ?? undefined);
   }
 
   @Mutation('deleteActivity')
-  async deleteActivity(@Args('id') id: string, @Context() context: any) {
+  async deleteActivity(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     await this.activityService.deleteActivity(tenantId, id, userId);
@@ -376,7 +402,10 @@ export class CrmResolver {
   // =====================================================
 
   @Mutation('createNote')
-  async createNote(@Args('input') input: CreateNoteInput, @Context() context: any) {
+  async createNote(
+    @Args('input') input: CreateNoteInput,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     return this.noteService.createNote(tenantId, userId, input);
@@ -387,22 +416,28 @@ export class CrmResolver {
     @Args('id') id: string,
     @Args('noteContent') noteContent: string,
     @Args('noteTitle') noteTitle: string | null,
-    @Context() context: any,
+    @Context() context: any
   ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
-    return this.noteService.updateNote(tenantId, id, userId, noteContent, noteTitle);
+    return this.noteService.updateNote(tenantId, id, userId, noteContent, noteTitle ?? undefined);
   }
 
   @Mutation('togglePinNote')
-  async togglePinNote(@Args('id') id: string, @Context() context: any) {
+  async togglePinNote(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     return this.noteService.togglePinNote(tenantId, id, userId);
   }
 
   @Mutation('deleteNote')
-  async deleteNote(@Args('id') id: string, @Context() context: any) {
+  async deleteNote(
+    @Args('id') id: string,
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     await this.noteService.deleteNote(tenantId, id, userId);
@@ -414,7 +449,9 @@ export class CrmResolver {
   // =====================================================
 
   @Mutation('initializeDefaultPipelineStages')
-  async initializeDefaultPipelineStages(@Context() context: any) {
+  async initializeDefaultPipelineStages(
+    @Context() context: any
+  ) {
     const tenantId = context.req.headers['x-tenant-id'];
     const userId = context.req.user?.id || context.req.headers['x-user-id'];
     await this.pipelineStageService.initializeDefaultStages(tenantId, userId);

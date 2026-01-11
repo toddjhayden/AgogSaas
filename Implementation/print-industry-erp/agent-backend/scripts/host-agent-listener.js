@@ -98,7 +98,7 @@ async function generateEmbedding(text) {
 const sc = (0, nats_1.StringCodec)();
 class HostAgentListener {
     constructor() {
-        this.maxConcurrent = 4; // Allow 4 agents to run simultaneously (e.g., Dashboard Research + Item Research + Dashboard Backend + Item Critique)
+        this.maxConcurrent = 6; // Allow 6 agents to run simultaneously (increased from 4 for better throughput)
         this.activeAgents = 0;
         this.isRunning = true;
     }

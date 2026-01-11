@@ -5,7 +5,7 @@
  * Handles AR/AP invoice creation with GL posting
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import {
   CreateInvoiceDto,
@@ -34,7 +34,7 @@ export class InvoiceService {
   private readonly logger = new Logger(InvoiceService.name);
 
   constructor(
-    private readonly db: Pool,
+    @Inject('DATABASE_POOL') private readonly db: Pool,
     private readonly journalEntryService: JournalEntryService,
   ) {}
 
@@ -157,7 +157,9 @@ export class InvoiceService {
       return this.mapInvoiceRow(invoice);
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error(`Failed to create invoice: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to create invoice: ${errorMessage}`, errorStack);
       throw error;
     } finally {
       client.release();
@@ -179,7 +181,7 @@ export class InvoiceService {
 
       // Get invoice
       const invoiceResult = await client.query(
-        `SELECT * FROM invoices WHERE id = $1 AND deleted_at IS NULL`,
+        `SELECT * FROM invoices WHERE id = $1`,
         [invoiceId],
       );
 
@@ -218,7 +220,9 @@ export class InvoiceService {
       return this.mapInvoiceRow(updateResult.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error(`Failed to update invoice: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to update invoice: ${errorMessage}`, errorStack);
       throw error;
     } finally {
       client.release();
@@ -240,7 +244,7 @@ export class InvoiceService {
 
       // Get invoice
       const invoiceResult = await client.query(
-        `SELECT * FROM invoices WHERE id = $1 AND deleted_at IS NULL`,
+        `SELECT * FROM invoices WHERE id = $1`,
         [invoiceId],
       );
 
@@ -294,7 +298,9 @@ export class InvoiceService {
       return this.mapInvoiceRow(voidResult.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error(`Failed to void invoice: ${error.message}`, error.stack);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to void invoice: ${errorMessage}`, errorStack);
       throw error;
     } finally {
       client.release();

@@ -5,7 +5,7 @@
  * Handles payment processing and application to invoices
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import {
   CreatePaymentDto,
@@ -29,7 +29,7 @@ export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
 
   constructor(
-    private readonly db: Pool,
+    @Inject('DATABASE_POOL') private readonly db: Pool,
     private readonly journalEntryService: JournalEntryService,
   ) {}
 
@@ -108,7 +108,7 @@ export class PaymentService {
       return this.mapPaymentRow(paymentResult.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error(`Failed to create payment: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create payment: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`, (error instanceof Error ? error.stack : undefined));
       throw error;
     } finally {
       client.release();
@@ -154,7 +154,7 @@ export class PaymentService {
   ): Promise<PaymentApplication> {
     // Get payment
     const paymentResult = await client.query(
-      `SELECT * FROM payments WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT * FROM payments WHERE id = $1`,
       [paymentId],
     );
     if (paymentResult.rows.length === 0) {
@@ -164,7 +164,7 @@ export class PaymentService {
 
     // Get invoice
     const invoiceResult = await client.query(
-      `SELECT * FROM invoices WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT * FROM invoices WHERE id = $1`,
       [invoiceId],
     );
     if (invoiceResult.rows.length === 0) {

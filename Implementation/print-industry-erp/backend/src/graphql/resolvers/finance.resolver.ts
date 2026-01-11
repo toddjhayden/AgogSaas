@@ -4,8 +4,28 @@ import { Pool } from 'pg';
 import { InvoiceService } from '../../modules/finance/services/invoice.service';
 import { PaymentService } from '../../modules/finance/services/payment.service';
 import { JournalEntryService } from '../../modules/finance/services/journal-entry.service';
+import { CostAllocationService } from '../../modules/finance/services/cost-allocation.service';
+import { CacheService, CacheTTL } from '../../cache/services/cache.service';
+import { CacheKeyService } from '../../cache/services/cache-key.service';
+import { CacheInvalidationService } from '../../cache/services/cache-invalidation.service';
 import { CreateInvoiceDto, UpdateInvoiceDto, VoidInvoiceDto } from '../../modules/finance/dto/invoice.dto';
 import { CreatePaymentDto, ApplyPaymentDto } from '../../modules/finance/dto/payment.dto';
+import type {
+  CreateCostPoolInput,
+  UpdateCostPoolInput,
+  CreateCostDriverInput,
+  UpdateCostDriverInput,
+  CreateAllocationRuleInput,
+  UpdateAllocationRuleInput,
+  CreateDriverMeasurementInput,
+  RunAllocationInput,
+  CostPoolFilters,
+  CostDriverFilters,
+  AllocationRuleFilters,
+  AllocationRunFilters,
+  JobCostAllocationFilters,
+  DriverMeasurementFilters,
+} from '../../modules/finance/interfaces/cost-allocation.interface';
 
 /**
  * Finance GraphQL Resolver
@@ -29,6 +49,10 @@ export class FinanceResolver {
     private readonly invoiceService: InvoiceService,
     private readonly paymentService: PaymentService,
     private readonly journalEntryService: JournalEntryService,
+    private readonly costAllocationService: CostAllocationService,
+    private readonly cacheService: CacheService,
+    private readonly cacheKeyService: CacheKeyService,
+    private readonly cacheInvalidationService: CacheInvalidationService,
   ) {}
 
   // =====================================================
@@ -52,9 +76,9 @@ export class FinanceResolver {
   @Query('financialPeriods')
   async getFinancialPeriods(
     @Args('tenantId') tenantId: string,
-    @Args('year') year: number | null,
-    @Args('status') status: string | null,
-    @Context() context: any
+    @Args('year') year?: number,
+    @Args('status') status?: string,
+    @Context() context?: any
   ) {
     let whereClause = `tenant_id = $1`;
     const params: any[] = [tenantId];
@@ -82,19 +106,27 @@ export class FinanceResolver {
 
   @Query('currentPeriod')
   async getCurrentPeriod(@Args('tenantId') tenantId: string, @Context() context: any) {
-    const result = await this.db.query(
-      `SELECT * FROM financial_periods
-       WHERE tenant_id = $1 AND status = 'OPEN'
-       ORDER BY period_year DESC, period_month DESC
-       LIMIT 1`,
-      [tenantId]
+    const key = this.cacheKeyService.currentPeriod(tenantId);
+
+    return this.cacheService.wrap(
+      key,
+      async () => {
+        const result = await this.db.query(
+          `SELECT * FROM financial_periods
+           WHERE tenant_id = $1 AND status = 'OPEN'
+           ORDER BY period_year DESC, period_month DESC
+           LIMIT 1`,
+          [tenantId]
+        );
+
+        if (result.rows.length === 0) {
+          throw new Error('No open financial period found');
+        }
+
+        return this.mapFinancialPeriodRow(result.rows[0]);
+      },
+      CacheTTL.DASHBOARD // 1 hour TTL
     );
-
-    if (result.rows.length === 0) {
-      throw new Error('No open financial period found');
-    }
-
-    return this.mapFinancialPeriodRow(result.rows[0]);
   }
 
   // =====================================================
@@ -118,10 +150,29 @@ export class FinanceResolver {
   @Query('chartOfAccounts')
   async getChartOfAccounts(
     @Args('tenantId') tenantId: string,
-    @Args('accountType') accountType: string | null,
+    @Args('accountType') accountType?: string,
     @Args('activeOnly') activeOnly: boolean = true,
-    @Context() context: any
+    @Context() context?: any
   ) {
+    // Only cache if no filters are applied (full COA list)
+    if (!accountType && activeOnly) {
+      const key = this.cacheKeyService.chartOfAccounts(tenantId);
+      return this.cacheService.wrap(
+        key,
+        async () => {
+          const result = await this.db.query(
+            `SELECT * FROM chart_of_accounts
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND is_active = TRUE
+             ORDER BY account_number`,
+            [tenantId]
+          );
+          return result.rows.map(this.mapChartOfAccountsRow);
+        },
+        CacheTTL.STATIC // 24 hours TTL
+      );
+    }
+
+    // Filtered queries bypass cache
     let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
     const params: any[] = [tenantId];
     let paramIndex = 2;
@@ -179,11 +230,11 @@ export class FinanceResolver {
   @Query('exchangeRates')
   async getExchangeRates(
     @Args('tenantId') tenantId: string,
-    @Args('fromCurrency') fromCurrency: string | null,
-    @Args('toCurrency') toCurrency: string | null,
-    @Args('startDate') startDate: string | null,
-    @Args('endDate') endDate: string | null,
-    @Context() context: any
+    @Args('fromCurrency') fromCurrency?: string,
+    @Args('toCurrency') toCurrency?: string,
+    @Args('startDate') startDate?: string,
+    @Args('endDate') endDate?: string,
+    @Context() context?: any
   ) {
     let whereClause = `tenant_id = $1`;
     const params: any[] = [tenantId];
@@ -226,7 +277,7 @@ export class FinanceResolver {
   @Query('journalEntry')
   async getJournalEntry(@Args('id') id: string, @Context() context: any) {
     const result = await this.db.query(
-      `SELECT * FROM journal_entries WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT * FROM journal_entries WHERE id = $1`,
       [id]
     );
 
@@ -240,15 +291,15 @@ export class FinanceResolver {
   @Query('journalEntries')
   async getJournalEntries(
     @Args('tenantId') tenantId: string,
-    @Args('facilityId') facilityId: string | null,
-    @Args('status') status: string | null,
-    @Args('startDate') startDate: string | null,
-    @Args('endDate') endDate: string | null,
+    @Args('facilityId') facilityId?: string,
+    @Args('status') status?: string,
+    @Args('startDate') startDate?: string,
+    @Args('endDate') endDate?: string,
     @Args('limit') limit: number = 100,
     @Args('offset') offset: number = 0,
-    @Context() context: any
+    @Context() context?: any
   ) {
-    let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
+    let whereClause = `tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramIndex = 2;
 
@@ -275,7 +326,7 @@ export class FinanceResolver {
     const result = await this.db.query(
       `SELECT * FROM journal_entries
        WHERE ${whereClause}
-       ORDER BY entry_date DESC, journal_entry_number DESC
+       ORDER BY entry_date DESC, entry_number DESC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
@@ -327,9 +378,9 @@ export class FinanceResolver {
     @Args('tenantId') tenantId: string,
     @Args('year') year: number,
     @Args('month') month: number,
-    @Args('accountType') accountType: string | null,
+    @Args('accountType') accountType?: string,
     @Args('currencyCode') currencyCode: string = 'USD',
-    @Context() context: any
+    @Context() context?: any
   ) {
     let whereClause = `b.tenant_id = $1 AND b.period_year = $2 AND b.period_month = $3 AND b.currency_code = $4`;
     const params: any[] = [tenantId, year, month, currencyCode];
@@ -359,7 +410,7 @@ export class FinanceResolver {
   @Query('invoice')
   async getInvoice(@Args('id') id: string, @Context() context: any) {
     const result = await this.db.query(
-      `SELECT * FROM invoices WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT * FROM invoices WHERE id = $1`,
       [id]
     );
 
@@ -373,17 +424,17 @@ export class FinanceResolver {
   @Query('invoices')
   async getInvoices(
     @Args('tenantId') tenantId: string,
-    @Args('invoiceType') invoiceType: string | null,
-    @Args('customerId') customerId: string | null,
-    @Args('vendorId') vendorId: string | null,
-    @Args('status') status: string | null,
-    @Args('startDate') startDate: string | null,
-    @Args('endDate') endDate: string | null,
+    @Args('invoiceType') invoiceType?: string,
+    @Args('customerId') customerId?: string,
+    @Args('vendorId') vendorId?: string,
+    @Args('status') status?: string,
+    @Args('startDate') startDate?: string,
+    @Args('endDate') endDate?: string,
     @Args('limit') limit: number = 100,
     @Args('offset') offset: number = 0,
-    @Context() context: any
+    @Context() context?: any
   ) {
-    let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
+    let whereClause = `tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramIndex = 2;
 
@@ -435,7 +486,7 @@ export class FinanceResolver {
   @Query('payment')
   async getPayment(@Args('id') id: string, @Context() context: any) {
     const result = await this.db.query(
-      `SELECT * FROM payments WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT * FROM payments WHERE id = $1`,
       [id]
     );
 
@@ -449,14 +500,14 @@ export class FinanceResolver {
   @Query('payments')
   async getPayments(
     @Args('tenantId') tenantId: string,
-    @Args('paymentType') paymentType: string | null,
-    @Args('customerId') customerId: string | null,
-    @Args('vendorId') vendorId: string | null,
-    @Args('startDate') startDate: string | null,
-    @Args('endDate') endDate: string | null,
-    @Context() context: any
+    @Args('paymentType') paymentType?: string,
+    @Args('customerId') customerId?: string,
+    @Args('vendorId') vendorId?: string,
+    @Args('startDate') startDate?: string,
+    @Args('endDate') endDate?: string,
+    @Context() context?: any
   ) {
-    let whereClause = `tenant_id = $1 AND deleted_at IS NULL`;
+    let whereClause = `tenant_id = $1`;
     const params: any[] = [tenantId];
     let paramIndex = 2;
 
@@ -496,33 +547,199 @@ export class FinanceResolver {
   }
 
   // =====================================================
-  // COST ALLOCATION QUERIES
+  // COST ALLOCATION ENGINE QUERIES
+  // REQ-1767541724200-2fb1a: Cost Allocation Engine
   // =====================================================
 
-  @Query('costAllocation')
-  async getCostAllocation(@Args('id') id: string, @Context() context: any) {
-    const result = await this.db.query(
-      `SELECT * FROM cost_allocations WHERE id = $1 AND deleted_at IS NULL`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      throw new Error(`Cost allocation ${id} not found`);
+  @Query('costPool')
+  async getCostPool(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req?.user?.tenantId || 'default';
+    const result = await this.costAllocationService.getCostPool(id, tenantId);
+    if (!result.success || !result.costPool) {
+      throw new Error(result.error || 'Cost pool not found');
     }
-
-    return this.mapCostAllocationRow(result.rows[0]);
+    return this.mapCostPoolRow(result.costPool);
   }
 
-  @Query('costAllocations')
-  async getCostAllocations(@Args('tenantId') tenantId: string, @Context() context: any) {
-    const result = await this.db.query(
-      `SELECT * FROM cost_allocations
-       WHERE tenant_id = $1 AND deleted_at IS NULL
-       ORDER BY allocation_code`,
-      [tenantId]
-    );
+  @Query('costPools')
+  async getCostPools(
+    @Args('tenantId') tenantId: string,
+    @Args('poolType') poolType?: string,
+    @Args('isActive') isActive?: boolean,
+    @Args('periodYear') periodYear?: number,
+    @Args('periodMonth') periodMonth?: number,
+    @Context() context?: any
+  ) {
+    const filters: CostPoolFilters = {
+      tenantId,
+      poolType: poolType as any,
+      isActive,
+      periodYear,
+      periodMonth,
+    };
+    const result = await this.costAllocationService.listCostPools(filters);
+    return result.costPools.map(this.mapCostPoolRow);
+  }
 
-    return result.rows.map(this.mapCostAllocationRow);
+  @Query('costDriver')
+  async getCostDriver(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req?.user?.tenantId || 'default';
+    const result = await this.costAllocationService.getCostDriver(id, tenantId);
+    if (!result.success || !result.costDriver) {
+      throw new Error(result.error || 'Cost driver not found');
+    }
+    return this.mapCostDriverRow(result.costDriver);
+  }
+
+  @Query('costDrivers')
+  async getCostDrivers(
+    @Args('tenantId') tenantId: string,
+    @Args('driverType') driverType?: string,
+    @Args('isActive') isActive?: boolean,
+    @Context() context?: any
+  ) {
+    const filters: CostDriverFilters = {
+      tenantId,
+      driverType: driverType as any,
+      isActive,
+    };
+    const result = await this.costAllocationService.listCostDrivers(filters);
+    return result.costDrivers.map(this.mapCostDriverRow);
+  }
+
+  @Query('allocationRule')
+  async getAllocationRule(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req?.user?.tenantId || 'default';
+    const result = await this.costAllocationService.getAllocationRule(id, tenantId);
+    if (!result.success || !result.allocationRule) {
+      throw new Error(result.error || 'Allocation rule not found');
+    }
+    return this.mapAllocationRuleRow(result.allocationRule);
+  }
+
+  @Query('allocationRules')
+  async getAllocationRules(
+    @Args('tenantId') tenantId: string,
+    @Args('costPoolId') costPoolId?: string,
+    @Args('costDriverId') costDriverId?: string,
+    @Args('isActive') isActive?: boolean,
+    @Args('effectiveDate') effectiveDate?: Date,
+    @Context() context?: any
+  ) {
+    const filters: AllocationRuleFilters = {
+      tenantId,
+      costPoolId,
+      costDriverId,
+      isActive,
+      effectiveDate,
+    };
+    const result = await this.costAllocationService.listAllocationRules(filters);
+    return result.allocationRules.map(this.mapAllocationRuleRow);
+  }
+
+  @Query('allocationRun')
+  async getAllocationRun(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req?.user?.tenantId || 'default';
+    const result = await this.costAllocationService.getAllocationRun(id, tenantId);
+    if (!result.success || !result.allocationRun) {
+      throw new Error(result.error || 'Allocation run not found');
+    }
+    return this.mapAllocationRunRow(result.allocationRun);
+  }
+
+  @Query('allocationRuns')
+  async getAllocationRuns(
+    @Args('tenantId') tenantId: string,
+    @Args('periodYear') periodYear?: number,
+    @Args('periodMonth') periodMonth?: number,
+    @Args('status') status?: string,
+    @Args('fromDate') fromDate?: Date,
+    @Args('toDate') toDate?: Date,
+    @Context() context?: any
+  ) {
+    const filters: AllocationRunFilters = {
+      tenantId,
+      periodYear,
+      periodMonth,
+      status: status as any,
+      fromDate,
+      toDate,
+    };
+    const result = await this.costAllocationService.listAllocationRuns(filters);
+    return result.allocationRuns.map(this.mapAllocationRunRow);
+  }
+
+  @Query('jobCostAllocations')
+  async getJobCostAllocations(
+    @Args('tenantId') tenantId: string,
+    @Args('jobId') jobId?: string,
+    @Args('jobCostId') jobCostId?: string,
+    @Args('allocationRunId') allocationRunId?: string,
+    @Args('costPoolId') costPoolId?: string,
+    @Args('periodYear') periodYear?: number,
+    @Args('periodMonth') periodMonth?: number,
+    @Context() context?: any
+  ) {
+    const filters: JobCostAllocationFilters = {
+      tenantId,
+      jobId,
+      jobCostId,
+      allocationRunId,
+      costPoolId,
+      periodYear,
+      periodMonth,
+    };
+    const result = await this.costAllocationService.listJobCostAllocations(filters);
+    return result.allocations.map(this.mapJobCostAllocationRow);
+  }
+
+  @Query('driverMeasurement')
+  async getDriverMeasurement(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.getDriverMeasurement(id, tenantId);
+    if (!result.success || !result.driverMeasurement) {
+      throw new Error(result.error || 'Driver measurement not found');
+    }
+    return this.mapDriverMeasurementRow(result.driverMeasurement);
+  }
+
+  @Query('driverMeasurements')
+  async getDriverMeasurements(
+    @Args('tenantId') tenantId: string,
+    @Args('jobId') jobId?: string,
+    @Args('costDriverId') costDriverId?: string,
+    @Args('periodYear') periodYear?: number,
+    @Args('periodMonth') periodMonth?: number,
+    @Args('measurementSource') measurementSource?: string,
+    @Context() context?: any
+  ) {
+    const filters: DriverMeasurementFilters = {
+      tenantId,
+      jobId,
+      costDriverId,
+      periodYear,
+      periodMonth,
+      measurementSource: measurementSource as any,
+    };
+    const result = await this.costAllocationService.listDriverMeasurements(filters);
+    return result.measurements.map(this.mapDriverMeasurementRow);
+  }
+
+  @Query('allocationSummary')
+  async getAllocationSummary(
+    @Args('tenantId') tenantId: string,
+    @Args('jobId') jobId: string,
+    @Args('periodYear') periodYear: number,
+    @Args('periodMonth') periodMonth: number,
+    @Context() context: any
+  ) {
+    const summary = await this.costAllocationService.getAllocationSummary(
+      tenantId,
+      jobId,
+      periodYear,
+      periodMonth
+    );
+    return summary ? this.mapAllocationSummaryRow(summary) : null;
   }
 
   // =====================================================
@@ -668,8 +885,7 @@ export class FinanceResolver {
        AND i.invoice_type = 'CUSTOMER_INVOICE'
        AND i.balance_due > 0
        AND i.currency_code = $3
-       AND i.deleted_at IS NULL
-       GROUP BY i.customer_id, c.customer_name
+              GROUP BY i.customer_id, c.customer_name
        ORDER BY total_due DESC`,
       [tenantId, asOfDate, currencyCode]
     );
@@ -709,8 +925,7 @@ export class FinanceResolver {
        AND i.invoice_type = 'VENDOR_INVOICE'
        AND i.balance_due > 0
        AND i.currency_code = $3
-       AND i.deleted_at IS NULL
-       GROUP BY i.vendor_id, v.vendor_name
+              GROUP BY i.vendor_id, v.vendor_name
        ORDER BY total_due DESC`,
       [tenantId, asOfDate, currencyCode]
     );
@@ -936,7 +1151,7 @@ export class FinanceResolver {
       // Create journal entry header
       const headerResult = await client.query(
         `INSERT INTO journal_entries (
-          tenant_id, facility_id, journal_entry_number, entry_type,
+          tenant_id, facility_id, entry_number, entry_type,
           entry_date, posting_date, period_year, period_month,
           description, reference, status, created_by
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'DRAFT', $11)
@@ -1023,8 +1238,8 @@ export class FinanceResolver {
   @Mutation('reverseJournalEntry')
   async reverseJournalEntry(
     @Args('id') id: string,
-    @Args('reversalDate') reversalDate: string | null,
-    @Context() context: any
+    @Args('reversalDate') reversalDate?: string,
+    @Context() context?: any
   ) {
     const userId = context.req.user.id;
     const tenantId = context.req.user.tenantId;
@@ -1044,8 +1259,8 @@ export class FinanceResolver {
     const tenantId = context.req.user.tenantId;
 
     // Calculate totals from lines
-    const subtotal = input.lines.reduce((sum, line) => sum + line.lineAmount, 0);
-    const taxAmount = input.lines.reduce((sum, line) => sum + (line.taxAmount || 0), 0);
+    const subtotal = input.lines.reduce((sum: number, line: { lineAmount: number }) => sum + line.lineAmount, 0);
+    const taxAmount = input.lines.reduce((sum: number, line: { taxAmount?: number }) => sum + (line.taxAmount || 0), 0);
     const totalAmount = subtotal + taxAmount;
 
     // Map GraphQL input to service DTO
@@ -1060,7 +1275,14 @@ export class FinanceResolver {
       dueDate: new Date(input.dueDate),
       currencyCode: input.currencyCode,
       exchangeRate: undefined, // Auto-lookup
-      lines: input.lines.map(line => ({
+      lines: input.lines.map((line: {
+        description: string;
+        quantity?: number;
+        unitPrice: number;
+        lineAmount: number;
+        revenueAccountId: string;
+        taxAmount?: number;
+      }) => ({
         description: line.description,
         quantity: line.quantity || 1,
         unitPrice: line.unitPrice,
@@ -1177,7 +1399,7 @@ export class FinanceResolver {
 
     // Return updated payment
     const paymentResult = await this.db.query(
-      `SELECT * FROM payments WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT * FROM payments WHERE id = $1`,
       [paymentId]
     );
 
@@ -1189,22 +1411,132 @@ export class FinanceResolver {
   }
 
   // =====================================================
-  // MUTATIONS - COST ALLOCATION (Simplified stubs)
+  // MUTATIONS - COST ALLOCATION ENGINE
+  // REQ-1767541724200-2fb1a: Cost Allocation Engine
   // =====================================================
 
-  @Mutation('createCostAllocation')
-  async createCostAllocation(@Args('input') input: any, @Context() context: any) {
-    throw new Error('Not yet implemented');
+  @Mutation('createCostPool')
+  async createCostPool(@Args('input') input: CreateCostPoolInput, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.createCostPool(tenantId, input);
+    if (!result.success || !result.costPool) {
+      throw new Error(result.error || 'Failed to create cost pool');
+    }
+    return this.mapCostPoolRow(result.costPool);
   }
 
-  @Mutation('runCostAllocation')
-  async runCostAllocation(
+  @Mutation('updateCostPool')
+  async updateCostPool(
     @Args('id') id: string,
-    @Args('periodYear') periodYear: number,
-    @Args('periodMonth') periodMonth: number,
+    @Args('input') input: UpdateCostPoolInput,
     @Context() context: any
   ) {
-    throw new Error('Not yet implemented');
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.updateCostPool(id, tenantId, input);
+    if (!result.success || !result.costPool) {
+      throw new Error(result.error || 'Failed to update cost pool');
+    }
+    return this.mapCostPoolRow(result.costPool);
+  }
+
+  @Mutation('deleteCostPool')
+  async deleteCostPool(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.deleteCostPool(id, tenantId);
+    return result.success;
+  }
+
+  @Mutation('createCostDriver')
+  async createCostDriver(@Args('input') input: CreateCostDriverInput, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.createCostDriver(tenantId, input);
+    if (!result.success || !result.costDriver) {
+      throw new Error(result.error || 'Failed to create cost driver');
+    }
+    return this.mapCostDriverRow(result.costDriver);
+  }
+
+  @Mutation('updateCostDriver')
+  async updateCostDriver(
+    @Args('id') id: string,
+    @Args('input') input: UpdateCostDriverInput,
+    @Context() context: any
+  ) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.updateCostDriver(id, tenantId, input);
+    if (!result.success || !result.costDriver) {
+      throw new Error(result.error || 'Failed to update cost driver');
+    }
+    return this.mapCostDriverRow(result.costDriver);
+  }
+
+  @Mutation('deleteCostDriver')
+  async deleteCostDriver(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.deleteCostDriver(id, tenantId);
+    return result.success;
+  }
+
+  @Mutation('createAllocationRule')
+  async createAllocationRule(@Args('input') input: CreateAllocationRuleInput, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.createAllocationRule(tenantId, input);
+    if (!result.success || !result.allocationRule) {
+      throw new Error(result.error || 'Failed to create allocation rule');
+    }
+    return this.mapAllocationRuleRow(result.allocationRule);
+  }
+
+  @Mutation('updateAllocationRule')
+  async updateAllocationRule(
+    @Args('id') id: string,
+    @Args('input') input: UpdateAllocationRuleInput,
+    @Context() context: any
+  ) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.updateAllocationRule(id, tenantId, input);
+    if (!result.success || !result.allocationRule) {
+      throw new Error(result.error || 'Failed to update allocation rule');
+    }
+    return this.mapAllocationRuleRow(result.allocationRule);
+  }
+
+  @Mutation('deleteAllocationRule')
+  async deleteAllocationRule(@Args('id') id: string, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.deleteAllocationRule(id, tenantId);
+    return result.success;
+  }
+
+  @Mutation('createDriverMeasurement')
+  async createDriverMeasurement(@Args('input') input: CreateDriverMeasurementInput, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.createDriverMeasurement(tenantId, input);
+    if (!result.success || !result.driverMeasurement) {
+      throw new Error(result.error || 'Failed to create driver measurement');
+    }
+    return this.mapDriverMeasurementRow(result.driverMeasurement);
+  }
+
+  @Mutation('runAllocation')
+  async runAllocation(@Args('input') input: RunAllocationInput, @Context() context: any) {
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.runAllocation(tenantId, input);
+    if (!result.success || !result.allocationRun) {
+      throw new Error(result.error || 'Failed to run allocation');
+    }
+    return this.mapAllocationRunRow(result.allocationRun);
+  }
+
+  @Mutation('reverseAllocationRun')
+  async reverseAllocationRun(@Args('id') id: string, @Context() context: any) {
+    const userId = context.req.userId;
+    const tenantId = context.req.tenantId;
+    const result = await this.costAllocationService.reverseAllocationRun(id, userId, tenantId);
+    if (!result.success || !result.allocationRun) {
+      throw new Error(result.error || 'Failed to reverse allocation run');
+    }
+    return this.mapAllocationRunRow(result.allocationRun);
   }
 
   // =====================================================
@@ -1282,7 +1614,7 @@ export class FinanceResolver {
       id: row.id,
       tenantId: row.tenant_id,
       facilityId: row.facility_id,
-      journalEntryNumber: row.journal_entry_number,
+      journalEntryNumber: row.entry_number,
       entryType: row.entry_type,
       entryDate: row.entry_date,
       postingDate: row.posting_date,
@@ -1397,23 +1729,163 @@ export class FinanceResolver {
     };
   }
 
-  private mapCostAllocationRow(row: any) {
+  // =====================================================
+  // COST ALLOCATION ENGINE MAPPERS
+  // REQ-1767541724200-2fb1a: Cost Allocation Engine
+  // =====================================================
+
+  private mapCostPoolRow(row: any) {
     return {
       id: row.id,
-      tenantId: row.tenant_id,
-      allocationCode: row.allocation_code,
-      allocationName: row.allocation_name,
+      tenantId: row.tenantId || row.tenant_id,
+      poolCode: row.poolCode || row.pool_code,
+      poolName: row.poolName || row.pool_name,
       description: row.description,
-      sourceType: row.source_type,
-      sourceAccountId: row.source_account_id,
-      allocationMethod: row.allocation_method,
-      allocationBasis: row.allocation_basis,
-      allocationRules: row.allocation_rules,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      createdBy: row.created_by,
-      updatedAt: row.updated_at,
-      updatedBy: row.updated_by
+      poolType: row.poolType || row.pool_type,
+      costBehavior: row.costBehavior || row.cost_behavior,
+      sourceAccountId: row.sourceAccountId || row.source_account_id,
+      currentPoolAmount: row.currentPoolAmount || row.current_pool_amount,
+      periodYear: row.periodYear || row.period_year,
+      periodMonth: row.periodMonth || row.period_month,
+      isActive: row.isActive ?? row.is_active,
+      createdAt: row.createdAt || row.created_at,
+      createdBy: row.createdBy || row.created_by,
+      updatedAt: row.updatedAt || row.updated_at,
+      updatedBy: row.updatedBy || row.updated_by,
+    };
+  }
+
+  private mapCostDriverRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenantId || row.tenant_id,
+      driverCode: row.driverCode || row.driver_code,
+      driverName: row.driverName || row.driver_name,
+      description: row.description,
+      driverType: row.driverType || row.driver_type,
+      unitOfMeasure: row.unitOfMeasure || row.unit_of_measure,
+      calculationMethod: row.calculationMethod || row.calculation_method,
+      sourceTable: row.sourceTable || row.source_table,
+      sourceColumn: row.sourceColumn || row.source_column,
+      sourceQuery: row.sourceQuery || row.source_query,
+      isActive: row.isActive ?? row.is_active,
+      createdAt: row.createdAt || row.created_at,
+      createdBy: row.createdBy || row.created_by,
+      updatedAt: row.updatedAt || row.updated_at,
+      updatedBy: row.updatedBy || row.updated_by,
+    };
+  }
+
+  private mapAllocationRuleRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenantId || row.tenant_id,
+      ruleCode: row.ruleCode || row.rule_code,
+      ruleName: row.ruleName || row.rule_name,
+      description: row.description,
+      costPoolId: row.costPoolId || row.cost_pool_id,
+      costDriverId: row.costDriverId || row.cost_driver_id,
+      allocationMethod: row.allocationMethod || row.allocation_method,
+      targetType: row.targetType || row.target_type,
+      targetCostCategory: row.targetCostCategory || row.target_cost_category,
+      rateType: row.rateType || row.rate_type,
+      predeterminedRate: row.predeterminedRate || row.predetermined_rate,
+      allocationFilters: row.allocationFilters || row.allocation_filters,
+      allocationPriority: row.allocationPriority || row.allocation_priority,
+      effectiveFrom: row.effectiveFrom || row.effective_from,
+      effectiveTo: row.effectiveTo || row.effective_to,
+      isActive: row.isActive ?? row.is_active,
+      createdAt: row.createdAt || row.created_at,
+      createdBy: row.createdBy || row.created_by,
+      updatedAt: row.updatedAt || row.updated_at,
+      updatedBy: row.updatedBy || row.updated_by,
+    };
+  }
+
+  private mapAllocationRunRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenantId || row.tenant_id,
+      runNumber: row.runNumber || row.run_number,
+      runDescription: row.runDescription || row.run_description,
+      periodYear: row.periodYear || row.period_year,
+      periodMonth: row.periodMonth || row.period_month,
+      allocationType: row.allocationType || row.allocation_type,
+      includedPools: row.includedPools || row.included_pools,
+      includedJobs: row.includedJobs || row.included_jobs,
+      startedAt: row.startedAt || row.started_at,
+      completedAt: row.completedAt || row.completed_at,
+      executionDurationMs: row.executionDurationMs || row.execution_duration_ms,
+      status: row.status,
+      totalPoolsProcessed: row.totalPoolsProcessed || row.total_pools_processed,
+      totalAmountAllocated: row.totalAmountAllocated || row.total_amount_allocated,
+      totalJobsAffected: row.totalJobsAffected || row.total_jobs_affected,
+      totalAllocationsCreated: row.totalAllocationsCreated || row.total_allocations_created,
+      errorMessage: row.errorMessage || row.error_message,
+      errorDetails: row.errorDetails || row.error_details,
+      isReversed: row.isReversed ?? row.is_reversed,
+      reversedAt: row.reversedAt || row.reversed_at,
+      reversedBy: row.reversedBy || row.reversed_by,
+      reversalRunId: row.reversalRunId || row.reversal_run_id,
+      createdBy: row.createdBy || row.created_by,
+    };
+  }
+
+  private mapJobCostAllocationRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenantId || row.tenant_id,
+      allocationRunId: row.allocationRunId || row.allocation_run_id,
+      jobCostId: row.jobCostId || row.job_cost_id,
+      jobId: row.jobId || row.job_id,
+      costPoolId: row.costPoolId || row.cost_pool_id,
+      allocationRuleId: row.allocationRuleId || row.allocation_rule_id,
+      costDriverId: row.costDriverId || row.cost_driver_id,
+      driverQuantity: row.driverQuantity || row.driver_quantity,
+      totalDriverQuantity: row.totalDriverQuantity || row.total_driver_quantity,
+      allocationRate: row.allocationRate || row.allocation_rate,
+      allocationPercentage: row.allocationPercentage || row.allocation_percentage,
+      allocatedAmount: row.allocatedAmount || row.allocated_amount,
+      costCategory: row.costCategory || row.cost_category,
+      allocationMetadata: row.allocationMetadata || row.allocation_metadata,
+      createdAt: row.createdAt || row.created_at,
+    };
+  }
+
+  private mapDriverMeasurementRow(row: any) {
+    return {
+      id: row.id,
+      tenantId: row.tenantId || row.tenant_id,
+      jobId: row.jobId || row.job_id,
+      costDriverId: row.costDriverId || row.cost_driver_id,
+      periodYear: row.periodYear || row.period_year,
+      periodMonth: row.periodMonth || row.period_month,
+      measurementDate: row.measurementDate || row.measurement_date,
+      measuredQuantity: row.measuredQuantity || row.measured_quantity,
+      unitOfMeasure: row.unitOfMeasure || row.unit_of_measure,
+      measurementSource: row.measurementSource || row.measurement_source,
+      sourceId: row.sourceId || row.source_id,
+      sourceReference: row.sourceReference || row.source_reference,
+      notes: row.notes,
+      createdAt: row.createdAt || row.created_at,
+      createdBy: row.createdBy || row.created_by,
+      updatedAt: row.updatedAt || row.updated_at,
+      updatedBy: row.updatedBy || row.updated_by,
+    };
+  }
+
+  private mapAllocationSummaryRow(row: any) {
+    return {
+      jobId: row.jobId || row.job_id,
+      jobCostId: row.jobCostId || row.job_cost_id,
+      allocationMonth: row.allocationMonth || row.allocation_month,
+      totalAllocationRuns: row.totalAllocationRuns || row.total_allocation_runs,
+      totalPoolsAllocated: row.totalPoolsAllocated || row.total_pools_allocated,
+      totalAllocatedAmount: row.totalAllocatedAmount || row.total_allocated_amount,
+      overheadAllocated: row.overheadAllocated || row.overhead_allocated,
+      equipmentAllocated: row.equipmentAllocated || row.equipment_allocated,
+      otherAllocated: row.otherAllocated || row.other_allocated,
+      lastAllocationDate: row.lastAllocationDate || row.last_allocation_date,
     };
   }
 }

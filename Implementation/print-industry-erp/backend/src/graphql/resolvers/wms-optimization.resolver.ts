@@ -55,7 +55,16 @@ export const wmsOptimizationResolvers = {
       const service = new BinUtilizationOptimizationEnhancedService(context.pool);
 
       try {
-        const recommendations = await service.suggestBatchPutaway(input.items);
+        // Transform input items to ensure dimensions include cubicFeet
+        const transformedItems = input.items.map(item => ({
+          ...item,
+          dimensions: item.dimensions ? {
+            ...item.dimensions,
+            cubicFeet: (item.dimensions.lengthInches * item.dimensions.widthInches * item.dimensions.heightInches) / 1728,
+          } : undefined,
+        }));
+
+        const recommendations = await service.suggestBatchPutaway(transformedItems);
 
         const recommendationsArray = Array.from(recommendations.entries()).map(
           ([lotNumber, rec]) => ({
@@ -380,29 +389,19 @@ export const wmsOptimizationResolvers = {
           status: health.status,
           checks: {
             materializedViewFreshness: {
-              status: health.checks.materializedViewFreshness.status,
-              message: health.checks.materializedViewFreshness.message,
+              ...health.checks.materializedViewFreshness,
               lastRefresh: health.checks.materializedViewFreshness.lastRefresh?.toISOString(),
-              ...health.checks.materializedViewFreshness
             },
             mlModelAccuracy: {
-              status: health.checks.mlModelAccuracy.status,
-              message: health.checks.mlModelAccuracy.message,
               ...health.checks.mlModelAccuracy
             },
             congestionCacheHealth: {
-              status: health.checks.congestionCacheHealth.status,
-              message: health.checks.congestionCacheHealth.message,
               ...health.checks.congestionCacheHealth
             },
             databasePerformance: {
-              status: health.checks.databasePerformance.status,
-              message: health.checks.databasePerformance.message,
               ...health.checks.databasePerformance
             },
             algorithmPerformance: {
-              status: health.checks.algorithmPerformance.status,
-              message: health.checks.algorithmPerformance.message,
               ...health.checks.algorithmPerformance
             }
           },

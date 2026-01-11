@@ -49,7 +49,7 @@ export const InvoiceManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   useAppStore(); // Facility context
-  const user = useAuthStore((state: { user: any }) => state.user);
+  const user = useAuthStore((state: { user: { tenantId?: string } | null }) => state.user);
 
   const [filters, setFilters] = useState({
     invoiceType: '',

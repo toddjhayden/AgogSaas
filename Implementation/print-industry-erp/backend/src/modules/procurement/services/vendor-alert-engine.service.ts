@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import type { ScorecardConfig } from './vendor-performance.service';
+import { connect, NatsConnection, JSONCodec } from 'nats';
 
 /**
  * Vendor Alert Engine Service
@@ -69,8 +70,39 @@ const ALERT_THRESHOLDS = {
 };
 
 @Injectable()
-export class VendorAlertEngineService {
-  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
+export class VendorAlertEngineService implements OnModuleInit, OnModuleDestroy {
+  private nc?: NatsConnection;
+  private jc = JSONCodec();
+
+  constructor(
+    @Inject('DATABASE_POOL') private readonly db: Pool,
+  ) {}
+
+  async onModuleInit() {
+    try {
+      const natsUrl = process.env.NATS_URL || 'nats://nats:4222';
+      const user = process.env.NATS_USER;
+      const pass = process.env.NATS_PASSWORD;
+
+      this.nc = await connect({
+        servers: natsUrl,
+        user,
+        pass,
+        name: 'vendor-alert-engine-service'
+      });
+
+      console.log('[VendorAlertEngine] Connected to NATS');
+    } catch (error: any) {
+      console.error('[VendorAlertEngine] Failed to connect to NATS:', error.message);
+      // Continue without NATS - alerts will still be saved to database
+    }
+  }
+
+  async onModuleDestroy() {
+    if (this.nc) {
+      await this.nc.close();
+    }
+  }
 
   /**
    * Check performance thresholds and detect breaches
@@ -182,8 +214,8 @@ export class VendorAlertEngineService {
           alertType: 'ESG_RISK',
           severity: 'CRITICAL',
           metricCategory: 'ESG_RISK',
-          currentValue: null,
-          thresholdValue: null,
+          currentValue: undefined,
+          thresholdValue: undefined,
           message: `ESG risk level is ${esgMetrics.esg_risk_level}. Immediate ESG audit and remediation plan required. Consider vendor relationship review.`
         });
       } else if (ALERT_THRESHOLDS.ESG_RISK.WARNING.includes(esgMetrics.esg_risk_level)) {
@@ -193,8 +225,8 @@ export class VendorAlertEngineService {
           alertType: 'ESG_RISK',
           severity: 'WARNING',
           metricCategory: 'ESG_RISK',
-          currentValue: null,
-          thresholdValue: null,
+          currentValue: undefined,
+          thresholdValue: undefined,
           message: `ESG risk level is ${esgMetrics.esg_risk_level}. ESG improvement initiatives recommended. Monitor compliance closely.`
         });
       }
@@ -272,15 +304,25 @@ export class VendorAlertEngineService {
 
       await client.query('COMMIT');
 
-      // 3. TODO: Publish to NATS channel: agog.alerts.vendor-performance
+      // 3. Publish to NATS channel: agog.alerts.vendor-performance
       // This will be consumed by notification services for email/Slack/etc.
-      // await this.natsClient.publish('agog.alerts.vendor-performance', {
-      //   alertId,
-      //   tenantId: alert.tenantId,
-      //   vendorId: alert.vendorId,
-      //   severity: alert.severity,
-      //   message: alert.message
-      // });
+      if (this.nc) {
+        try {
+          const payload = {
+            alertId,
+            tenantId: alert.tenantId,
+            vendorId: alert.vendorId,
+            severity: alert.severity,
+            alertType: alert.alertType,
+            message: alert.message,
+            timestamp: new Date().toISOString(),
+          };
+          this.nc.publish('agog.alerts.vendor-performance', this.jc.encode(payload));
+        } catch (natsError) {
+          // Log NATS error but don't fail the alert creation
+          console.error('[VendorAlertEngine] Failed to publish to NATS:', natsError);
+        }
+      }
 
       return alertId;
 
@@ -490,7 +532,7 @@ export class VendorAlertEngineService {
         WHERE a.tenant_id = $1
       `;
 
-      const params: any[] = [tenantId];
+      const params: (string | number)[] = [tenantId];
       let paramIndex = 2;
 
       if (severity) {
@@ -561,12 +603,12 @@ export class VendorAlertEngineService {
       const stats = result.rows[0];
 
       return {
-        totalOpen: parseInt(stats.total_open) || 0,
-        criticalOpen: parseInt(stats.critical_open) || 0,
-        warningOpen: parseInt(stats.warning_open) || 0,
-        infoOpen: parseInt(stats.info_open) || 0,
-        resolvedLast30Days: parseInt(stats.resolved_last_30_days) || 0,
-        averageResolutionTimeHours: parseFloat(stats.avg_resolution_hours) || 0
+        totalOpen: parseInt(stats.total_open ?? '0', 10) || 0,
+        criticalOpen: parseInt(stats.critical_open ?? '0', 10) || 0,
+        warningOpen: parseInt(stats.warning_open ?? '0', 10) || 0,
+        infoOpen: parseInt(stats.info_open ?? '0', 10) || 0,
+        resolvedLast30Days: parseInt(stats.resolved_last_30_days ?? '0', 10) || 0,
+        averageResolutionTimeHours: parseFloat(stats.avg_resolution_hours ?? '0') || 0
       };
 
     } finally {
@@ -686,20 +728,20 @@ export class VendorAlertEngineService {
       id: row.id,
       tenantId: row.tenant_id,
       vendorId: row.vendor_id,
-      vendorCode: row.vendor_code,
-      vendorName: row.vendor_name,
+      vendorCode: row.vendor_code ?? undefined,
+      vendorName: row.vendor_name ?? undefined,
       alertType: row.alert_type,
       severity: row.severity,
-      metricCategory: row.metric_category,
-      currentValue: row.current_value ? parseFloat(row.current_value) : undefined,
-      thresholdValue: row.threshold_value ? parseFloat(row.threshold_value) : undefined,
+      metricCategory: row.metric_category ?? undefined,
+      currentValue: row.current_value !== null && row.current_value !== undefined ? parseFloat(String(row.current_value)) : undefined,
+      thresholdValue: row.threshold_value !== null && row.threshold_value !== undefined ? parseFloat(String(row.threshold_value)) : undefined,
       message: row.message,
       status: row.status,
-      acknowledgedAt: row.acknowledged_at,
-      acknowledgedBy: row.acknowledged_by,
-      resolvedAt: row.resolved_at,
-      resolvedBy: row.resolved_by,
-      resolutionNotes: row.resolution_notes,
+      acknowledgedAt: row.acknowledged_at ?? undefined,
+      acknowledgedBy: row.acknowledged_by ?? undefined,
+      resolvedAt: row.resolved_at ?? undefined,
+      resolvedBy: row.resolved_by ?? undefined,
+      resolutionNotes: row.resolution_notes ?? undefined,
       createdAt: row.created_at
     };
   }

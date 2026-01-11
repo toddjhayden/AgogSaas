@@ -19,8 +19,9 @@ import { DevOpsAlertingService } from './services/devops-alerting.service';
 import { FacilityBootstrapService } from './services/facility-bootstrap.service';
 import { BinUtilizationOptimizationDataQualityIntegrationService } from './services/bin-utilization-optimization-data-quality-integration';
 import { BinUtilizationPredictionService } from './services/bin-utilization-prediction.service';
+import { BinAlgorithmTunerService } from './services/bin-algorithm-tuner.service';
 
-// Import Carrier Integration services (REQ-STRATEGIC-AUTO-1767066329941)
+// Import Carrier Integration services (REQ-STRATEGIC-AUTO-1767066329941 + REQ-1767925582663-ieqg0)
 import { CredentialEncryptionService } from './services/credential-encryption.service';
 import { CarrierErrorMapperService } from './services/carrier-error-mapper.service';
 import { CarrierApiRateLimiterService } from './services/carrier-rate-limiter.service';
@@ -28,6 +29,11 @@ import { CarrierCircuitBreakerService } from './services/carrier-circuit-breaker
 import { ShipmentManifestOrchestratorService } from './services/shipment-manifest-orchestrator.service';
 import { CarrierClientFactoryService } from './services/carrier-client-factory.service';
 import { FedExClientService } from './services/carriers/fedex-client.service';
+import { UPSClientService } from './services/carriers/ups-client.service';
+import { CarrierIntegrationService } from './services/carrier-integration.service';
+import { ShippingService } from './services/shipping.service';
+import { FedExApiClient } from './services/carriers/fedex-api.client';
+import { ShippingResolver } from '../../graphql/resolvers/shipping.resolver';
 
 /**
  * WMS MODULE - Phase 2 NestJS Migration
@@ -67,6 +73,7 @@ import { FedExClientService } from './services/carriers/fedex-client.service';
     // GraphQL Resolvers
     WMSResolver,
     WmsDataQualityResolver,
+    ShippingResolver,
 
     // Core WMS Services
     BinUtilizationOptimizationService,
@@ -83,8 +90,9 @@ import { FedExClientService } from './services/carriers/fedex-client.service';
     FacilityBootstrapService,
     BinUtilizationOptimizationDataQualityIntegrationService,
     BinUtilizationPredictionService,
+    BinAlgorithmTunerService,
 
-    // Carrier Integration Services (REQ-STRATEGIC-AUTO-1767066329941)
+    // Carrier Integration Services (REQ-STRATEGIC-AUTO-1767066329941 + REQ-1767925582663-ieqg0)
     CredentialEncryptionService,
     CarrierErrorMapperService,
     CarrierApiRateLimiterService,
@@ -92,6 +100,10 @@ import { FedExClientService } from './services/carriers/fedex-client.service';
     ShipmentManifestOrchestratorService,
     CarrierClientFactoryService,
     FedExClientService,
+    UPSClientService,
+    FedExApiClient,
+    CarrierIntegrationService,
+    ShippingService,
   ],
   exports: [
     // Export key services for use by other modules
@@ -101,14 +113,18 @@ import { FedExClientService } from './services/carriers/fedex-client.service';
     BinOptimizationHealthEnhancedService,
     BinOptimizationDataQualityService,
     BinUtilizationPredictionService,
+    BinAlgorithmTunerService,
     FacilityBootstrapService,
     DevOpsAlertingService,
 
-    // Export carrier integration services
+    // Export carrier integration services (REQ-1767925582663-ieqg0)
     CarrierClientFactoryService,
     ShipmentManifestOrchestratorService,
     CarrierApiRateLimiterService,
     CarrierCircuitBreakerService,
+    CarrierIntegrationService,
+    ShippingService,
+    FedExApiClient,
   ],
 })
 export class WmsModule {}

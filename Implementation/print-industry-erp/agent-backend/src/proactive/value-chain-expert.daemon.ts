@@ -17,7 +17,7 @@ export interface StrategicRecommendation {
   reqNumber: string;
   title: string;
   owner: 'marcus' | 'sarah' | 'alex';
-  priority: 'P0' | 'P1' | 'P2' | 'P3';
+  priority: 'P0' | 'P1' | 'P2' | 'P3' | 'P4';
   businessValue: string;
   requirements: string[];
   riceScore: {

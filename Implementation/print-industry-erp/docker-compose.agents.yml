@@ -33,7 +33,10 @@ services:
       - "5434:5432"  # Different port from app postgres (5433)
     volumes:
       - agents_postgres_data:/var/lib/postgresql/data
-      - ./agent-backend/migrations/agent-memory:/docker-entrypoint-initdb.d
+      # Mount init script (runs first, creates both databases)
+      - ./agent-backend/migrations/00-init-all-databases.sh:/docker-entrypoint-initdb.d/00-init-all-databases.sh
+      # Mount all migrations for both databases
+      - ./agent-backend/migrations:/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agent_user -d agent_memory"]
       interval: 10s

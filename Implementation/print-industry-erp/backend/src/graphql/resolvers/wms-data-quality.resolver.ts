@@ -16,12 +16,6 @@ import {
 } from '../../modules/wms/services/bin-optimization-data-quality.service';
 import { BinOptimizationHealthEnhancedService } from '../../modules/wms/services/bin-optimization-health-enhanced.service';
 
-export interface GraphQLContext {
-  pool: Pool;
-  tenantId?: string;
-  userId?: string;
-}
-
 @Resolver()
 export class WmsDataQualityResolver {
   constructor(
@@ -34,32 +28,33 @@ export class WmsDataQualityResolver {
   // QUERIES
   // =====================================================
 
-  @Query(() => Object)
+  @Query('getDataQualityMetrics')
   async getDataQualityMetrics(
-    @Args('facilityId', { nullable: true }) facilityId: string,
-    @Context() context: GraphQLContext
+    @Args('facilityId') facilityId: string | null,
+    @Context() context: any,
   ) {
-    const { tenantId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
     }
 
     try {
-      return await this.dataQualityService.getDataQualityMetrics(tenantId, facilityId);
+      return await this.dataQualityService.getDataQualityMetrics(tenantId, facilityId ?? undefined);
     } catch (error) {
-      throw new Error(`Failed to get data quality metrics: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get data quality metrics: ${message}`);
     }
   }
 
-  @Query(() => [Object])
+  @Query('getMaterialDimensionVerifications')
   async getMaterialDimensionVerifications(
     @Args('materialId') materialId: string,
-    @Args('facilityId', { nullable: true }) facilityId: string,
-    @Args('limit', { nullable: true }) limit: number,
-    @Context() context: GraphQLContext
+    @Args('facilityId') facilityId: string | null,
+    @Args('limit') limit: number | null,
+    @Context() context: any,
   ) {
-    const { tenantId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
@@ -117,18 +112,19 @@ export class WmsDataQualityResolver {
         notes: row.notes,
       }));
     } catch (error) {
-      throw new Error(`Failed to get dimension verifications: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get dimension verifications: ${message}`);
     }
   }
 
-  @Query(() => [Object])
+  @Query('getCapacityValidationFailures')
   async getCapacityValidationFailures(
-    @Args('facilityId', { nullable: true }) facilityId: string,
-    @Args('resolved', { nullable: true }) resolved: boolean,
-    @Args('limit', { nullable: true }) limit: number,
-    @Context() context: GraphQLContext
+    @Args('facilityId') facilityId: string | null,
+    @Args('resolved') resolved: boolean | null,
+    @Args('limit') limit: number | null,
+    @Context() context: any,
   ) {
-    const { tenantId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
@@ -166,7 +162,7 @@ export class WmsDataQualityResolver {
         params.push(facilityId);
       }
 
-      if (resolved !== undefined) {
+      if (resolved !== null && resolved !== undefined) {
         query += ` AND cvf.resolved = $${params.length + 1}`;
         params.push(resolved);
       }
@@ -195,18 +191,19 @@ export class WmsDataQualityResolver {
         createdAt: row.created_at.toISOString(),
       }));
     } catch (error) {
-      throw new Error(`Failed to get capacity failures: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get capacity failures: ${message}`);
     }
   }
 
-  @Query(() => [Object])
+  @Query('getCrossDockCancellations')
   async getCrossDockCancellations(
-    @Args('facilityId', { nullable: true }) facilityId: string,
-    @Args('relocationCompleted', { nullable: true }) relocationCompleted: boolean,
-    @Args('limit', { nullable: true }) limit: number,
-    @Context() context: GraphQLContext
+    @Args('facilityId') facilityId: string | null,
+    @Args('relocationCompleted') relocationCompleted: boolean | null,
+    @Args('limit') limit: number | null,
+    @Context() context: any,
   ) {
-    const { tenantId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
@@ -239,7 +236,7 @@ export class WmsDataQualityResolver {
         params.push(facilityId);
       }
 
-      if (relocationCompleted !== undefined) {
+      if (relocationCompleted !== null && relocationCompleted !== undefined) {
         query += ` AND cdc.relocation_completed = $${params.length + 1}`;
         params.push(relocationCompleted);
       }
@@ -263,16 +260,17 @@ export class WmsDataQualityResolver {
         notes: row.notes,
       }));
     } catch (error) {
-      throw new Error(`Failed to get cross-dock cancellations: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get cross-dock cancellations: ${message}`);
     }
   }
 
-  @Query(() => Object)
+  @Query('getBinOptimizationHealthEnhanced')
   async getBinOptimizationHealthEnhanced(
-    @Args('autoRemediate', { nullable: true }) autoRemediate: boolean,
-    @Context() context: GraphQLContext
+    @Args('autoRemediate') autoRemediate: boolean | null,
+    @Context() context: any,
   ) {
-    const { tenantId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
 
     try {
       const healthCheck = await this.healthEnhancedService.checkHealth(tenantId, autoRemediate ?? true);
@@ -284,7 +282,8 @@ export class WmsDataQualityResolver {
         timestamp: healthCheck.timestamp.toISOString(),
       };
     } catch (error) {
-      throw new Error(`Failed to check health: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to check health: ${message}`);
     }
   }
 
@@ -292,12 +291,13 @@ export class WmsDataQualityResolver {
   // MUTATIONS
   // =====================================================
 
-  @Mutation(() => Object)
+  @Mutation('verifyMaterialDimensions')
   async verifyMaterialDimensions(
     @Args('input') input: DimensionVerificationInput,
-    @Context() context: GraphQLContext
+    @Context() context: any,
   ) {
-    const { tenantId, userId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
+    const userId = context.userId || context.req?.user?.id;
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
@@ -314,16 +314,18 @@ export class WmsDataQualityResolver {
         verifiedBy: userId,
       });
     } catch (error) {
-      throw new Error(`Failed to verify dimensions: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to verify dimensions: ${message}`);
     }
   }
 
-  @Mutation(() => Object)
+  @Mutation('cancelCrossDocking')
   async cancelCrossDocking(
     @Args('input') input: CrossDockCancellationInput,
-    @Context() context: GraphQLContext
+    @Context() context: any,
   ) {
-    const { tenantId, userId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
+    const userId = context.userId || context.req?.user?.id;
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
@@ -340,17 +342,19 @@ export class WmsDataQualityResolver {
         cancelledBy: userId,
       });
     } catch (error) {
-      throw new Error(`Failed to cancel cross-docking: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to cancel cross-docking: ${message}`);
     }
   }
 
-  @Mutation(() => Boolean)
+  @Mutation('resolveCapacityFailure')
   async resolveCapacityFailure(
     @Args('failureId') failureId: string,
-    @Args('resolutionNotes', { nullable: true }) resolutionNotes: string,
-    @Context() context: GraphQLContext
+    @Args('resolutionNotes') resolutionNotes: string | null,
+    @Context() context: any,
   ) {
-    const { tenantId, userId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
+    const userId = context.userId || context.req?.user?.id;
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
@@ -374,17 +378,19 @@ export class WmsDataQualityResolver {
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to resolve capacity failure: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to resolve capacity failure: ${message}`);
     }
   }
 
-  @Mutation(() => Boolean)
+  @Mutation('completeCrossDockRelocation')
   async completeCrossDockRelocation(
     @Args('cancellationId') cancellationId: string,
     @Args('actualLocationId') actualLocationId: string,
-    @Context() context: GraphQLContext
+    @Context() context: any,
   ) {
-    const { tenantId, userId } = context;
+    const tenantId = context.tenantId || context.req?.headers['x-tenant-id'];
+    const userId = context.userId || context.req?.user?.id;
 
     if (!tenantId) {
       throw new Error('Tenant ID required');
@@ -408,7 +414,8 @@ export class WmsDataQualityResolver {
 
       return true;
     } catch (error) {
-      throw new Error(`Failed to complete relocation: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to complete relocation: ${message}`);
     }
   }
 }

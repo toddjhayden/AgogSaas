@@ -79,7 +79,7 @@ const VarianceReportPage: React.FC = () => {
   }, [summary, t]);
 
   // Table columns
-  const columns: ColumnDef<VarianceJob, any>[] = [
+  const columns: ColumnDef<VarianceJob, unknown>[] = [
     {
       id: 'jobNumber',
       header: t('jobCosting.jobNumber'),

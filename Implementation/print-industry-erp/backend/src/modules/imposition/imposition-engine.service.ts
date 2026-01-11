@@ -11,7 +11,7 @@
  * Integrates with material_consumption tracking for closed-loop waste reduction.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 
 interface ImpositionInput {
@@ -49,7 +49,7 @@ interface ImpositionLayout {
 
 @Injectable()
 export class ImpositionEngineService {
-  constructor(private pool: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private pool: Pool) {}
 
   /**
    * MAIN ENTRY POINT - Calculate optimal imposition layout

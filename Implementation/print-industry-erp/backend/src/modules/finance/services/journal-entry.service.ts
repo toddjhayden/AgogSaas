@@ -5,7 +5,7 @@
  * Handles GL posting with validation and transaction management
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import {
   CreateJournalEntryDto,
@@ -30,7 +30,7 @@ import {
 export class JournalEntryService {
   private readonly logger = new Logger(JournalEntryService.name);
 
-  constructor(private readonly db: Pool) {}
+  constructor(@Inject('DATABASE_POOL') private readonly db: Pool) {}
 
   /**
    * Create journal entry with full validation and transaction safety
@@ -127,7 +127,7 @@ export class JournalEntryService {
       return this.mapJournalEntryRow(journalEntry);
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error(`Failed to create journal entry: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create journal entry: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`, (error instanceof Error ? error.stack : undefined));
 
       if (error instanceof JournalEntryImbalanceException ||
           error instanceof FinancialPeriodClosedException ||
@@ -158,7 +158,7 @@ export class JournalEntryService {
 
       // Get original journal entry
       const originalResult = await client.query(
-        `SELECT * FROM journal_entries WHERE id = $1 AND deleted_at IS NULL`,
+        `SELECT * FROM journal_entries WHERE id = $1`,
         [dto.journalEntryId],
       );
 
@@ -175,7 +175,7 @@ export class JournalEntryService {
 
       // Get original lines
       const linesResult = await client.query(
-        `SELECT * FROM journal_entry_lines WHERE journal_entry_id = $1 AND deleted_at IS NULL`,
+        `SELECT * FROM journal_entry_lines WHERE journal_entry_id = $1`,
         [dto.journalEntryId],
       );
 
@@ -226,7 +226,7 @@ export class JournalEntryService {
       return reversingEntry;
     } catch (error) {
       await client.query('ROLLBACK');
-      this.logger.error(`Failed to reverse journal entry: ${error.message}`, error.stack);
+      this.logger.error(`Failed to reverse journal entry: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`, (error instanceof Error ? error.stack : undefined));
       throw error;
     } finally {
       client.release();
@@ -246,7 +246,7 @@ export class JournalEntryService {
     // Get all lines from journal entry
     const linesResult = await client.query(
       `SELECT account_id, debit_amount, credit_amount FROM journal_entry_lines
-       WHERE journal_entry_id = $1 AND deleted_at IS NULL`,
+       WHERE journal_entry_id = $1`,
       [journalEntryId],
     );
 

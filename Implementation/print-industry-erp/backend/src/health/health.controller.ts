@@ -2,10 +2,12 @@
  * Health Check Controller
  * Provides comprehensive health monitoring endpoints
  * REQ: REQ-STRATEGIC-AUTO-1767045901874 - Deployment Health Verification & Smoke Tests
+ * REQ-1767924916114-qbjk4: Implement Redis Cache Warming Strategy
  */
 
 import { Controller, Get, Inject, HttpException, HttpStatus } from '@nestjs/common';
 import { Pool } from 'pg';
+import { CacheMonitoringService } from '../cache/services/cache-monitoring.service';
 
 interface HealthCheckResult {
   name: string;
@@ -39,7 +41,10 @@ interface HealthStatus {
 export class HealthController {
   private startupComplete = false;
 
-  constructor(@Inject('DATABASE_POOL') private pool: Pool) {
+  constructor(
+    @Inject('DATABASE_POOL') private pool: Pool,
+    private cacheMonitoringService: CacheMonitoringService,
+  ) {
     // Mark startup complete after a brief initialization period
     setTimeout(() => {
       this.startupComplete = true;
@@ -122,6 +127,7 @@ export class HealthController {
   async check(): Promise<HealthStatus> {
     const components: ComponentHealth[] = [
       await this.checkDatabaseHealth(),
+      await this.checkCacheHealth(),
     ];
 
     const overall = this.aggregateStatus(components);
@@ -165,7 +171,7 @@ export class HealthController {
       checks.push({
         component: 'database',
         ready: false,
-        message: `Database error: ${error.message}`,
+        message: `Database error: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`,
       });
     }
 
@@ -214,7 +220,7 @@ export class HealthController {
       return {
         name: 'connection',
         status: 'UNHEALTHY',
-        message: `Database connection failed: ${error.message}`,
+        message: `Database connection failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`,
         duration: Date.now() - start,
       };
     }
@@ -247,7 +253,7 @@ export class HealthController {
       return {
         name: 'latency',
         status: 'UNHEALTHY',
-        message: `Latency check failed: ${error.message}`,
+        message: `Latency check failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`,
         duration: Date.now() - start,
       };
     }
@@ -280,7 +286,7 @@ export class HealthController {
       return {
         name: 'pool_utilization',
         status: 'UNHEALTHY',
-        message: `Pool check failed: ${error.message}`,
+        message: `Pool check failed: ${error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)}`,
         duration: 0,
       };
     }
@@ -296,5 +302,77 @@ export class HealthController {
     if (components.some(c => c.status === 'UNHEALTHY')) return 'UNHEALTHY';
     if (components.some(c => c.status === 'DEGRADED')) return 'DEGRADED';
     return 'HEALTHY';
+  }
+
+  /**
+   * Check cache health
+   * REQ-1767924916114-qbjk4: Implement Redis Cache Warming Strategy
+   */
+  private async checkCacheHealth(): Promise<ComponentHealth> {
+    const checks: HealthCheckResult[] = [];
+
+    // Get cache health from monitoring service
+    const health = this.cacheMonitoringService.getHealthStatus();
+    const stats = this.cacheMonitoringService.getStats();
+
+    // Check 1: Hit Rate
+    checks.push({
+      name: 'hit_rate',
+      status: health.status.toUpperCase() as 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY',
+      message: `Cache hit rate: ${health.hitRate.toFixed(2)}%`,
+      duration: 0,
+      metadata: {
+        hitRate: health.hitRate,
+        hits: stats.hits,
+        misses: stats.misses,
+        threshold_healthy: 70,
+        threshold_degraded: 50,
+      },
+    });
+
+    // Check 2: Error Rate
+    const errorStatus: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' =
+      health.errorRate < 5 ? 'HEALTHY' : health.errorRate < 10 ? 'DEGRADED' : 'UNHEALTHY';
+
+    checks.push({
+      name: 'error_rate',
+      status: errorStatus,
+      message: `Cache error rate: ${health.errorRate.toFixed(2)}%`,
+      duration: 0,
+      metadata: {
+        errorRate: health.errorRate,
+        errors: stats.errors,
+        threshold_healthy: 5,
+        threshold_degraded: 10,
+      },
+    });
+
+    // Check 3: Performance
+    const avgDuration = (stats.avgHitDuration + stats.avgMissDuration) / 2;
+    const perfStatus: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' =
+      avgDuration < 10 ? 'HEALTHY' : avgDuration < 50 ? 'DEGRADED' : 'UNHEALTHY';
+
+    checks.push({
+      name: 'performance',
+      status: perfStatus,
+      message: `Average cache operation: ${avgDuration.toFixed(2)}ms`,
+      duration: avgDuration,
+      metadata: {
+        avgHitDuration: stats.avgHitDuration,
+        avgMissDuration: stats.avgMissDuration,
+        avgSetDuration: stats.avgSetDuration,
+        threshold_healthy: 10,
+        threshold_degraded: 50,
+      },
+    });
+
+    const status = this.aggregateChecks(checks);
+
+    return {
+      name: 'cache',
+      status,
+      checks,
+      lastChecked: new Date(),
+    };
   }
 }

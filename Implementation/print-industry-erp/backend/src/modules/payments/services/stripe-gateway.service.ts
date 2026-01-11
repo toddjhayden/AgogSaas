@@ -11,7 +11,7 @@
  * - Webhook signature validation
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient } from 'pg';
 import Stripe from 'stripe';
@@ -40,34 +40,46 @@ import {
 @Injectable()
 export class StripeGatewayService {
   private readonly logger = new Logger(StripeGatewayService.name);
-  private stripe: Stripe;
+  private stripe: Stripe | null = null;
   private webhookSecret: string;
+  private isConfigured: boolean = false;
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly db: Pool,
+    @Inject('DATABASE_POOL') private readonly db: Pool,
   ) {
     const apiKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!apiKey) {
-      throw new Error('STRIPE_SECRET_KEY not configured in environment variables');
+      this.logger.warn('STRIPE_SECRET_KEY not configured - Stripe payments disabled. Configure STRIPE_SECRET_KEY in production.');
+      this.isConfigured = false;
+    } else {
+      this.stripe = new Stripe(apiKey, {
+        apiVersion: '2024-12-18' as any,
+        timeout: 30000, // 30 second timeout
+        maxNetworkRetries: 2,
+        telemetry: false, // Disable Stripe telemetry for privacy
+      });
+      this.isConfigured = true;
+      this.logger.log('Stripe Gateway Service initialized successfully');
     }
 
-    this.stripe = new Stripe(apiKey, {
-      apiVersion: '2024-12-18' as any,
-      timeout: 30000, // 30 second timeout
-      maxNetworkRetries: 2,
-      telemetry: false, // Disable Stripe telemetry for privacy
-    });
-
     this.webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET') || '';
+  }
 
-    this.logger.log('Stripe Gateway Service initialized successfully');
+  /**
+   * Check if Stripe is configured and throw if not
+   */
+  private ensureConfigured(): void {
+    if (!this.isConfigured || !this.stripe) {
+      throw new Error('Stripe payments not configured. Please set STRIPE_SECRET_KEY environment variable.');
+    }
   }
 
   /**
    * Process card payment via Stripe
    */
   async processCardPayment(dto: ProcessCardPaymentDto): Promise<PaymentResult> {
+    this.ensureConfigured();
     const client = await this.db.connect();
 
     try {
@@ -93,7 +105,7 @@ export class StripeGatewayService {
 
       // Create PaymentIntent
       const paymentIntent = await this.retryWithBackoff(async () => {
-        return this.stripe.paymentIntents.create({
+        return this.stripe!.paymentIntents.create({
           amount: Math.round(dto.amount * 100), // Convert to cents
           currency: dto.currencyCode.toLowerCase(),
           customer: stripeCustomer.id,
@@ -149,9 +161,10 @@ export class StripeGatewayService {
         errorMessage: paymentIntent.status !== 'succeeded' ? 'Payment requires additional action' : undefined,
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Card payment failed: ${error.message}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`Card payment failed: ${err.message}`, err.stack);
       return this.handleStripeError(error);
     } finally {
       client.release();
@@ -162,6 +175,7 @@ export class StripeGatewayService {
    * Process ACH payment via Stripe
    */
   async processACHPayment(dto: ProcessACHPaymentDto): Promise<PaymentResult> {
+    this.ensureConfigured();
     const client = await this.db.connect();
 
     try {
@@ -185,7 +199,7 @@ export class StripeGatewayService {
 
       // Create ACH PaymentIntent
       const paymentIntent = await this.retryWithBackoff(async () => {
-        return this.stripe.paymentIntents.create({
+        return this.stripe!.paymentIntents.create({
           amount: Math.round(dto.amount * 100),
           currency: dto.currencyCode.toLowerCase(),
           customer: stripeCustomerId,
@@ -229,9 +243,10 @@ export class StripeGatewayService {
         errorMessage: 'ACH payment initiated. Funds will clear in 3-5 business days.',
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`ACH payment failed: ${error.message}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`ACH payment failed: ${err.message}`, err.stack);
       return this.handleStripeError(error);
     } finally {
       client.release();
@@ -246,13 +261,14 @@ export class StripeGatewayService {
     dto: SavePaymentMethodDto,
     stripeCustomerId: string,
   ): Promise<CustomerPaymentMethod> {
+    this.ensureConfigured();
     try {
       // Retrieve payment method from Stripe
-      const stripePaymentMethod = await this.stripe.paymentMethods.retrieve(dto.paymentMethodId);
+      const stripePaymentMethod = await this.stripe!.paymentMethods.retrieve(dto.paymentMethodId);
 
       // Attach to customer if not already attached
       if (stripePaymentMethod.customer !== stripeCustomerId) {
-        await this.stripe.paymentMethods.attach(dto.paymentMethodId, {
+        await this.stripe!.paymentMethods.attach(dto.paymentMethodId, {
           customer: stripeCustomerId,
         });
       }
@@ -277,8 +293,8 @@ export class StripeGatewayService {
         displayName = `${cardBrand} ending in ${cardLast4}`;
         paymentMethodType = PaymentMethodType.CARD;
       } else if (stripePaymentMethod.type === 'us_bank_account' && stripePaymentMethod.us_bank_account) {
-        bankLast4 = stripePaymentMethod.us_bank_account.last4;
-        bankName = stripePaymentMethod.us_bank_account.bank_name || undefined;
+        bankLast4 = stripePaymentMethod.us_bank_account.last4 ?? undefined;
+        bankName = stripePaymentMethod.us_bank_account.bank_name ?? undefined;
         displayName = `${bankName || 'Bank account'} ending in ${bankLast4}`;
         paymentMethodType = PaymentMethodType.ACH;
       }
@@ -323,9 +339,10 @@ export class StripeGatewayService {
       this.logger.log(`Payment method saved: ${dto.paymentMethodId} for customer ${dto.customerId}`);
       return result.rows[0];
 
-    } catch (error) {
-      this.logger.error(`Failed to save payment method: ${error.message}`, error.stack);
-      throw new StripeApiException(`Failed to save payment method: ${error.message}`, error);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Failed to save payment method: ${err.message}`, err.stack);
+      throw new StripeApiException(`Failed to save payment method: ${err.message}`, error);
     }
   }
 
@@ -333,6 +350,7 @@ export class StripeGatewayService {
    * Verify bank account with micro-deposits
    */
   async verifyBankAccount(dto: VerifyBankAccountDto): Promise<CustomerPaymentMethod> {
+    this.ensureConfigured();
     const client = await this.db.connect();
 
     try {
@@ -346,7 +364,12 @@ export class StripeGatewayService {
       }
 
       // Verify micro-deposits with Stripe
-      await this.stripe.paymentMethods.verifyMicrodeposits(dto.bankAccountId, {
+      // Note: For bank accounts using Payment Methods API, verification is done via SetupIntents
+      // The setupIntentId should be stored when the bank account was originally added
+      if (!paymentMethod.setup_intent_id) {
+        throw new StripeApiException('No setup intent found for this bank account', null);
+      }
+      await this.stripe!.setupIntents.verifyMicrodeposits(paymentMethod.setup_intent_id, {
         amounts: dto.amounts.map(a => Math.round(a * 100)), // Convert to cents
       });
 
@@ -364,10 +387,11 @@ export class StripeGatewayService {
       this.logger.log(`Bank account verified: ${dto.bankAccountId}`);
       return result.rows[0];
 
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
-      this.logger.error(`Bank account verification failed: ${error.message}`, error.stack);
-      throw new StripeApiException(`Bank account verification failed: ${error.message}`, error);
+      const err = error as Error;
+      this.logger.error(`Bank account verification failed: ${err.message}`, err.stack);
+      throw new StripeApiException(`Bank account verification failed: ${err.message}`, error);
     } finally {
       client.release();
     }
@@ -377,9 +401,10 @@ export class StripeGatewayService {
    * Create refund
    */
   async createRefund(paymentIntentId: string, amount?: number, reason?: string): Promise<Stripe.Refund> {
+    this.ensureConfigured();
     try {
       const refund = await this.retryWithBackoff(async () => {
-        return this.stripe.refunds.create({
+        return this.stripe!.refunds.create({
           payment_intent: paymentIntentId,
           amount: amount ? Math.round(amount * 100) : undefined, // Full refund if not specified
           reason: reason as any,
@@ -389,9 +414,10 @@ export class StripeGatewayService {
       this.logger.log(`Refund created: ${refund.id} for PaymentIntent ${paymentIntentId}`);
       return refund;
 
-    } catch (error) {
-      this.logger.error(`Refund creation failed: ${error.message}`, error.stack);
-      throw new StripeApiException(`Refund creation failed: ${error.message}`, error);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Refund creation failed: ${err.message}`, err.stack);
+      throw new StripeApiException(`Refund creation failed: ${err.message}`, error);
     }
   }
 
@@ -399,6 +425,10 @@ export class StripeGatewayService {
    * Validate webhook signature
    */
   validateWebhookSignature(payload: string, signature: string): boolean {
+    if (!this.isConfigured || !this.stripe) {
+      this.logger.warn('Stripe not configured - skipping webhook validation');
+      return false;
+    }
     try {
       if (!this.webhookSecret) {
         this.logger.warn('Webhook secret not configured - skipping signature validation');
@@ -407,8 +437,9 @@ export class StripeGatewayService {
 
       this.stripe.webhooks.constructEvent(payload, signature, this.webhookSecret);
       return true;
-    } catch (error) {
-      this.logger.error(`Webhook signature validation failed: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Webhook signature validation failed: ${err.message}`);
       return false;
     }
   }
@@ -417,14 +448,16 @@ export class StripeGatewayService {
    * Construct webhook event from payload
    */
   constructWebhookEvent(payload: string, signature: string): Stripe.Event {
+    this.ensureConfigured();
     try {
       if (!this.webhookSecret) {
         return JSON.parse(payload);
       }
 
-      return this.stripe.webhooks.constructEvent(payload, signature, this.webhookSecret);
-    } catch (error) {
-      this.logger.error(`Failed to construct webhook event: ${error.message}`);
+      return this.stripe!.webhooks.constructEvent(payload, signature, this.webhookSecret);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Failed to construct webhook event: ${err.message}`);
       throw new WebhookSignatureException();
     }
   }
@@ -447,7 +480,7 @@ export class StripeGatewayService {
 
     if (existingMethod.rows.length > 0) {
       const stripeCustomerId = existingMethod.rows[0].gateway_customer_id;
-      return this.stripe.customers.retrieve(stripeCustomerId) as Promise<Stripe.Customer>;
+      return this.stripe!.customers.retrieve(stripeCustomerId) as Promise<Stripe.Customer>;
     }
 
     // Get customer email from database
@@ -463,7 +496,7 @@ export class StripeGatewayService {
     const customer = customerResult.rows[0];
 
     // Create Stripe customer
-    const stripeCustomer = await this.stripe.customers.create({
+    const stripeCustomer = await this.stripe!.customers.create({
       email: customer.email,
       name: customer.company_name,
       metadata: {

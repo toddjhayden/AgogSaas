@@ -127,9 +127,9 @@ export const SPCControlChartPage: React.FC = () => {
       value: point.measuredValue,
       ucl: limits.upperControlLimit,
       cl: limits.centerLine,
-      lcl: limits.lowerControlLimit || 0,
-      usl: limits.upperSpecLimit,
-      lsl: limits.lowerSpecLimit,
+      lcl: limits.lowerControlLimit ?? 0,
+      usl: limits.upperSpecLimit ?? 0,
+      lsl: limits.lowerSpecLimit ?? 0,
     }));
   }, [dataPoints, limits]);
 

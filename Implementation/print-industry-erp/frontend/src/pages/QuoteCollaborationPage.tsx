@@ -114,13 +114,13 @@ export const QuoteCollaborationPage: React.FC = () => {
     setQuote((prev) => {
       if (!prev) return null;
 
-      const updated = { ...prev };
+      const updated = { ...prev } as Record<string, unknown>;
       event.changes.forEach((change) => {
-        (updated as unknown)[change.field] = change.newValue;
+        updated[change.field] = change.newValue;
       });
       updated.version = event.version;
 
-      return updated;
+      return updated as unknown as Quote;
     });
 
     // Show toast notification
@@ -151,12 +151,12 @@ export const QuoteCollaborationPage: React.FC = () => {
         // LINE_UPDATED
         updated.lines = updated.lines.map((line) => {
           if (line.id === event.lineId) {
-            const updatedLine = { ...line };
+            const updatedLine = { ...line } as Record<string, unknown>;
             event.changes.forEach((change) => {
-              (updatedLine as unknown)[change.field] = change.newValue;
+              updatedLine[change.field] = change.newValue;
             });
             updatedLine.version = event.version;
-            return updatedLine;
+            return updatedLine as unknown as QuoteLine;
           }
           return line;
         });
@@ -177,7 +177,7 @@ export const QuoteCollaborationPage: React.FC = () => {
    * Handle field change in local state
    */
   const handleFieldChange = useCallback(
-    (lineId: string, field: string, value: any) => {
+    (lineId: string, field: string, value: unknown) => {
       setLocalChanges((prev) => ({
         ...prev,
         [lineId]: {
@@ -260,9 +260,10 @@ export const QuoteCollaborationPage: React.FC = () => {
           setConflicts(result.conflicts);
           setShowConflictModal(true);
         }
-      } catch (error: unknown) {
+      } catch (error) {
         console.error('Failed to save quote line:', error);
-        toast.error(t('collaboration.saveFailed', { error: error.message }));
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(t('collaboration.saveFailed', { error: errorMessage }));
       }
     },
     [localChanges, updateQuoteLine, t]
@@ -298,7 +299,7 @@ export const QuoteCollaborationPage: React.FC = () => {
   /**
    * Get display value for a field (local changes or saved value)
    */
-  const getFieldValue = (line: QuoteLine, field: keyof QuoteLine): any => {
+  const getFieldValue = (line: QuoteLine, field: keyof QuoteLine): unknown => {
     const localChange = localChanges[line.id]?.[field];
     return localChange !== undefined ? localChange : line[field];
   };
@@ -436,7 +437,7 @@ export const QuoteCollaborationPage: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" fontWeight="bold">
-                        ${getFieldValue(line, 'lineAmount').toFixed(2)}
+                        ${(getFieldValue(line, 'lineAmount') as number).toFixed(2)}
                       </Typography>
                     </TableCell>
                     <TableCell align="center">

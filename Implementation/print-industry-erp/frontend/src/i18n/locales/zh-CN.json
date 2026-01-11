@@ -60,7 +60,8 @@
     "rollbackDecision": "回滚决策",
     "securityAudit": "安全审计",
     "databaseReplication": "数据库复制",
-    "databasePerformance": "数据库性能"
+    "databasePerformance": "数据库性能",
+    "runtimeDependencies": "运行时依赖健康"
   },
   "replication": {
     "title": "数据库复制监控",
@@ -1810,7 +1811,8 @@
         "message": "您确定要回滚此部署吗？",
         "type": "回滚类型",
         "reason": "回滚原因",
-        "reasonPlaceholder": "输入回滚原因..."
+        "reasonPlaceholder": "输入回滚原因...",
+        "emergencyWarning": "⚠️ 紧急回滚：此操作将立即回滚部署，绕过正常检查。仅在紧急情况下使用。"
       },
       "metrics": {
         "title": "健康指标",
@@ -1833,6 +1835,7 @@
       "emergency": {
         "title": "⚠️ 紧急回滚确认",
         "criticalWarning": "严重警告：这是一次紧急回滚，将绕过所有正常的安全检查和审批工作流程。仅在生产中断且需要立即恢复时使用此选项。此操作无法撤销。",
+        "message": "您即将对部署 {{deployment}} 执行紧急回滚。此操作仅应在关键的生产事故中使用。",
         "confirmInstruction": "要确认，请在下方输入框中输入 EMERGENCY：",
         "confirmLabel": "输入 EMERGENCY 以确认",
         "confirmError": "您必须完全按照所示输入 EMERGENCY 才能确认",
