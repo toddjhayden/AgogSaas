@@ -13,9 +13,10 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { connect, NatsConnection, StringCodec, Subscription } from 'nats';
+import { connect, NatsConnection, StringCodec, Subscription, JetStreamClient, JetStreamManager, StorageType, RetentionPolicy, DiscardPolicy } from 'nats';
 import { Pool } from 'pg';
 import { SDLCApiClient, SDLCApiClientConfig, CreateRequestInput } from '../api/sdlc-api.client';
+import { AuditDiagnosticsService, DiagnosticReport } from './audit-diagnostics.service';
 
 const sc = StringCodec();
 
@@ -24,7 +25,7 @@ const CONFIG = {
   natsUrl: process.env.NATS_URL || 'nats://localhost:4222',
   natsUser: process.env.NATS_USER,
   natsPassword: process.env.NATS_PASSWORD,
-  auditTimeout: 2 * 60 * 60 * 1000, // 2 hours in milliseconds
+  auditTimeout: 2 * 60 * 60 * 1000, // 2 hours in milliseconds (default, may be overridden by adaptive timeout)
   dailyRunHour: 2, // 2:00 AM
   triggerSubject: 'agog.audit.sam.run',
   requestSubject: 'agog.agent.requests.sam-audit', // Request to Host Listener
@@ -33,6 +34,13 @@ const CONFIG = {
   // Sasha - Workflow Infrastructure Support
   // For workflow rule questions or infrastructure issues, contact Sasha via NATS
   sashaRulesTopic: 'agog.agent.requests.sasha-rules',
+  // Phase B: Auto-retry configuration for transient failure recovery
+  maxAuditRetries: 3,           // Retry up to 3 times before creating P0
+  retryDelayMs: 30 * 1000,      // 30 second delay between retries
+  // Phase D: Adaptive timeout configuration
+  minAuditTimeout: 30 * 60 * 1000,     // 30 min floor
+  maxAuditTimeout: 4 * 60 * 60 * 1000, // 4 hour ceiling
+  adaptiveTimeoutBuffer: 1.5,           // 50% buffer on historical average
 };
 
 interface AuditResult {
@@ -48,12 +56,19 @@ interface AuditResult {
 
 class SeniorAuditorDaemon {
   private nc: NatsConnection | null = null;
+  private js: JetStreamClient | null = null;
   private db: Pool | null = null;
   private sdlcClient: SDLCApiClient | null = null;
   private isRunning = false;
   private dailyTimer: NodeJS.Timeout | null = null;
   private responseSubscription: Subscription | null = null;
-  private pendingAudits: Map<string, { auditType: string; startTime: number; resolve: (result: AuditResult) => void }> = new Map();
+  private pendingAudits: Map<string, { auditType: string; startTime: number; resolve: (result: AuditResult) => void; timeoutId?: NodeJS.Timeout }> = new Map();
+
+  // Phase B: Auto-retry tracking for transient failure recovery
+  private auditRetryCount: Map<string, number> = new Map();
+
+  // Phase C: Diagnostics service for failure analysis
+  private diagnosticsService: AuditDiagnosticsService | null = null;
 
   /**
    * Request Sasha for workflow rule guidance
@@ -73,6 +88,86 @@ class SeniorAuditorDaemon {
     } catch (error: any) {
       console.error(`[Sam] Failed to ask Sasha: ${error.message}`);
     }
+  }
+
+  /**
+   * Ensure JetStream stream exists for audit requests
+   * Fixes race condition where Sam publishes before Host Listener subscribes
+   * Per WORKFLOW_RULES.md Rule #1: Fail fast if dependency unavailable
+   */
+  private async ensureAuditRequestStream(): Promise<void> {
+    if (!this.nc) {
+      console.error('[Sam] No NATS connection, cannot create audit stream');
+      process.exit(1); // Rule #1: Fail fast
+    }
+
+    const jsm = await this.nc.jetstreamManager();
+    const streamName = 'agog_audit_requests';
+
+    try {
+      await jsm.streams.info(streamName);
+      console.log(`[Sam] Stream ${streamName} already exists`);
+    } catch (error) {
+      console.log(`[Sam] Creating stream: ${streamName}`);
+
+      const streamConfig = {
+        name: streamName,
+        subjects: [CONFIG.requestSubject],
+        storage: StorageType.File,
+        retention: RetentionPolicy.Workqueue, // One consumer processes each message
+        max_msgs: 100,
+        max_age: 7 * 24 * 60 * 60 * 1_000_000_000, // 7 days
+        discard: DiscardPolicy.Old,
+      };
+
+      await jsm.streams.add(streamConfig);
+      console.log(`[Sam] ✅ Stream ${streamName} created`);
+    }
+  }
+
+  /**
+   * Wait for Host Listener consumer to be ready before publishing audit requests
+   * Prevents race condition where Sam publishes before consumer exists
+   *
+   * Fix for: REQ-P0-AUDIT-TIMEOUT-1767935800708-eko0j
+   * Root Cause: Sam published audit request before Host Listener consumer was ready
+   */
+  private async waitForConsumerReady(maxWaitSeconds: number = 30): Promise<boolean> {
+    if (!this.nc) {
+      console.error('[Sam] No NATS connection, cannot check consumer');
+      return false;
+    }
+
+    const jsm = await this.nc.jetstreamManager();
+    const streamName = 'agog_audit_requests';
+    const consumerName = 'host-listener-audit-consumer';
+    const startTime = Date.now();
+
+    console.log(`[Sam] Waiting for consumer ${consumerName} to be ready (max ${maxWaitSeconds}s)...`);
+
+    while (Date.now() - startTime < maxWaitSeconds * 1000) {
+      try {
+        const consumerInfo = await jsm.consumers.info(streamName, consumerName);
+        if (consumerInfo) {
+          console.log(`[Sam] ✅ Consumer ${consumerName} is ready (${consumerInfo.num_pending} pending messages)`);
+          return true;
+        }
+      } catch (error: any) {
+        // Consumer doesn't exist yet - wait and retry
+        if (error.message?.includes('consumer not found') || error.code === '404') {
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms before retry
+          continue;
+        }
+        // Other errors should fail fast
+        console.error(`[Sam] Error checking consumer: ${error.message}`);
+        return false;
+      }
+    }
+
+    console.warn(`[Sam] ⚠️ Consumer ${consumerName} not ready after ${maxWaitSeconds}s`);
+    console.warn(`[Sam] ⚠️ Host Listener may not be running - audit requests will be queued in stream`);
+    // Return true anyway - JetStream will queue the message until consumer is ready
+    return true;
   }
 
   async start(): Promise<void> {
@@ -116,6 +211,20 @@ class SeniorAuditorDaemon {
       pass: CONFIG.natsPassword,
     });
     console.log(`[Sam] Connected to NATS at ${CONFIG.natsUrl}`);
+
+    // Initialize JetStream for reliable audit request delivery
+    this.js = this.nc.jetstream();
+    await this.ensureAuditRequestStream();
+    console.log('[Sam] JetStream audit request stream ready');
+
+    // Phase C: Initialize diagnostics service for failure analysis
+    this.diagnosticsService = new AuditDiagnosticsService(this.nc, this.db);
+    console.log('[Sam] Diagnostics service initialized');
+
+    // Wait for Host Listener consumer to be ready (fixes race condition)
+    // Per REQ-P0-AUDIT-TIMEOUT-1767935800708-eko0j analysis
+    await this.waitForConsumerReady(30);
+    console.log('[Sam] ✅ Host Listener consumer coordination complete');
 
     // Subscribe to manual trigger
     if (this.nc) {
@@ -181,7 +290,8 @@ class SeniorAuditorDaemon {
     console.log(`[Sam] Starting ${auditType} audit at ${new Date().toISOString()}`);
 
     try {
-      // Publish audit request to NATS for Host Listener to spawn Claude
+      // Publish audit request to JetStream for reliable delivery
+      // Fixes race condition: message persists even if Host Listener not yet subscribed
       const auditRequest = {
         reqNumber,
         auditType,
@@ -189,11 +299,25 @@ class SeniorAuditorDaemon {
         requestedBy: 'sam-daemon',
       };
 
-      console.log(`[Sam] Publishing audit request to ${CONFIG.requestSubject}`);
-      this.nc!.publish(CONFIG.requestSubject, sc.encode(JSON.stringify(auditRequest)));
+      console.log(`[Sam] Publishing audit request to JetStream: ${CONFIG.requestSubject}`);
 
-      // Wait for response with timeout
-      const result = await this.waitForAuditResponse(reqNumber, auditType, startTime);
+      if (!this.js) {
+        throw new Error('JetStream not initialized - cannot publish audit request');
+      }
+
+      await this.js.publish(
+        CONFIG.requestSubject,
+        sc.encode(JSON.stringify(auditRequest)),
+        { msgID: reqNumber } // Deduplication based on REQ number
+      );
+
+      console.log(`[Sam] ✅ Audit request published to JetStream: ${reqNumber}`);
+
+      // Phase D: Calculate adaptive timeout based on historical data
+      const adaptiveTimeout = await this.getAdaptiveTimeout(auditType);
+
+      // Wait for response with adaptive timeout
+      const result = await this.waitForAuditResponse(reqNumber, auditType, startTime, adaptiveTimeout);
 
       // Calculate duration
       const endTime = Date.now();
@@ -235,46 +359,200 @@ class SeniorAuditorDaemon {
   private waitForAuditResponse(
     reqNumber: string,
     auditType: string,
-    startTime: number
+    startTime: number,
+    timeout: number = CONFIG.auditTimeout // Phase D: Accept adaptive timeout parameter
   ): Promise<AuditResult> {
-    return new Promise((resolve) => {
-      // Store pending audit info
-      this.pendingAudits.set(reqNumber, { auditType, startTime, resolve });
+    const timeoutMinutes = Math.round(timeout / 1000 / 60);
 
-      // Set timeout for audit completion
-      setTimeout(async () => {
+    return new Promise((resolve) => {
+      // Early warning: 5-minute check for potential crashes
+      const earlyWarningId = setTimeout(async () => {
+        if (this.pendingAudits.has(reqNumber)) {
+          const elapsed = Math.round((Date.now() - startTime) / 1000 / 60);
+          console.warn(`[Sam] ⚠️ No response after ${elapsed} minutes - audit may have crashed or is still processing`);
+          console.warn(`[Sam] ⏰ Will timeout in ${timeoutMinutes - elapsed} minutes if no response received`);
+
+          // Ask Sasha for guidance - might be workflow infrastructure issue
+          await this.askSashaForGuidance(
+            'Audit not responding after 5 minutes - is this a workflow infrastructure issue or normal processing time?',
+            `Audit ${reqNumber} (${auditType}) spawned but no response received after 5 minutes. Expected completion: 30-40 minutes for full audit.`
+          );
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+
+      // Final timeout - Phase B: Try retry before creating P0, Phase D: Use adaptive timeout
+      const timeoutId = setTimeout(async () => {
         if (this.pendingAudits.has(reqNumber)) {
           const durationMinutes = Math.round((Date.now() - startTime) / 1000 / 60);
-          console.warn(`[Sam] 🚨 AUDIT TIMEOUT: ${reqNumber} timed out after ${durationMinutes} minutes (limit: ${CONFIG.auditTimeout / 1000 / 60}min)`);
-          this.pendingAudits.delete(reqNumber);
 
-          // Create P0 manual review REQ for timeout investigation
+          // Phase B: Check retry count before creating P0
+          const currentRetries = this.auditRetryCount.get(reqNumber) || 0;
+
+          if (currentRetries < CONFIG.maxAuditRetries) {
+            // Still have retries remaining - attempt retry
+            const nextRetry = currentRetries + 1;
+            this.auditRetryCount.set(reqNumber, nextRetry);
+
+            console.warn(`[Sam] ⚠️ AUDIT TIMEOUT: ${reqNumber} timed out after ${durationMinutes} minutes`);
+            console.log(`[Sam] 🔄 Retry ${nextRetry}/${CONFIG.maxAuditRetries} - transient failure recovery`);
+
+            // Clean up pending audit state
+            this.pendingAudits.delete(reqNumber);
+
+            // Wait before retry (exponential backoff: 30s, 60s, 120s)
+            const backoffDelay = CONFIG.retryDelayMs * Math.pow(2, currentRetries);
+            console.log(`[Sam] ⏳ Waiting ${backoffDelay / 1000}s before retry...`);
+
+            await new Promise(r => setTimeout(r, backoffDelay));
+
+            // Retry the audit
+            try {
+              const retryResult = await this.retryAudit(reqNumber, auditType as 'startup' | 'daily' | 'manual');
+              resolve(retryResult);
+            } catch (error: any) {
+              console.error(`[Sam] Retry ${nextRetry} failed: ${error.message}`);
+              // Will trigger another timeout cycle if retries remain
+            }
+            return;
+          }
+
+          // All retries exhausted - this is now a catastrophic failure
+          console.error(`[Sam] 🚨 AUDIT TIMEOUT: ${reqNumber} timed out after ${durationMinutes} minutes (limit: ${timeoutMinutes}min)`);
+          console.error(`[Sam] ❌ All ${CONFIG.maxAuditRetries} retries exhausted - audit infrastructure is broken`);
+          console.error(`[Sam] ❌ Per WORKFLOW_RULES.md Rule #1: Services MUST EXIT immediately when critical dependencies fail`);
+          console.error(`[Sam] ❌ Exiting process - supervisor will restart service`);
+          this.pendingAudits.delete(reqNumber);
+          this.auditRetryCount.delete(reqNumber); // Clean up retry tracking
+
+          // Create P0 manual review REQ for timeout investigation before exit
           await this.createManualReviewREQ(reqNumber, auditType, durationMinutes);
 
-          // Return a default timeout result
-          resolve({
-            agent: 'sam',
-            audit_type: auditType as 'startup' | 'daily' | 'manual',
-            timestamp: new Date().toISOString(),
-            duration_minutes: durationMinutes,
-            overall_status: 'WARNING',
-            deployment_blocked: false,
-            block_reasons: [],
-            recommendations: [
-              `CRITICAL: Audit timed out after ${durationMinutes} minutes - manual review required`,
-              'System audit may have encountered long-running queries or infrastructure issues',
-              'Check agent-backend/logs for audit process errors',
-              'Review database query performance and connection health'
-            ],
-          });
+          // Rule #1: NO graceful error handling - EXIT IMMEDIATELY
+          // Audit infrastructure is a critical dependency. If it's broken, the service must exit.
+          // The process supervisor (Docker, systemd, etc.) will restart the service.
+          // This prevents the system from continuing without audit verification.
+          process.exit(1);
         }
-      }, CONFIG.auditTimeout);
+      }, timeout); // Phase D: Use adaptive timeout
+
+      // Store pending audit info with timeout ID for potential cancellation
+      this.pendingAudits.set(reqNumber, { auditType, startTime, resolve, timeoutId });
     });
   }
 
   /**
+   * Phase B: Retry a timed-out audit
+   * Re-publishes the audit request to JetStream for another attempt
+   */
+  private async retryAudit(
+    originalReqNumber: string,
+    auditType: 'startup' | 'daily' | 'manual'
+  ): Promise<AuditResult> {
+    const retryCount = this.auditRetryCount.get(originalReqNumber) || 0;
+    const newReqNumber = `${originalReqNumber}-retry${retryCount}`;
+    const startTime = Date.now();
+
+    console.log(`[Sam] 🔄 Retrying audit: ${newReqNumber} (original: ${originalReqNumber})`);
+
+    // Publish retry audit request to JetStream
+    const auditRequest = {
+      reqNumber: newReqNumber,
+      originalReqNumber,
+      auditType,
+      timestamp: new Date().toISOString(),
+      requestedBy: 'sam-daemon',
+      isRetry: true,
+      retryCount,
+    };
+
+    if (!this.js) {
+      throw new Error('JetStream not initialized - cannot publish retry audit request');
+    }
+
+    await this.js.publish(
+      CONFIG.requestSubject,
+      sc.encode(JSON.stringify(auditRequest)),
+      { msgID: newReqNumber }
+    );
+
+    console.log(`[Sam] ✅ Retry audit request published: ${newReqNumber}`);
+
+    // Wait for response with the same timeout logic (recursive retry handled by waitForAuditResponse)
+    // Copy retry count to new request number for tracking
+    this.auditRetryCount.set(newReqNumber, retryCount);
+
+    return this.waitForAuditResponse(newReqNumber, auditType, startTime);
+  }
+
+  /**
+   * Phase D: Get average audit duration from historical data
+   * Returns average duration in milliseconds, or null if no historical data
+   */
+  private async getAverageAuditDuration(auditType: string): Promise<number | null> {
+    if (!this.db) {
+      return null;
+    }
+
+    try {
+      // Get average duration of successful audits of the same type from last 30 days
+      const result = await this.db.query(`
+        SELECT AVG(duration_minutes) as avg_duration,
+               COUNT(*) as sample_size,
+               MAX(duration_minutes) as max_duration
+        FROM system_health_audits
+        WHERE audit_type = $1
+          AND overall_status != 'FAIL'
+          AND timestamp > NOW() - INTERVAL '30 days'
+      `, [auditType]);
+
+      if (result.rows[0]?.avg_duration) {
+        const avgMinutes = parseFloat(result.rows[0].avg_duration);
+        const sampleSize = parseInt(result.rows[0].sample_size);
+        const maxMinutes = parseFloat(result.rows[0].max_duration);
+
+        console.log(`[Sam] Historical ${auditType} audit stats: avg=${avgMinutes.toFixed(1)}min, max=${maxMinutes}min, samples=${sampleSize}`);
+
+        // Return average in milliseconds
+        return avgMinutes * 60 * 1000;
+      }
+
+      return null;
+    } catch (error: any) {
+      console.warn(`[Sam] Failed to get historical audit duration: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Phase D: Calculate adaptive timeout based on historical audit duration
+   * Returns timeout in milliseconds, bounded by min/max config values
+   */
+  private async getAdaptiveTimeout(auditType: string): Promise<number> {
+    const historicalAvg = await this.getAverageAuditDuration(auditType);
+
+    if (historicalAvg === null) {
+      // No historical data - use default timeout
+      console.log(`[Sam] No historical data for ${auditType} audits, using default timeout: ${CONFIG.auditTimeout / 1000 / 60}min`);
+      return CONFIG.auditTimeout;
+    }
+
+    // Apply buffer to historical average
+    const adaptiveTimeout = historicalAvg * CONFIG.adaptiveTimeoutBuffer;
+
+    // Bound by min/max
+    const boundedTimeout = Math.max(
+      CONFIG.minAuditTimeout,
+      Math.min(adaptiveTimeout, CONFIG.maxAuditTimeout)
+    );
+
+    console.log(`[Sam] Adaptive timeout for ${auditType}: ${Math.round(boundedTimeout / 1000 / 60)}min (based on ${Math.round(historicalAvg / 1000 / 60)}min avg × ${CONFIG.adaptiveTimeoutBuffer} buffer)`);
+
+    return boundedTimeout;
+  }
+
+  /**
    * Create a P0 manual review REQ when an audit times out
-   * This ensures timeout scenarios are investigated and resolved
+   * Phase C: Now includes automated diagnostic report
    */
   private async createManualReviewREQ(
     auditReqNumber: string,
@@ -286,37 +564,43 @@ class SeniorAuditorDaemon {
       return;
     }
 
+    // Phase C: Run diagnostics before creating P0
+    let diagnosticReport: DiagnosticReport | null = null;
+    let diagnosticMarkdown = '';
+
+    if (this.diagnosticsService) {
+      try {
+        console.log('[Sam] 🔍 Running diagnostics for failed audit...');
+        diagnosticReport = await this.diagnosticsService.runDiagnostics(auditReqNumber, durationMinutes);
+        diagnosticMarkdown = this.diagnosticsService.formatReportAsMarkdown(diagnosticReport);
+        console.log(`[Sam] ✅ Diagnostics complete. Probable cause: ${diagnosticReport.probableCause || 'Unknown'}`);
+      } catch (error: any) {
+        console.error(`[Sam] Diagnostics failed: ${error.message}`);
+        diagnosticMarkdown = `\n\n## Diagnostic Report\n\n**Error:** Failed to generate diagnostic report: ${error.message}\n`;
+      }
+    }
+
     const reqNumber = `REQ-P0-AUDIT-TIMEOUT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-    const title = `Audit timed out - manual review required (${auditReqNumber})`;
+    const probableCause = diagnosticReport?.probableCause || 'Unknown - diagnostics unavailable';
+    const severity = diagnosticReport?.severity || 'high';
+    const title = `Audit timed out - ${probableCause} (${auditReqNumber})`;
+
     const description = `
 ## P0 Audit Timeout - Manual Review Required
 
-**Severity:** catastrophic - IMMEDIATE INVESTIGATION REQUIRED
+**Severity:** ${severity.toUpperCase()} - ${severity === 'critical' ? 'IMMEDIATE INVESTIGATION REQUIRED' : 'Investigation needed'}
 **Original Audit:** ${auditReqNumber}
 **Audit Type:** ${auditType}
 **Timeout After:** ${durationMinutes} minutes (limit: ${CONFIG.auditTimeout / 1000 / 60}min)
+**Retries Exhausted:** ${CONFIG.maxAuditRetries}
+**Probable Cause:** ${probableCause}
 **Created:** ${new Date().toISOString()}
 
 ### Problem
 The system-wide audit initiated by Sam (Senior Auditor) timed out after ${durationMinutes} minutes.
-This indicates either:
-1. Long-running database queries in security audit service
-2. Infrastructure performance issues
-3. Agent process hung or crashed
-4. Network connectivity problems to database or NATS
+All ${CONFIG.maxAuditRetries} retry attempts have been exhausted.
 
-### Impact
-- System health status unknown
-- Potential security vulnerabilities undetected
-- Deployment confidence reduced
-- Automated quality gates bypassed
-
-### Investigation Steps
-1. Check agent-backend logs for errors during audit window
-2. Review database query logs for slow queries (>10s)
-3. Verify NATS message broker connectivity and health
-4. Check system resource usage (CPU, memory, disk) during audit
-5. Manually re-run audit to determine if issue persists
+${diagnosticMarkdown}
 
 ### Acceptance Criteria
 - [ ] Root cause of timeout identified and documented
@@ -327,16 +611,9 @@ This indicates either:
 
 ### Files to Review
 - \`agent-backend/src/proactive/senior-auditor.daemon.ts\` (timeout config: line 26)
+- \`agent-backend/src/proactive/audit-diagnostics.service.ts\` (diagnostic checks)
 - \`backend/src/modules/security/services/security-audit.service.ts\` (query timeouts)
 - \`agent-backend/logs/host-listener-*.log\` (audit spawn logs)
-- \`backend/audit-reports/\` (previous audit results)
-
-### Recommended Actions
-1. Increase audit timeout if audits consistently need >2 hours
-2. Optimize slow database queries in security audit service
-3. Add query timeout monitoring and alerting
-4. Implement audit checkpointing for long-running audits
-5. Add audit progress reporting to prevent silent timeouts
     `.trim();
 
     // STEP 1: Create REQ in SDLC first (source of truth)
@@ -388,15 +665,64 @@ This indicates either:
       timestamp: new Date().toISOString(),
       severity: 'P0',
     }));
+
+    // Phase E: Detect root cause patterns and create auto-fix REQs
+    if (diagnosticReport && this.diagnosticsService) {
+      const rootCauseFixes = this.diagnosticsService.detectRootCausePatterns(diagnosticReport);
+
+      for (const fix of rootCauseFixes) {
+        const fixReqNumber = `REQ-FIX-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+        console.log(`[Sam] 🔧 Creating auto-fix REQ for: ${fix.rootCause}`);
+
+        // Create fix REQ in SDLC
+        if (this.sdlcClient) {
+          const fixInput: CreateRequestInput = {
+            reqNumber: fixReqNumber,
+            title: fix.fixTitle,
+            description: `## Auto-Generated Fix REQ
+
+**Root Cause:** ${fix.rootCause}
+**Triggered By:** ${reqNumber}
+**Diagnostic Report:** ${auditReqNumber}
+
+${fix.fixDescription}
+
+### Acceptance Criteria
+- [ ] Root cause addressed
+- [ ] Verified by re-running audit
+- [ ] No recurrence in subsequent audits
+`,
+            requestType: 'bug',
+            priority: fix.priority,
+            primaryBu: 'core-infra',
+            assignedTo: fix.assignedAgent,
+            source: 'sam-auto-fix',
+            tags: ['auto-fix', 'root-cause', fix.rootCause.toLowerCase().replace(/\s+/g, '-')],
+          };
+
+          const created = await this.sdlcClient.createRequest(fixInput);
+          if (created) {
+            console.log(`[Sam] ✅ Created auto-fix REQ: ${fixReqNumber} for ${fix.rootCause}`);
+          }
+        }
+      }
+
+      if (rootCauseFixes.length > 0) {
+        console.log(`[Sam] Created ${rootCauseFixes.length} auto-fix REQs for detected root causes`);
+      }
+    }
   }
 
   private async handleAuditResponse(msg: any): Promise<void> {
     try {
       const response = JSON.parse(sc.decode(msg.data));
-      console.log(`[Sam] Received audit response for ${response.req_number}`);
+      console.log(`[Sam] 📨 Received audit response for ${response.req_number}`);
+      console.log(`[Sam] 🔍 Pending audits: [${Array.from(this.pendingAudits.keys()).join(', ')}]`);
 
       const pending = this.pendingAudits.get(response.req_number);
       if (pending) {
+        console.log(`[Sam] ✅ Correlation SUCCESS - matched pending audit ${response.req_number}`);
         this.pendingAudits.delete(response.req_number);
 
         // Convert response to AuditResult format
@@ -413,7 +739,8 @@ This indicates either:
 
         pending.resolve(result);
       } else {
-        console.warn(`[Sam] Received response for unknown audit: ${response.req_number}`);
+        console.warn(`[Sam] ❌ Correlation FAILED - unknown audit: ${response.req_number}`);
+        console.warn(`[Sam] Expected one of: [${Array.from(this.pendingAudits.keys()).join(', ')}]`);
       }
     } catch (error) {
       console.error('[Sam] Failed to parse audit response:', error);
