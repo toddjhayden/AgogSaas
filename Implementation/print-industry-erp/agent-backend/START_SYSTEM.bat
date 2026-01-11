@@ -73,7 +73,7 @@ echo.
 echo [STEP 1] Starting Docker containers (VPS mode - no local SDLC DB)...
 echo.
 REM Use VPS-mode compose file (excludes sdlc-db)
-docker-compose -f docker-compose.agents-vps.yml up -d nats agent-postgres ollama
+docker-compose -f docker-compose.agents.yml up -d nats agent-postgres ollama
 
 if errorlevel 1 (
     echo.
@@ -95,7 +95,7 @@ timeout /t 10 /nobreak > nul
 echo.
 echo [STEP 1b] Starting Agent Backend (Strategic Orchestrator + Daemons)...
 echo.
-docker-compose -f docker-compose.agents-vps.yml up -d agent-backend
+docker-compose -f docker-compose.agents.yml up -d agent-backend
 
 if errorlevel 1 (
     echo.
