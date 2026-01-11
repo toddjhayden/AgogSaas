@@ -169,3 +169,124 @@ export const GET_TRACKING_EVENTS = gql`
     }
   }
 `;
+
+export const GET_CARRIER_INTEGRATION = gql`
+  query GetCarrierIntegration($id: ID!, $tenantId: ID!) {
+    carrierIntegration(id: $id, tenantId: $tenantId) {
+      id
+      tenantId
+      facilityId
+      carrierCode
+      carrierName
+      carrierType
+      apiEndpoint
+      apiVersion
+      accountNumber
+      serviceMapping {
+        code
+        name
+        transitDays
+        guaranteedDelivery
+      }
+      credentialsConfigured
+      supportsTracking
+      supportsRateQuotes
+      supportsLabelGeneration
+      isActive
+      connectionStatus
+      lastConnectionTest
+      createdAt
+      createdBy
+      updatedAt
+      updatedBy
+    }
+  }
+`;
+
+export const TEST_CARRIER_CONNECTION = gql`
+  query TestCarrierConnection($id: ID!, $tenantId: ID!) {
+    testCarrierConnection(id: $id, tenantId: $tenantId) {
+      isConnected
+      apiVersion
+      responseTimeMs
+      error
+      testedAt
+    }
+  }
+`;
+
+export const GET_RATE_QUOTES = gql`
+  query GetRateQuotes($input: RateShopInput!) {
+    getRateQuotes(input: $input) {
+      serviceType
+      serviceName
+      carrierCode
+      carrierName
+      totalCost
+      currency
+      baseRate
+      fuelSurcharge
+      insurance
+      residential
+      saturday
+      otherCharges
+      transitDays
+      estimatedDeliveryDate
+      guaranteedDelivery
+      quotedAt
+    }
+  }
+`;
+
+export const VALIDATE_ADDRESS = gql`
+  query ValidateAddress($input: ValidateAddressInput!, $carrierCode: CarrierCode) {
+    validateAddress(input: $input, carrierCode: $carrierCode) {
+      isValid
+      validatedAddress {
+        name
+        addressLine1
+        addressLine2
+        city
+        state
+        postalCode
+        country
+        isResidential
+      }
+      suggestions {
+        name
+        addressLine1
+        addressLine2
+        city
+        state
+        postalCode
+        country
+        isResidential
+      }
+      errors {
+        code
+        message
+        field
+      }
+    }
+  }
+`;
+
+export const TRACK_SHIPMENT = gql`
+  query TrackShipment($trackingNumber: String!, $carrierCode: CarrierCode!) {
+    trackShipment(trackingNumber: $trackingNumber, carrierCode: $carrierCode) {
+      id
+      eventDate
+      eventType
+      eventDescription
+      city
+      state
+      country
+      postalCode
+      carrierEventCode
+      exceptionFlag
+      exceptionReason
+      signedBy
+      createdAt
+    }
+  }
+`;

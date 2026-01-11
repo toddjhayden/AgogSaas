@@ -90,6 +90,8 @@ export class UPSClientService implements ICarrierClient {
 
     return [
       {
+        carrierCode: 'UPS',
+        carrierName: 'UPS',
         serviceType: 'UPS_GROUND',
         serviceName: 'UPS Ground',
         totalCost: baseRate * 1.0,
@@ -103,6 +105,8 @@ export class UPSClientService implements ICarrierClient {
         }
       },
       {
+        carrierCode: 'UPS',
+        carrierName: 'UPS',
         serviceType: 'UPS_3DAY_SELECT',
         serviceName: 'UPS 3 Day Select',
         totalCost: baseRate * 2.2,
@@ -111,6 +115,8 @@ export class UPSClientService implements ICarrierClient {
         guaranteedDelivery: true
       },
       {
+        carrierCode: 'UPS',
+        carrierName: 'UPS',
         serviceType: 'UPS_2ND_DAY_AIR',
         serviceName: 'UPS 2nd Day Air',
         totalCost: baseRate * 2.8,
@@ -119,6 +125,8 @@ export class UPSClientService implements ICarrierClient {
         guaranteedDelivery: true
       },
       {
+        carrierCode: 'UPS',
+        carrierName: 'UPS',
         serviceType: 'UPS_NEXT_DAY_AIR',
         serviceName: 'UPS Next Day Air',
         totalCost: baseRate * 4.5,

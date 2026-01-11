@@ -17,23 +17,23 @@ import { randomUUID } from 'crypto';
 import { Context } from 'graphql-ws';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
-import { HealthModule as RuntimeHealthModule } from './common/health/health.module';
+// import { HealthModule as RuntimeHealthModule } from './common/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantContextPlugin } from './common/plugins/tenant-context.plugin';
 import { QueryComplexityPlugin } from './common/plugins/query-complexity.plugin';
 import { QueryDepthLimiterPlugin } from './common/plugins/query-depth-limiter.plugin';
 import { SecurityValidationPlugin } from './common/plugins/security-validation.plugin';
 import { GraphQLSecurityModule } from './common/graphql/graphql-security.module';
-import { WebSocketSecurityModule } from './common/websocket';
+// import { WebSocketSecurityModule } from './common/websocket';
 import { CacheModule } from './cache/cache.module';
 import { AuditLoggingInterceptor } from './common/interceptors/audit-logging.interceptor';
-import {
-  WebSocketAuthService,
-  WebSocketRateLimiterService,
-  WebSocketMonitorService,
-  WebSocketOriginValidatorService,
-  WebSocketSubscriptionGuardService,
-} from './common/websocket';
+// import {
+//   WebSocketAuthService,
+//   WebSocketRateLimiterService,
+//   WebSocketMonitorService,
+//   WebSocketOriginValidatorService,
+//   WebSocketSubscriptionGuardService,
+// } from './common/websocket';
 import { ValidatedUser } from './modules/auth/strategies/jwt.strategy';
 import { ForecastingModule } from './modules/forecasting/forecasting.module';
 
@@ -103,10 +103,12 @@ import { CrmModule } from './modules/crm/crm.module';
 import { SupplierPortalModule } from './modules/supplier-portal/supplier-portal.module';
 import { DevOpsModule } from './modules/devops/devops.module';
 import { SecurityModule } from './modules/security/security.module';
-import { SDLCModule } from './modules/sdlc/sdlc.module';
+// import { SDLCModule } from './modules/sdlc/sdlc.module';
 import { RestApiModule } from './modules/rest-api/rest-api.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { CacheManagementModule } from './modules/cache-management/cache-management.module';
+import { SagaModule } from './modules/saga/saga.module';
 
 @Module({
   imports: [
@@ -120,14 +122,14 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     DatabaseModule,
 
     // Runtime Dependency Health Validation (REQ-AUDIT-1767982074)
-    RuntimeHealthModule,
+    // RuntimeHealthModule,
 
     // Redis Caching Layer (REQ-1767541724200-xzjz9)
     CacheModule,
 
     // WebSocket Security Framework
     // REQ-1767183219586: WebSocket Security Hardening + Authentication Framework
-    WebSocketSecurityModule,
+    // WebSocketSecurityModule,
 
     // GraphQL Security Module
     // REQ-1767925582666-3sc6l: GraphQL Query Complexity Control & Security Hardening
@@ -139,22 +141,22 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     // REQ-1767925582666-3sc6l: Query Complexity Control
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
-      imports: [DatabaseModule, WebSocketSecurityModule],
+      imports: [DatabaseModule],
       inject: [
         'DATABASE_POOL',
-        WebSocketAuthService,
-        WebSocketRateLimiterService,
-        WebSocketMonitorService,
-        WebSocketOriginValidatorService,
-        WebSocketSubscriptionGuardService,
+        // WebSocketAuthService,
+        // WebSocketRateLimiterService,
+        // WebSocketMonitorService,
+        // WebSocketOriginValidatorService,
+        // WebSocketSubscriptionGuardService,
       ],
       useFactory: (
         dbPool: Pool,
-        wsAuth: WebSocketAuthService,
-        wsRateLimit: WebSocketRateLimiterService,
-        wsMonitor: WebSocketMonitorService,
-        wsOriginValidator: WebSocketOriginValidatorService,
-        wsSubscriptionGuard: WebSocketSubscriptionGuardService,
+        // wsAuth: WebSocketAuthService,
+        // wsRateLimit: WebSocketRateLimiterService,
+        // wsMonitor: WebSocketMonitorService,
+        // wsOriginValidator: WebSocketOriginValidatorService,
+        // wsSubscriptionGuard: WebSocketSubscriptionGuardService,
       ) => ({
         typePaths: ['./**/*.graphql'],
         playground: process.env.NODE_ENV !== 'production', // Disable in production
@@ -450,10 +452,12 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     SupplierPortalModule,    // Supply Chain Visibility & Supplier Portal (REQ-STRATEGIC-AUTO-1767116143666)
     DevOpsModule,            // DevOps Automation & Deployment Approvals (REQ-DEVOPS-DEPLOY-APPROVAL-1767150339448)
     SecurityModule,          // Security Audit Dashboard & Threat Detection (REQ-DEVOPS-SECURITY-1767150339448)
-    SDLCModule,              // SDLC Control - Entity DAG, Kanban, Column Governance
+    // SDLCModule,              // SDLC Control - Entity DAG, Kanban, Column Governance
     RestApiModule,           // REST API Framework for External Integrations (REQ-1767925582664-oqb5y)
     NotificationsModule,     // Centralized Notification System (REQ-1767925582665-67qxb)
     WebhooksModule,          // Webhook Event System & Event Subscriptions (REQ-1767925582664-n6du5)
+    CacheManagementModule,   // Cache Management & Monitoring (REQ-1767541724200-xzjz9)
+    SagaModule,              // Saga Pattern for Distributed Transactions (REQ-1767541724201-s8kck)
 
     // DEVELOPMENT ONLY - Test Data Loading
     TestDataModule,

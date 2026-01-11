@@ -1,0 +1,37 @@
+# K6 Test Results and Artifacts
+# REQ: REQ-P0-1768148786448-3r439 - Database stress testing
+
+# Test result files
+results/
+*.json
+*-summary.json
+*-test-summary.json
+
+# K6 output files
+k6-output*.txt
+k6-report*.html
+
+# Grafana data (managed by Docker)
+grafana/data/
+
+# InfluxDB data (managed by Docker)
+influxdb/data/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Keep example/template files
+!*example*
+!*template*

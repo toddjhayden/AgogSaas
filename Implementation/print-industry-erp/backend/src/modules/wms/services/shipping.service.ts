@@ -203,6 +203,20 @@ export class ShippingService {
 
     const carrierClient = this.carrierClientFactory.getClient(carrier.carrierCode);
 
+    // Get facility information for shipFrom address
+    const facilityQuery = `
+      SELECT facility_name, address_line1, address_line2, city, state, postal_code, country, contact_phone, contact_email
+      FROM facilities
+      WHERE id = $1 AND tenant_id = $2
+    `;
+    const facilityResult = await this.pool.query(facilityQuery, [shipment.facility_id, tenantId]);
+
+    if (facilityResult.rows.length === 0) {
+      throw new NotFoundException(`Facility ${shipment.facility_id} not found`);
+    }
+
+    const facility = facilityResult.rows[0];
+
     // Build shipment request
     const shipmentRequest: ShipmentRequest = {
       tenantId,
@@ -210,12 +224,15 @@ export class ShippingService {
       shipmentId: shipment.id,
       serviceType: shipment.service_level,
       shipFrom: {
-        name: 'Warehouse', // TODO: Get from facility
-        addressLine1: '123 Main St',
-        city: 'Los Angeles',
-        state: 'CA',
-        postalCode: '90001',
-        country: 'US',
+        name: facility.facility_name,
+        addressLine1: facility.address_line1,
+        addressLine2: facility.address_line2 || undefined,
+        city: facility.city,
+        state: facility.state || undefined,
+        postalCode: facility.postal_code,
+        country: facility.country,
+        phone: facility.contact_phone || undefined,
+        email: facility.contact_email || undefined,
       },
       shipTo: {
         name: shipment.ship_to_name,
@@ -402,8 +419,9 @@ export class ShippingService {
 
   /**
    * Get shipment by ID
+   * Made public for resolver access - REQ-1767925582663-ieqg0
    */
-  private async getShipmentById(shipmentId: string, tenantId: string): Promise<any> {
+  async getShipmentById(shipmentId: string, tenantId: string): Promise<any> {
     const query = `
       SELECT * FROM shipments
       WHERE id = $1 AND tenant_id = $2
@@ -466,5 +484,203 @@ export class ShippingService {
     const count = parseInt(result.rows[0].count, 10) + 1;
 
     return `${prefix}${date}${count.toString().padStart(4, '0')}`;
+  }
+
+  /**
+   * Void shipment (cancel with carrier and update status)
+   * NEW METHOD - REQ-1767925582663-ieqg0
+   */
+  async voidShipment(shipmentId: string, tenantId: string): Promise<void> {
+    const shipment = await this.getShipmentById(shipmentId, tenantId);
+
+    // Validate shipment can be voided
+    if (shipment.status !== 'MANIFESTED' && shipment.status !== 'SHIPPED') {
+      throw new BadRequestException('Only MANIFESTED or SHIPPED shipments can be voided');
+    }
+
+    if (!shipment.tracking_number) {
+      throw new BadRequestException('Shipment must have a tracking number to be voided');
+    }
+
+    // Get carrier client
+    const carrier = await this.carrierIntegrationService.findById(
+      shipment.carrier_id,
+      tenantId,
+    );
+
+    const carrierClient = this.carrierClientFactory.getClient(carrier.carrierCode);
+
+    // Void shipment with carrier API
+    try {
+      await this.rateLimiter.executeWithRateLimit(
+        carrier.carrierCode,
+        10, // High priority
+        () => carrierClient.voidShipment(shipment.tracking_number),
+      );
+
+      // Update shipment status in database
+      await this.updateShipmentStatus(shipmentId, tenantId, 'CANCELLED', 'Shipment voided by user');
+
+      this.logger.log(`Voided shipment ${shipment.shipment_number} for tenant ${tenantId}`);
+    } catch (error) {
+      this.logger.error(`Failed to void shipment ${shipment.shipment_number}: ${error}`);
+      throw new BadRequestException(
+        `Failed to void shipment with carrier: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Update shipment status
+   * NEW METHOD - REQ-1767925582663-ieqg0
+   */
+  async updateShipmentStatus(
+    shipmentId: string,
+    tenantId: string,
+    status: string,
+    notes?: string,
+  ): Promise<void> {
+    const query = `
+      UPDATE shipments
+      SET status = $1, delivery_notes = $2, updated_at = NOW()
+      WHERE id = $3 AND tenant_id = $4
+    `;
+
+    const result = await this.pool.query(query, [status, notes, shipmentId, tenantId]);
+
+    if (result.rowCount === 0) {
+      throw new NotFoundException(`Shipment ${shipmentId} not found`);
+    }
+
+    this.logger.log(`Updated shipment ${shipmentId} status to ${status}`);
+  }
+
+  /**
+   * Create manifest for multiple shipments (end-of-day close)
+   * NEW METHOD - REQ-1767925582663-ieqg0
+   */
+  async createManifest(
+    shipmentIds: string[],
+    carrierIntegrationId: string,
+    tenantId: string,
+  ): Promise<any> {
+    // Get carrier
+    const carrier = await this.carrierIntegrationService.findById(
+      carrierIntegrationId,
+      tenantId,
+    );
+
+    // Get all shipments
+    const shipments = await this.getShipmentsByIds(shipmentIds, tenantId);
+
+    // Validate all shipments are MANIFESTED
+    const invalidShipments = shipments.filter((s) => s.status !== 'MANIFESTED');
+    if (invalidShipments.length > 0) {
+      throw new BadRequestException(
+        `${invalidShipments.length} shipments are not in MANIFESTED status`,
+      );
+    }
+
+    // Validate all shipments use the same carrier
+    const wrongCarrier = shipments.filter((s) => s.carrier_id !== carrier.id);
+    if (wrongCarrier.length > 0) {
+      throw new BadRequestException(
+        `All shipments must use the same carrier (${carrier.carrierName})`,
+      );
+    }
+
+    // Create manifest with carrier
+    const carrierClient = this.carrierClientFactory.getClient(carrier.carrierCode);
+    const trackingNumbers = shipments.map((s) => s.tracking_number);
+
+    try {
+      const manifest = await this.rateLimiter.executeWithRateLimit(
+        carrier.carrierCode,
+        10, // High priority
+        () => carrierClient.createManifest(trackingNumbers),
+      );
+
+      this.logger.log(
+        `Created manifest ${manifest.manifestId} for ${shipmentIds.length} shipments`,
+      );
+
+      return {
+        manifestId: manifest.manifestId,
+        carrierManifestId: manifest.carrierManifestId,
+        manifestDate: manifest.manifestDate,
+        shipmentCount: shipmentIds.length,
+        totalWeight: manifest.totalWeight,
+        documentUrl: manifest.documentUrl,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create manifest: ${error}`);
+      throw new BadRequestException(`Failed to create manifest with carrier: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get shipments by IDs
+   * NEW METHOD - REQ-1767925582663-ieqg0
+   */
+  async getShipmentsByIds(shipmentIds: string[], tenantId: string): Promise<any[]> {
+    const query = `
+      SELECT * FROM shipments
+      WHERE id = ANY($1) AND tenant_id = $2
+    `;
+
+    const result = await this.pool.query(query, [shipmentIds, tenantId]);
+    return result.rows;
+  }
+
+  /**
+   * Find shipments with filters
+   * NEW METHOD - REQ-1767925582663-ieqg0
+   */
+  async findShipments(
+    tenantId: string,
+    filters: {
+      facilityId?: string;
+      status?: string;
+      startDate?: Date;
+      endDate?: Date;
+      trackingNumber?: string;
+    },
+  ): Promise<any[]> {
+    let query = `
+      SELECT * FROM shipments
+      WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (filters.facilityId) {
+      params.push(filters.facilityId);
+      query += ` AND facility_id = $${paramIndex++}`;
+    }
+
+    if (filters.status) {
+      params.push(filters.status);
+      query += ` AND status = $${paramIndex++}`;
+    }
+
+    if (filters.startDate) {
+      params.push(filters.startDate);
+      query += ` AND created_at >= $${paramIndex++}`;
+    }
+
+    if (filters.endDate) {
+      params.push(filters.endDate);
+      query += ` AND created_at <= $${paramIndex++}`;
+    }
+
+    if (filters.trackingNumber) {
+      params.push(filters.trackingNumber);
+      query += ` AND tracking_number = $${paramIndex++}`;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const result = await this.pool.query(query, params);
+    return result.rows;
   }
 }

@@ -24,6 +24,7 @@ import * as fs from 'fs';
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import axios from 'axios';
+import { OrchestratorDependencyValidator } from '../src/monitoring/orchestrator-dependency-validator.service';
 
 // Setup file logging
 const logDir = path.resolve(__dirname, '..', 'logs');
@@ -157,6 +158,12 @@ class HostAgentListener {
   async start() {
     logInfo('HostListener', 'Starting host-side NATS agent listener...');
     logInfo('HostListener', `Log file: ${logFile}`);
+
+    // CRITICAL: Validate orchestrator is running BEFORE accepting any work
+    // Per WORKFLOW_RULES.md Rule #1: Services MUST EXIT if critical dependencies fail
+    // Without orchestrator: no finish-first policy, no work prioritization, orphaned work
+    const orchestratorValidator = new OrchestratorDependencyValidator();
+    await orchestratorValidator.validateAndExit();
 
     // Load workflow rules that ALL agents must follow
     const rulesPath = path.resolve(__dirname, '..', '..', '..', '..', '.claude', 'WORKFLOW_RULES.md');

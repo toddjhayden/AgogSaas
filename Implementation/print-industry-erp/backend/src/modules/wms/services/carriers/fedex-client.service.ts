@@ -134,6 +134,8 @@ export class FedExClientService implements ICarrierClient {
         const serviceType = rate.serviceType || 'UNKNOWN';
 
         return {
+          carrierCode: 'FEDEX',
+          carrierName: 'FedEx',
           serviceType,
           serviceName: this.getServiceName(serviceType),
           totalCost: parseFloat(totalCharges),

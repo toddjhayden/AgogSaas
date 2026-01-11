@@ -208,23 +208,30 @@ export class FinanceResolver {
     @Context() context: any
   ) {
     const tenantId = context.req.user.tenantId;
+    const key = this.cacheKeyService.exchangeRate(tenantId, fromCurrency, toCurrency, rateDate);
 
-    const result = await this.db.query(
-      `SELECT * FROM exchange_rates
-       WHERE tenant_id = $1
-       AND from_currency_code = $2
-       AND to_currency_code = $3
-       AND rate_date = $4
-       ORDER BY updated_at DESC
-       LIMIT 1`,
-      [tenantId, fromCurrency, toCurrency, rateDate]
+    return this.cacheService.wrap(
+      key,
+      async () => {
+        const result = await this.db.query(
+          `SELECT * FROM exchange_rates
+           WHERE tenant_id = $1
+           AND from_currency_code = $2
+           AND to_currency_code = $3
+           AND rate_date = $4
+           ORDER BY updated_at DESC
+           LIMIT 1`,
+          [tenantId, fromCurrency, toCurrency, rateDate]
+        );
+
+        if (result.rows.length === 0) {
+          throw new Error(`Exchange rate not found for ${fromCurrency} to ${toCurrency} on ${rateDate}`);
+        }
+
+        return this.mapExchangeRateRow(result.rows[0]);
+      },
+      CacheTTL.STATIC // 24 hours TTL
     );
-
-    if (result.rows.length === 0) {
-      throw new Error(`Exchange rate not found for ${fromCurrency} to ${toCurrency} on ${rateDate}`);
-    }
-
-    return this.mapExchangeRateRow(result.rows[0]);
   }
 
   @Query('exchangeRates')
@@ -1048,6 +1055,13 @@ export class FinanceResolver {
       ]
     );
 
+    // Invalidate Chart of Accounts cache
+    await this.cacheInvalidationService.handleEvent({
+      eventType: 'ACCOUNT_CREATED',
+      tenantId,
+      entityId: result.rows[0].id,
+    });
+
     return this.mapChartOfAccountsRow(result.rows[0]);
   }
 
@@ -1058,6 +1072,7 @@ export class FinanceResolver {
     @Context() context: any
   ) {
     const userId = context.req.user.id;
+    const tenantId = context.req.user.tenantId;
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -1093,6 +1108,13 @@ export class FinanceResolver {
     if (result.rows.length === 0) {
       throw new Error(`Account ${id} not found`);
     }
+
+    // Invalidate Chart of Accounts cache
+    await this.cacheInvalidationService.handleEvent({
+      eventType: 'ACCOUNT_UPDATED',
+      tenantId,
+      entityId: id,
+    });
 
     return this.mapChartOfAccountsRow(result.rows[0]);
   }

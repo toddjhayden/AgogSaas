@@ -92,3 +92,46 @@ export const UPDATE_CARRIER_INTEGRATION = gql`
     }
   }
 `;
+
+export const DELETE_CARRIER_INTEGRATION = gql`
+  mutation DeleteCarrierIntegration($id: ID!) {
+    deleteCarrierIntegration(id: $id)
+  }
+`;
+
+export const VOID_SHIPMENT = gql`
+  mutation VoidShipment($id: ID!) {
+    voidShipment(id: $id)
+  }
+`;
+
+export const CREATE_MANIFEST = gql`
+  mutation CreateManifest($shipmentIds: [ID!]!, $carrierIntegrationId: ID!) {
+    createManifest(shipmentIds: $shipmentIds, carrierIntegrationId: $carrierIntegrationId) {
+      manifestId
+      carrierManifestId
+      manifestDate
+      shipmentCount
+      totalWeight
+      documentUrl
+    }
+  }
+`;
+
+export const REFRESH_TRACKING = gql`
+  mutation RefreshTracking($shipmentId: ID!) {
+    refreshTracking(shipmentId: $shipmentId) {
+      id
+      eventDate
+      eventType
+      eventDescription
+      city
+      state
+      country
+      carrierEventCode
+      exceptionFlag
+      exceptionReason
+      createdAt
+    }
+  }
+`;

@@ -17,7 +17,12 @@ import {
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { GET_SHIPMENT } from '../graphql/queries/shipping';
-import { MANIFEST_SHIPMENT, UPDATE_SHIPMENT_STATUS } from '../graphql/mutations/shipping';
+import {
+  MANIFEST_SHIPMENT,
+  UPDATE_SHIPMENT_STATUS,
+  VOID_SHIPMENT,
+  REFRESH_TRACKING,
+} from '../graphql/mutations/shipping';
 
 // Type definitions for shipment data
 interface ShipmentLine {
@@ -85,6 +90,24 @@ export const ShipmentDetailPage: React.FC = () => {
     },
   });
 
+  const [voidShipment, { loading: voiding }] = useMutation(VOID_SHIPMENT, {
+    onCompleted: () => {
+      refetch();
+    },
+    onError: (error) => {
+      alert(t('shipping.voidError', { error: error.message }));
+    },
+  });
+
+  const [refreshTracking, { loading: refreshing }] = useMutation(REFRESH_TRACKING, {
+    onCompleted: () => {
+      refetch();
+    },
+    onError: (error) => {
+      alert(t('shipping.refreshTrackingError', { error: error.message }));
+    },
+  });
+
   if (loading) {
     return (
       <div className="p-6">
@@ -129,6 +152,20 @@ export const ShipmentDetailPage: React.FC = () => {
     }
   };
 
+  const handleVoidShipment = () => {
+    if (confirm(t('shipping.confirmVoid'))) {
+      voidShipment({
+        variables: { id },
+      });
+    }
+  };
+
+  const handleRefreshTracking = () => {
+    refreshTracking({
+      variables: { shipmentId: id },
+    });
+  };
+
   return (
     <div className="p-6">
       <Breadcrumb
@@ -164,7 +201,7 @@ export const ShipmentDetailPage: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="mt-6 flex space-x-3">
-          {shipment.status === 'PACKED' && (
+          {shipment.status === 'DRAFT' && (
             <button
               onClick={() => setShowManifestConfirm(true)}
               disabled={manifesting}
@@ -174,14 +211,34 @@ export const ShipmentDetailPage: React.FC = () => {
               {manifesting ? t('shipping.manifesting') : t('shipping.manifestShipment')}
             </button>
           )}
-          {(shipment.status === 'PLANNED' || shipment.status === 'PACKED') && (
+          {shipment.status === 'MANIFESTED' && (
             <button
-              onClick={handleCancelShipment}
-              disabled={updatingStatus}
+              onClick={handleVoidShipment}
+              disabled={voiding}
               className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400"
             >
               <XCircle className="h-4 w-4 mr-2" />
+              {voiding ? t('shipping.voiding') : t('shipping.voidShipment')}
+            </button>
+          )}
+          {(shipment.status === 'DRAFT' || shipment.status === 'READY_TO_SHIP') && (
+            <button
+              onClick={handleCancelShipment}
+              disabled={updatingStatus}
+              className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
               {t('shipping.cancelShipment')}
+            </button>
+          )}
+          {shipment.trackingNumber && (
+            <button
+              onClick={handleRefreshTracking}
+              disabled={refreshing}
+              className="flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:bg-gray-100"
+            >
+              <Truck className="h-4 w-4 mr-2" />
+              {refreshing ? t('shipping.refreshing') : t('shipping.refreshTracking')}
             </button>
           )}
         </div>

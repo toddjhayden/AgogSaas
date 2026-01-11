@@ -13,6 +13,7 @@
     "dev:legacy": "ts-node-dev --respawn --transpile-only src/index.ts",
     "start:legacy": "node dist/index.js",
     "test": "jest",
+    "test:smoke": "k6 run k6/scenarios/smoke-test.js",
     "test:memory": "ts-node scripts/test-phase4-memory.ts",
     "test:nats": "ts-node scripts/test-nats-deliverables.ts",
     "test:orchestration": "ts-node scripts/test-orchestration.ts",

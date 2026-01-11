@@ -3,6 +3,10 @@ import { Injectable, UseGuards, Logger } from '@nestjs/common';
 import { CarrierIntegrationService } from '../../modules/wms/services/carrier-integration.service';
 import { ShippingService } from '../../modules/wms/services/shipping.service';
 import { CarrierClientFactoryService } from '../../modules/wms/services/carrier-client-factory.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { getTenantIdFromContext, getUserIdFromContext } from '../../common/security/tenant-validation';
 
 /**
  * Shipping Resolver
@@ -11,10 +15,16 @@ import { CarrierClientFactoryService } from '../../modules/wms/services/carrier-
  *
  * GraphQL resolver for shipping and carrier integration operations.
  * Handles carrier configuration, rate shopping, shipment creation, and tracking.
+ *
+ * Security:
+ * - All mutations require JWT authentication
+ * - Multi-tenant isolation enforced via context.req.user.tenantId
+ * - Role-based access control for sensitive operations
  */
 
 @Injectable()
 @Resolver()
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class ShippingResolver {
   private readonly logger = new Logger(ShippingResolver.name);
 
@@ -124,9 +134,11 @@ export class ShippingResolver {
   // =====================================================
 
   @Query('getRateQuotes')
-  async getRateQuotes(@Args('input') input: any) {
+  async getRateQuotes(@Args('input') input: any, @Context() context: any) {
+    const tenantId = getTenantIdFromContext(context);
+
     const quotes = await this.shippingService.getRateQuotes(
-      '1', // TODO: Get from context
+      tenantId,
       input.facilityId,
       {
         shipToAddressLine1: input.shipToAddressLine1,
@@ -143,8 +155,8 @@ export class ShippingResolver {
     return quotes.map((quote) => ({
       serviceType: quote.serviceType,
       serviceName: quote.serviceName,
-      carrierCode: 'FEDEX', // TODO: Get from quote
-      carrierName: 'FedEx', // TODO: Get from quote
+      carrierCode: quote.carrierCode || 'FEDEX',
+      carrierName: quote.carrierName || 'FedEx',
       totalCost: quote.totalCost,
       currency: quote.currency,
       baseRate: quote.breakdown?.baseRate,
@@ -203,9 +215,10 @@ export class ShippingResolver {
   // =====================================================
 
   @Mutation('createCarrierIntegration')
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER')
   async createCarrierIntegration(@Args('input') input: any, @Context() context: any) {
-    const tenantId = '1'; // TODO: Get from context
-    const userId = context.req?.user?.id || '00000000-0000-0000-0000-000000000000';
+    const tenantId = getTenantIdFromContext(context);
+    const userId = getUserIdFromContext(context);
 
     const carrier = await this.carrierIntegrationService.create(tenantId, userId, {
       facilityId: input.facilityId,
@@ -240,13 +253,14 @@ export class ShippingResolver {
   }
 
   @Mutation('updateCarrierIntegration')
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER')
   async updateCarrierIntegration(
     @Args('id') id: string,
     @Args('input') input: any,
     @Context() context: any,
   ) {
-    const tenantId = '1'; // TODO: Get from context
-    const userId = context.req?.user?.id || '00000000-0000-0000-0000-000000000000';
+    const tenantId = getTenantIdFromContext(context);
+    const userId = getUserIdFromContext(context);
 
     const carrier = await this.carrierIntegrationService.update(id, tenantId, userId, {
       carrierName: input.carrierName,
@@ -273,8 +287,9 @@ export class ShippingResolver {
   }
 
   @Mutation('deleteCarrierIntegration')
-  async deleteCarrierIntegration(@Args('id') id: string) {
-    const tenantId = '1'; // TODO: Get from context
+  @Roles('ADMIN')
+  async deleteCarrierIntegration(@Args('id') id: string, @Context() context: any) {
+    const tenantId = getTenantIdFromContext(context);
     return await this.carrierIntegrationService.delete(id, tenantId);
   }
 
@@ -283,9 +298,10 @@ export class ShippingResolver {
   // =====================================================
 
   @Mutation('createShipment')
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER', 'SHIPPING_CLERK')
   async createShipment(@Args('input') input: any, @Context() context: any) {
-    const tenantId = '1'; // TODO: Get from context
-    const userId = context.req?.user?.id || '00000000-0000-0000-0000-000000000000';
+    const tenantId = getTenantIdFromContext(context);
+    const userId = getUserIdFromContext(context);
 
     const shipment = await this.shippingService.createShipment(tenantId, userId, {
       facilityId: input.facilityId,
@@ -319,8 +335,9 @@ export class ShippingResolver {
   }
 
   @Mutation('manifestShipment')
-  async manifestShipment(@Args('id') id: string) {
-    const tenantId = '1'; // TODO: Get from context
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER', 'SHIPPING_CLERK')
+  async manifestShipment(@Args('id') id: string, @Context() context: any) {
+    const tenantId = getTenantIdFromContext(context);
     const result = await this.shippingService.manifestShipment(id, tenantId);
 
     return {
@@ -333,8 +350,9 @@ export class ShippingResolver {
   }
 
   @Mutation('refreshTracking')
-  async refreshTracking(@Args('shipmentId') shipmentId: string) {
-    const tenantId = '1'; // TODO: Get from context
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER', 'SHIPPING_CLERK')
+  async refreshTracking(@Args('shipmentId') shipmentId: string, @Context() context: any) {
+    const tenantId = getTenantIdFromContext(context);
     const events = await this.shippingService.refreshTracking(shipmentId, tenantId);
 
     return events.map((event) => ({
@@ -349,5 +367,71 @@ export class ShippingResolver {
       exceptionReason: event.exceptionDescription,
       createdAt: new Date(),
     }));
+  }
+
+  // =====================================================
+  // NEW MUTATIONS - Missing Implementation
+  // =====================================================
+
+  @Mutation('voidShipment')
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER')
+  async voidShipment(@Args('id') id: string, @Context() context: any) {
+    const tenantId = getTenantIdFromContext(context);
+    await this.shippingService.voidShipment(id, tenantId);
+    return true;
+  }
+
+  @Mutation('updateShipmentStatus')
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER', 'SHIPPING_CLERK')
+  async updateShipmentStatus(
+    @Args('id') id: string,
+    @Args('status') status: string,
+    @Args('notes') notes: string,
+    @Context() context: any,
+  ) {
+    const tenantId = getTenantIdFromContext(context);
+    await this.shippingService.updateShipmentStatus(id, tenantId, status, notes);
+    return await this.shippingService.getShipmentById(id, tenantId);
+  }
+
+  @Mutation('createManifest')
+  @Roles('ADMIN', 'WAREHOUSE_MANAGER')
+  async createManifest(
+    @Args('shipmentIds') shipmentIds: string[],
+    @Args('carrierIntegrationId') carrierIntegrationId: string,
+    @Context() context: any,
+  ) {
+    const tenantId = getTenantIdFromContext(context);
+    return await this.shippingService.createManifest(shipmentIds, carrierIntegrationId, tenantId);
+  }
+
+  // =====================================================
+  // NEW QUERIES - Missing Implementation
+  // =====================================================
+
+  @Query('shipments')
+  async getShipments(
+    @Args('tenantId') tenantId: string,
+    @Args('facilityId') facilityId?: string,
+    @Args('status') status?: string,
+    @Args('startDate') startDate?: Date,
+    @Args('endDate') endDate?: Date,
+    @Args('trackingNumber') trackingNumber?: string,
+    @Context() context?: any,
+  ) {
+    const userTenantId = getTenantIdFromContext(context);
+
+    // Security: Validate that requested tenantId matches user's tenant
+    if (tenantId !== userTenantId) {
+      throw new Error('Access denied. You do not have permission to access data for another tenant.');
+    }
+
+    return await this.shippingService.findShipments(tenantId, {
+      facilityId,
+      status,
+      startDate,
+      endDate,
+      trackingNumber,
+    });
   }
 }

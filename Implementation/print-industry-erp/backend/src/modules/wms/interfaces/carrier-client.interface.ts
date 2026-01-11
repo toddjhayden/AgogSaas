@@ -93,6 +93,8 @@ export interface AddressValidationError {
 }
 
 export interface RateQuote {
+  carrierCode?: string; // NEW - REQ-1767925582663-ieqg0
+  carrierName?: string; // NEW - REQ-1767925582663-ieqg0
   serviceType: string;
   serviceName: string;
   totalCost: number;
