@@ -133,10 +133,10 @@ curl -s "http://localhost:8223/connz" | jq '.connections[] | select(.name | cont
 - Control command database schema ready ✅
 
 **What Needs Human Action:**
-1. Restart orchestrator container
-2. Restart host-agent-listener
-3. Run V0.0.33 migration on VPS
-4. Build and deploy sdlc-gui
+1. ~~Restart orchestrator container~~ ✅ Rebuilt and restarted
+2. ~~Restart host-agent-listener~~ (Running, publishing heartbeats)
+3. ~~Run V0.0.33 migration on VPS~~ ✅ Deployed
+4. ~~Build and deploy sdlc-gui~~ ✅ Deployed to Cloudflare Pages
 
 **What Needs Development:**
 1. ~~SDLC API control endpoint~~ ✅

@@ -398,3 +398,47 @@ GUI polls → GET /infrastructure/control/:id → Display Result
 ---
 
 *Session Updated: 2026-01-10 ~23:45 UTC*
+
+---
+
+## VPS Deployment (Late Evening)
+
+### Database Migration
+- V0.0.33 deployed to VPS via `docker exec sdlc-postgres`
+- Tables created: `infrastructure_control_commands`
+- Functions: `claim_control_command()`, `complete_control_command()`, `cleanup_old_control_commands()`
+
+### API Deployment
+- Copied updated `sdlc-api.server.ts` to VPS `/opt/sdlc/api/`
+- Restarted `sdlc-api` container
+- Verified API returns infrastructure health data
+
+### GUI Deployment
+- Built with `npm run build` (18.52s)
+- Deployed to Cloudflare Pages via `wrangler pages deploy`
+- Preview URL: `https://e4f0fb07.sdlc-12y.pages.dev`
+- Production: `https://sdlc.agog.fyi`
+
+### Local Container Rebuild
+- Rebuilt `agent-backend` image with `--no-cache`
+- Restarted container with new code (MAX_CONCURRENT_WORKFLOWS = 10)
+- Verified orchestrator running and processing workflows
+
+### Verification
+```bash
+# API endpoint working
+curl https://api.agog.fyi/api/agent/infrastructure/health
+# Returns: host_listener healthy, heartbeats every 60s
+```
+
+### Container Status After Deployment
+| Container | Created | Status |
+|-----------|---------|--------|
+| agogsaas-agents-backend | 2026-01-10 18:00 | Rebuilt with new code |
+| agogsaas-agents-postgres | 2026-01-10 17:27 | Healthy |
+| agogsaas-agents-nats | 2025-12-29 | Running (base image) |
+| agogsaas-agents-ollama | 2025-12-29 | Running (base image) |
+
+---
+
+*Session Updated: 2026-01-11 00:01 UTC*
