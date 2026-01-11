@@ -235,11 +235,61 @@ POST /requests/:reqNumber/priority
 
 ---
 
-### Set Top Priority
+### Set Top Priority (Reversible)
 ```
 POST /requests/:reqNumber/top-priority
 ```
-Sets request as the absolute top priority (catastrophic + workflow focus).
+Creates a blocker-chain directive for the request. **Does NOT permanently change priority.**
+
+**Body:**
+```json
+{
+  "reason": "Customer escalation",
+  "createdBy": "ai-assist",
+  "expiresAt": "2026-01-12T18:00:00Z"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "reqNumber": "REQ-1234",
+    "originalPriority": "medium",
+    "isTopPriority": true,
+    "reversible": true,
+    "directive": {
+      "id": "uuid",
+      "displayName": "Top Priority: REQ-1234",
+      "targetReqNumbers": ["REQ-1234", "REQ-blocker-1"],
+      "totalItems": 2
+    },
+    "message": "Use /workflow/focus/clear to return to normal."
+  }
+}
+```
+
+---
+
+### Escalate Priority (Permanent)
+```
+POST /requests/:reqNumber/escalate-priority
+```
+**Permanently** changes priority. Use sparingly - for temporary focus, use `top-priority` instead.
+
+**Body:**
+```json
+{
+  "priority": "catastrophic",
+  "reason": "Production outage",
+  "updatedBy": "ai-assist"
+}
+```
+
+**Response includes:**
+- `reversible: false` - Warning that change is permanent
+- `warning` - Suggests using `top-priority` for temporary focus
 
 ---
 
@@ -335,17 +385,37 @@ POST /workflow/directive
 {
   "directiveType": "focus",
   "displayName": "Weekend easy push",
-  "targetType": "filter",
-  "filterCriteria": {
-    "maxHours": 2,
-    "unblocked": true
-  },
+  "targetType": "list",
+  "targetReqNumbers": ["REQ-001", "REQ-002", "REQ-003"],
+  "expandBlockers": true,
   "expiresAt": "2026-01-12T18:00:00Z",
   "exclusive": true,
   "autoRestore": true,
   "createdBy": "ai-assist"
 }
 ```
+
+**Target Types:**
+| Type | Description |
+|------|-------------|
+| `blocker_chain` | Recursive chain from single REQ (includes all blockers) |
+| `list` | Hand-picked list of REQ numbers |
+| `customer` | All REQs for a customer |
+| `tag` | All REQs with a tag |
+| `bu` | All REQs for a business unit |
+| `filter` | Dynamic filter criteria (maxHours, priority, unblocked) |
+
+**Options:**
+| Option | Type | Description |
+|--------|------|-------------|
+| `expandBlockers` | boolean | Auto-include blockers of any blocked items in the list |
+| `exclusive` | boolean | Only work on items in scope (default: true) |
+| `autoRestore` | boolean | Return to normal when all items complete |
+| `expiresAt` | ISO timestamp | Auto-clear directive at this time |
+
+**Response includes:**
+- `expansion.addedBlockers` - List of blockers auto-added (if expandBlockers=true)
+- `warning.blockedItemsOutsideScope` - Items blocked by REQs not in scope (if expandBlockers=false)
 
 ---
 
@@ -402,5 +472,8 @@ These prompts trigger the corresponding API calls:
 | "What WMS RECs need approval?" | `getRecsForFeature` | GET /recommendations/for-feature?feature=WMS |
 | "Is REQ-1234 still needed?" | `checkIfNeeded` | GET /requests/:reqNumber/check-needed |
 | "Focus on blocker chain REQ-1234" | `focusOnBlockerChain` | POST /workflow/focus/blocker-chain |
+| "Focus on these 5 items for the weekend" | `createDirective` | POST /workflow/directive (targetType: list) |
+| "Make REQ-1234 top priority" | `setTopPriority` | POST /requests/:reqNumber/top-priority |
+| "Permanently escalate REQ-1234 to catastrophic" | `escalatePriority` | POST /requests/:reqNumber/escalate-priority |
 | "Return to normal workflow" | `clearWorkflowFocus` | POST /workflow/focus/clear |
 | "Change REQ-1234 to critical" | `updateRequestPriority` | POST /requests/:reqNumber/priority |

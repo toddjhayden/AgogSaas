@@ -11,6 +11,7 @@
  */
 
 import { StrategicOrchestratorService } from './orchestration/strategic-orchestrator.service';
+import { getOrphanCleanupService } from './orchestration/orphan-cleanup.service';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -23,35 +24,49 @@ async function main() {
   console.log('');
 
   const orchestrator = new StrategicOrchestratorService();
+  const orphanCleanup = getOrphanCleanupService();
 
   try {
     console.log('Initializing Strategic Orchestrator...');
     await orchestrator.initialize();
-    console.log('✅ Initialized\n');
+    console.log('OK: Initialized\n');
 
     console.log('Starting autonomous daemon...');
     await orchestrator.startDaemon();
-    console.log('✅ Daemon running\n');
+    console.log('OK: Daemon running\n');
+
+    console.log('Starting orphan cleanup service...');
+    await orphanCleanup.start();
+    console.log('OK: Orphan cleanup running (checks every 15 min)\n');
 
     console.log('Monitoring:');
-    console.log('  - OWNER_REQUESTS.md for new feature requests');
+    console.log('  - SDLC API for new feature requests');
     console.log('  - Workflow execution and agent coordination');
+    console.log('  - Orphaned workflows (auto-recovery)');
     console.log('  - Code generation for application backend/frontend');
+    console.log('');
+    console.log('WIP Limits:');
+    console.log('  - Max concurrent normal workflows: 3');
+    console.log('  - Reserved catastrophic slots: 2');
+    console.log('  - Stall detection: 30 min');
+    console.log('  - Orphan detection: 60 min');
     console.log('');
     console.log('Press Ctrl+C to stop\n');
 
     // Graceful shutdown
     process.on('SIGINT', async () => {
       console.log('\n\nShutting down...');
+      orphanCleanup.stop();
       await orchestrator.close();
-      console.log('✅ Shutdown complete');
+      console.log('OK: Shutdown complete');
       process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
       console.log('\n\nShutting down...');
+      orphanCleanup.stop();
       await orchestrator.close();
-      console.log('✅ Shutdown complete');
+      console.log('OK: Shutdown complete');
       process.exit(0);
     });
 

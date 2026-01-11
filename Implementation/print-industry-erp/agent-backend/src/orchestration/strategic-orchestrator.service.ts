@@ -9,6 +9,7 @@ import { WorkflowPersistenceService } from './workflow-persistence.service';
 import { AgentKnowledgeService } from '../knowledge/agent-knowledge.service';
 import { SDLCDatabaseService, getSDLCDatabase } from '../sdlc-control/sdlc-database.service';
 import { SDLCApiClient, createSDLCApiClient } from '../api/sdlc-api.client';
+import { getStageTrackerService, StageTrackerService } from './stage-tracker.service';
 
 // Status mapping: SDLC database phases to legacy status codes
 const PHASE_TO_STATUS: Record<string, string> = {
@@ -74,8 +75,30 @@ export class StrategicOrchestratorService {
   private circuitBreaker = new CircuitBreaker();
   private persistence!: WorkflowPersistenceService;
 
-  // Gap Fix #12: Concurrency limit
-  private readonly MAX_CONCURRENT_WORKFLOWS = 5;
+  // Stage tracker for workflow progress monitoring
+  private stageTracker: StageTrackerService = getStageTrackerService();
+
+  // WIP Limit Enforcement: Reduced from 10 to 3 to ensure work finishes before new starts
+  // See: .claude/plans/wip-limit-enforcement.md
+  private readonly MAX_CONCURRENT_WORKFLOWS = 3;
+
+  // Reserved slots for catastrophic work (always available for P0)
+  private readonly CATASTROPHIC_RESERVED_SLOTS = 2;
+
+  // Finish-First Policy: Don't start new work if existing work is stalled
+  // See: .claude/plans/wip-limit-enforcement.md Part 2
+  private readonly STALLED_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes no activity = stalled
+  private readonly STAGE_LIMITS: Record<string, number> = {
+    research: 2,    // Max 2 in research stage
+    critique: 2,    // Max 2 in critique stage
+    backend: 2,     // Max 2 in backend stage
+    frontend: 2,    // Max 2 in frontend stage
+    qa: 3,          // Max 3 in QA (can test multiple)
+    statistics: 2   // Max 2 in statistics stage
+  };
+
+  // Track workflow heartbeats for stall detection
+  private workflowHeartbeats: Map<string, number> = new Map();
 
   // Active workflow directive (if any) - checked each scan cycle
   private activeDirective: {
@@ -105,9 +128,109 @@ export class StrategicOrchestratorService {
         timestamp: new Date().toISOString()
       };
       await this.nc.publish(this.SASHA_RULES_TOPIC, Buffer.from(JSON.stringify(request)));
-      console.log(`[StrategicOrchestrator] 📨 Asked Sasha: ${question}`);
+      console.log(`[StrategicOrchestrator] Asked Sasha: ${question}`);
     } catch (error: any) {
       console.error(`[StrategicOrchestrator] Failed to ask Sasha: ${error.message}`);
+    }
+  }
+
+  // =========================================================================
+  // Finish-First Policy Methods
+  // See: .claude/plans/wip-limit-enforcement.md Part 2
+  // =========================================================================
+
+  /**
+   * Update heartbeat for a workflow (called when activity is detected)
+   */
+  updateWorkflowHeartbeat(reqNumber: string): void {
+    this.workflowHeartbeats.set(reqNumber, Date.now());
+  }
+
+  /**
+   * Check if a workflow is stalled (no activity for STALLED_THRESHOLD_MS)
+   */
+  private isWorkflowStalled(reqNumber: string, startedAt?: Date): boolean {
+    const lastHeartbeat = this.workflowHeartbeats.get(reqNumber);
+    const lastActivity = lastHeartbeat || (startedAt ? startedAt.getTime() : Date.now());
+    return (Date.now() - lastActivity) > this.STALLED_THRESHOLD_MS;
+  }
+
+  /**
+   * Get all stalled workflows from IN_PROGRESS items
+   */
+  private async getStalledWorkflows(): Promise<string[]> {
+    const stalled: string[] = [];
+
+    for (const [reqNumber, lastHeartbeat] of this.workflowHeartbeats.entries()) {
+      if ((Date.now() - lastHeartbeat) > this.STALLED_THRESHOLD_MS) {
+        stalled.push(reqNumber);
+      }
+    }
+
+    return stalled;
+  }
+
+  /**
+   * Check if we can start new work based on finish-first policy
+   * Returns false if existing work is stalled and needs attention first
+   */
+  private async canStartNewWorkFinishFirst(priority: string): Promise<{ canStart: boolean; reason?: string }> {
+    // Catastrophic bypasses finish-first (it's urgent)
+    if (priority === 'catastrophic') {
+      return { canStart: true };
+    }
+
+    // Check for stalled workflows
+    const stalledWorkflows = await this.getStalledWorkflows();
+    if (stalledWorkflows.length > 0) {
+      return {
+        canStart: false,
+        reason: `${stalledWorkflows.length} workflows stalled - must recover before starting new: ${stalledWorkflows.slice(0, 3).join(', ')}${stalledWorkflows.length > 3 ? '...' : ''}`
+      };
+    }
+
+    return { canStart: true };
+  }
+
+  /**
+   * Check if a stage has capacity for more work
+   */
+  private async checkStageCapacity(stage: string, currentInProgress: Array<{ reqNumber: string; stage?: string }>): Promise<{ hasCapacity: boolean; current: number; limit: number }> {
+    const limit = this.STAGE_LIMITS[stage] || 2;
+    const inStage = currentInProgress.filter(w => w.stage === stage).length;
+
+    return {
+      hasCapacity: inStage < limit,
+      current: inStage,
+      limit
+    };
+  }
+
+  /**
+   * Attempt to recover stalled workflows
+   * - Move back to backlog if no progress
+   * - Or retry current stage
+   */
+  private async recoverStalledWorkflows(stalledReqNumbers: string[]): Promise<void> {
+    for (const reqNumber of stalledReqNumbers) {
+      console.log(`[StrategicOrchestrator] Recovering stalled workflow: ${reqNumber}`);
+
+      try {
+        // Move back to backlog for retry
+        if (this.useCloudApi && this.apiClient) {
+          await this.apiClient.updateRequestStatus(reqNumber, {
+            phase: 'backlog',
+            isBlocked: false,
+            blockedReason: undefined
+          });
+          console.log(`[StrategicOrchestrator] Moved stalled ${reqNumber} back to backlog`);
+        }
+
+        // Clear heartbeat
+        this.workflowHeartbeats.delete(reqNumber);
+      } catch (error: any) {
+        console.error(`[StrategicOrchestrator] Failed to recover ${reqNumber}: ${error.message}`);
+      }
     }
   }
 
@@ -439,6 +562,22 @@ export class StrategicOrchestratorService {
       if (this.isRunning) {
         this.reconcileWorkflowStates().catch((error) => {
           console.error('[StrategicOrchestrator] Error reconciling states:', error);
+        });
+      }
+    }, 300000); // Every 5 minutes
+
+    // Part 4: Stage tracking status logging (every 5 minutes)
+    const stageTrackingInterval = setInterval(() => {
+      if (this.isRunning) {
+        this.stageTracker.logStatus();
+
+        // Also check for stuck work and log warnings
+        this.stageTracker.checkForStuckWork().then(stuck => {
+          if (stuck.length > 0) {
+            console.log(`[StrategicOrchestrator] ⚠️ ${stuck.length} workflows potentially stuck - consider intervention`);
+          }
+        }).catch((error) => {
+          console.error('[StrategicOrchestrator] Error checking stuck work:', error);
         });
       }
     }, 300000); // Every 5 minutes
@@ -1102,19 +1241,19 @@ export class StrategicOrchestratorService {
       }
     }
 
-    // Gap Fix #12: Check concurrent workflow limit before processing new workflows
+    // WIP Limit Enforcement: Log current slot usage
     const activeWorkflows = mappedRequests.filter(r => r.status === 'IN_PROGRESS').length;
-    if (activeWorkflows >= this.MAX_CONCURRENT_WORKFLOWS) {
-      console.log(`[StrategicOrchestrator] Concurrency limit reached: ${activeWorkflows}/${this.MAX_CONCURRENT_WORKFLOWS} workflows active - skipping new starts`);
-    }
+    const activeCatastrophic = mappedRequests.filter(r => r.status === 'IN_PROGRESS' && r.priority === 'catastrophic').length;
+    const activeNormal = activeWorkflows - activeCatastrophic;
+    console.log(`[StrategicOrchestrator] WIP Status: Normal ${activeNormal}/${this.MAX_CONCURRENT_WORKFLOWS}, Catastrophic ${activeCatastrophic}/${this.CATASTROPHIC_RESERVED_SLOTS}, Total ${activeWorkflows}/${this.MAX_CONCURRENT_WORKFLOWS + this.CATASTROPHIC_RESERVED_SLOTS}`);
 
-    // PRIORITY ORDER: catastrophic > critical > high > medium > low
+    // PRIORITY ORDER: P0/catastrophic > P1/critical > P2/high > P3/medium > P4/low
     const priorityOrder: Record<string, number> = {
-      catastrophic: 0,  // Building on fire - everything stops
-      critical: 1,
-      high: 2,
-      medium: 3,
-      low: 4
+      catastrophic: 0,  // P0 - Building on fire - everything stops
+      critical: 1,      // P1
+      high: 2,          // P2
+      medium: 3,        // P3
+      low: 4            // P4
     };
 
     // Check for catastrophic REQs - they get absolute priority
@@ -1223,13 +1362,43 @@ export class StrategicOrchestratorService {
         console.log(`[StrategicOrchestrator] 🔓 ${reqNumber} blocks a catastrophic REQ - allowing through`);
       }
 
-      // Gap Fix #12: Enforce concurrency limit - don't start new workflows if at max
-      // BUT: Catastrophic and blockers OF catastrophic bypass concurrency limit
-      if (status === 'NEW' && !thisBlocksCatastrophic && !isCatastrophic) {
-        const currentActive = sortedRequests.filter(r => r.status === 'IN_PROGRESS').length;
-        if (currentActive >= this.MAX_CONCURRENT_WORKFLOWS) {
-          console.log(`[StrategicOrchestrator] Skipping ${reqNumber} - at concurrency limit (${currentActive}/${this.MAX_CONCURRENT_WORKFLOWS})`);
+      // Finish-First Policy: Check for stalled workflows before starting new work
+      // Catastrophic bypasses this check
+      if (status === 'NEW' && !isCatastrophic) {
+        const finishFirstCheck = await this.canStartNewWorkFinishFirst(priority);
+        if (!finishFirstCheck.canStart) {
+          console.log(`[StrategicOrchestrator] Finish-first: Skipping ${reqNumber} - ${finishFirstCheck.reason}`);
+          // Try to recover stalled workflows
+          const stalledWorkflows = await this.getStalledWorkflows();
+          if (stalledWorkflows.length > 0) {
+            await this.recoverStalledWorkflows(stalledWorkflows);
+          }
           continue;
+        }
+      }
+
+      // WIP Limit Enforcement: Slot-based concurrency control
+      // - Normal work (P1-P4): Limited to MAX_CONCURRENT_WORKFLOWS (3)
+      // - Catastrophic (P0): Has CATASTROPHIC_RESERVED_SLOTS (2) always available
+      // - Blockers of catastrophic: Bypass limits to unblock P0 work
+      // Total max = MAX_CONCURRENT_WORKFLOWS + CATASTROPHIC_RESERVED_SLOTS = 5
+      const currentActive = sortedRequests.filter(r => r.status === 'IN_PROGRESS').length;
+      const currentCatastrophic = sortedRequests.filter(r => r.status === 'IN_PROGRESS' && r.priority === 'catastrophic').length;
+      const currentNormal = currentActive - currentCatastrophic;
+
+      if (status === 'NEW') {
+        if (isCatastrophic || thisBlocksCatastrophic) {
+          // Catastrophic and its blockers use reserved slots
+          if (currentCatastrophic >= this.CATASTROPHIC_RESERVED_SLOTS) {
+            console.log(`[StrategicOrchestrator] Skipping ${reqNumber} - catastrophic slots full (${currentCatastrophic}/${this.CATASTROPHIC_RESERVED_SLOTS})`);
+            continue;
+          }
+        } else {
+          // Normal work uses normal slots
+          if (currentNormal >= this.MAX_CONCURRENT_WORKFLOWS) {
+            console.log(`[StrategicOrchestrator] Skipping ${reqNumber} - at WIP limit (${currentNormal}/${this.MAX_CONCURRENT_WORKFLOWS})`);
+            continue;
+          }
         }
       }
 
@@ -1301,14 +1470,27 @@ export class StrategicOrchestratorService {
 
       // Start specialist workflow via orchestrator
       try {
+        // Stage names for tracking
+        const stageNames = ['research', 'critique', 'backend', 'frontend', 'qa', 'statistics'];
+
         if (startStage === 0) {
           // Start from beginning with strategic context
           await this.orchestrator.startWorkflow(reqNumber, title, agent, strategicContext);
           await this.persistence.createWorkflow({ reqNumber, title, assignedTo: agent, currentStage: 0 });
+          // Initialize heartbeat for finish-first tracking
+          this.updateWorkflowHeartbeat(reqNumber);
+          // Track stage entry
+          this.stageTracker.recordStageEntry(reqNumber, stageNames[0]);
         } else {
           // Resume from specific stage with strategic context
           await this.orchestrator.resumeWorkflowFromStage(reqNumber, title, agent, startStage, strategicContext);
           await this.persistence.createWorkflow({ reqNumber, title, assignedTo: agent, currentStage: startStage });
+          // Initialize heartbeat for finish-first tracking
+          this.updateWorkflowHeartbeat(reqNumber);
+          // Track stage entry
+          if (startStage < stageNames.length) {
+            this.stageTracker.recordStageEntry(reqNumber, stageNames[startStage]);
+          }
         }
         this.processedRequests.add(reqNumber);
         console.log(`[StrategicOrchestrator] ✅ Workflow started for ${reqNumber} from stage ${startStage + 1}`);
@@ -1895,10 +2077,18 @@ export class StrategicOrchestratorService {
           // Persist stage progression to database
           // Map stage name to stage number (1-indexed for display)
           const stageNames = ['Cynthia', 'Sylvia', 'Roy', 'Jen', 'Billy', 'Priya'];
+          const trackingStageNames = ['research', 'critique', 'backend', 'frontend', 'qa', 'statistics'];
           const stageIndex = stageNames.indexOf(event.stage);
           if (stageIndex >= 0) {
             await this.persistence.updateStage(event.reqNumber, stageIndex + 1);
             console.log(`[StrategicOrchestrator] 📝 Persisted stage ${stageIndex + 1} for ${event.reqNumber}`);
+
+            // Track stage exit and entry for next stage
+            this.stageTracker.recordStageExit(event.reqNumber, trackingStageNames[stageIndex]);
+            const nextStage = this.stageTracker.getNextStage(trackingStageNames[stageIndex]);
+            if (nextStage) {
+              this.stageTracker.recordStageEntry(event.reqNumber, nextStage);
+            }
           }
 
           msg.ack();
@@ -1943,6 +2133,9 @@ export class StrategicOrchestratorService {
         try {
           const event = JSON.parse(msg.string());
           console.log(`[StrategicOrchestrator] ✅ Workflow completed: ${event.reqNumber}`);
+
+          // Mark complete in stage tracker (exits all stages, records completion)
+          this.stageTracker.markComplete(event.reqNumber);
 
           // Store workflow learnings in memory
           await this.storeWorkflowLearnings(event.reqNumber);

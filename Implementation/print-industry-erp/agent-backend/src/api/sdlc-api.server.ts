@@ -332,7 +332,7 @@ export class SDLCApiServer {
 
         res.json({
           success: true,
-          data: result.rows[0],
+          data: result[0],
           message: 'Command queued. Poll /infrastructure/control/:id for result.',
         });
       } catch (error: any) {
@@ -344,7 +344,7 @@ export class SDLCApiServer {
     router.get('/infrastructure/control/pending', async (req: Request, res: Response) => {
       try {
         const commands = await this.db.query(`SELECT * FROM pending_control_commands LIMIT 10`);
-        res.json({ success: true, data: commands.rows });
+        res.json({ success: true, data: commands });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
       }
@@ -355,7 +355,7 @@ export class SDLCApiServer {
       try {
         const { id } = req.params;
         const result = await this.db.query(`SELECT claim_control_command($1)`, [id]);
-        const claimed = result.rows[0].claim_control_command;
+        const claimed = result[0].claim_control_command;
 
         if (claimed) {
           res.json({ success: true, message: 'Command claimed' });
@@ -393,11 +393,11 @@ export class SDLCApiServer {
           [id]
         );
 
-        if (result.rows.length === 0) {
+        if (result.length === 0) {
           return res.status(404).json({ success: false, error: 'Command not found' });
         }
 
-        res.json({ success: true, data: result.rows[0] });
+        res.json({ success: true, data: result[0] });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
       }
@@ -417,7 +417,7 @@ export class SDLCApiServer {
           [component, limit]
         );
 
-        res.json({ success: true, data: result.rows });
+        res.json({ success: true, data: result });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
       }
@@ -2576,35 +2576,147 @@ export class SDLCApiServer {
       }
     });
 
-    // Set top priority (catastrophic + focus)
+    // Set top priority (creates blocker-chain directive - REVERSIBLE)
+    // This does NOT permanently change priority - use escalate-priority for that
     router.post('/requests/:reqNumber/top-priority', async (req: Request, res: Response) => {
       try {
         const { reqNumber } = req.params;
-        const { reason, updatedBy } = req.body;
+        const { reason, createdBy = 'ai-assist', expiresAt } = req.body;
+
+        // Verify request exists
+        const reqResult = await this.db.query(
+          `SELECT req_number, title, is_blocked, priority FROM owner_requests WHERE req_number = $1`,
+          [reqNumber]
+        );
+
+        if (reqResult.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+
+        const request = reqResult[0];
+
+        // Deactivate any existing directive first
+        await this.db.query(`
+          UPDATE workflow_directives
+          SET is_active = false, deactivated_at = NOW(), deactivated_reason = 'superseded_by_top_priority'
+          WHERE is_active = true
+        `);
+
+        // Get full blocker chain (same logic as blocker_chain targetType)
+        const chainResult = await this.db.query(`
+          WITH RECURSIVE blocker_chain AS (
+            SELECT id, req_number, 1 as depth
+            FROM owner_requests
+            WHERE req_number = $1
+
+            UNION ALL
+
+            SELECT r.id, r.req_number, bc.depth + 1
+            FROM blocker_chain bc
+            JOIN request_blockers rb ON rb.blocked_request_id = bc.id OR rb.blocking_request_id = bc.id
+            JOIN owner_requests r ON r.id = rb.blocked_request_id OR r.id = rb.blocking_request_id
+            WHERE r.req_number != bc.req_number
+              AND rb.resolved_at IS NULL
+              AND bc.depth < 10
+          )
+          SELECT DISTINCT req_number FROM blocker_chain
+        `, [reqNumber]);
+
+        const targetReqNumbers = chainResult.map((r: any) => r.req_number);
+
+        // Create blocker-chain directive
+        const displayName = `Top Priority: ${reqNumber}`;
+        const result = await this.db.query(`
+          INSERT INTO workflow_directives (
+            directive_type, display_name, target_type, target_value,
+            target_req_numbers, filter_criteria, expires_at,
+            auto_restore, exclusive, created_by, reason,
+            total_items, completed_items
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0)
+          RETURNING *
+        `, [
+          'focus',
+          displayName,
+          'blocker_chain',
+          reqNumber,
+          targetReqNumbers,
+          JSON.stringify({}),
+          expiresAt || null,
+          true,  // autoRestore
+          true,  // exclusive
+          createdBy,
+          reason || `Top priority set for ${reqNumber}`,
+          targetReqNumbers.length
+        ]);
+
+        const directive = result[0];
+
+        console.log(`[SDLC API] TOP PRIORITY (directive): ${reqNumber} by ${createdBy}. Chain: ${targetReqNumbers.length} items. Reason: ${reason || 'none'}`);
+
+        res.json({
+          success: true,
+          data: {
+            reqNumber: request.req_number,
+            title: request.title,
+            originalPriority: request.priority,
+            isTopPriority: true,
+            reversible: true,
+            directive: {
+              id: directive.id,
+              displayName: directive.display_name,
+              targetReqNumbers: directive.target_req_numbers,
+              totalItems: directive.total_items,
+              expiresAt: directive.expires_at
+            },
+            createdBy,
+            reason,
+            message: `${reqNumber} is now top priority via workflow directive. Original priority preserved. Use /workflow/focus/clear to return to normal.`
+          }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Permanently escalate priority (IRREVERSIBLE - use sparingly)
+    // For rare cases where actual priority change is needed (not just temporary focus)
+    router.post('/requests/:reqNumber/escalate-priority', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { priority, reason, updatedBy } = req.body;
+
+        // Only allow escalation to critical or catastrophic
+        if (!priority || !['critical', 'catastrophic'].includes(priority)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Priority must be "critical" or "catastrophic" for escalation'
+          });
+        }
 
         const result = await this.db.query(`
           UPDATE owner_requests
-          SET priority = 'catastrophic', updated_at = NOW()
+          SET priority = $2, updated_at = NOW()
           WHERE req_number = $1
           RETURNING req_number, title, priority
-        `, [reqNumber]);
+        `, [reqNumber, priority]);
 
         if (result.length === 0) {
           return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
         }
 
-        console.log(`[SDLC API] TOP PRIORITY SET: ${reqNumber} by ${updatedBy || 'ai-assist'}. Reason: ${reason || 'none'}`);
+        console.log(`[SDLC API] PRIORITY ESCALATED (permanent): ${reqNumber} -> ${priority} by ${updatedBy || 'api'}. Reason: ${reason || 'none'}`);
 
         res.json({
           success: true,
           data: {
             reqNumber: result[0].req_number,
             title: result[0].title,
-            priority: 'catastrophic',
-            isTopPriority: true,
-            updatedBy: updatedBy || 'ai-assist',
+            priority: result[0].priority,
+            escalatedBy: updatedBy || 'api',
             reason,
-            message: `${reqNumber} is now the top priority.`
+            reversible: false,
+            warning: 'This priority change is PERMANENT. For temporary focus, use /requests/:reqNumber/top-priority instead.',
+            message: `${reqNumber} priority permanently escalated to ${priority}.`
           }
         });
       } catch (error: any) {
@@ -2755,6 +2867,35 @@ export class SDLCApiServer {
               AND current_phase != 'done'
           `, [targetValue]);
           targetReqNumbers = buResult.map((r: any) => r.req_number);
+        } else if (targetType === 'list' && Array.isArray(req.body.targetReqNumbers)) {
+          // Direct list of REQ numbers provided by user
+          const providedList = req.body.targetReqNumbers as string[];
+
+          if (providedList.length === 0) {
+            return res.status(400).json({
+              success: false,
+              error: 'targetReqNumbers array cannot be empty for targetType "list"'
+            });
+          }
+
+          // Validate all REQs exist
+          const validationResult = await this.db.query(`
+            SELECT req_number FROM owner_requests
+            WHERE req_number = ANY($1)
+          `, [providedList]);
+
+          const validReqs = new Set(validationResult.map((r: any) => r.req_number));
+          const invalidReqs = providedList.filter(r => !validReqs.has(r));
+
+          if (invalidReqs.length > 0) {
+            return res.status(400).json({
+              success: false,
+              error: `Invalid REQ numbers: ${invalidReqs.slice(0, 10).join(', ')}${invalidReqs.length > 10 ? ` and ${invalidReqs.length - 10} more` : ''}`
+            });
+          }
+
+          targetReqNumbers = providedList;
+          console.log(`[SDLC API] Directive with hand-picked list: ${targetReqNumbers.length} items`);
         } else if (filterCriteria) {
           // Build dynamic query from filter criteria
           let whereConditions = ["current_phase != 'done'"];
@@ -2780,6 +2921,63 @@ export class SDLCApiServer {
             WHERE ${whereConditions.join(' AND ')}
           `, params);
           targetReqNumbers = filterResult.map((r: any) => r.req_number);
+        }
+
+        // Track original count before blocker expansion
+        const originalCount = targetReqNumbers.length;
+        let addedBlockers: string[] = [];
+
+        // Expand to include blockers if requested (Part 2: expandBlockers option)
+        if (req.body.expandBlockers && targetReqNumbers.length > 0) {
+          // Find all blockers for blocked items in the list (recursive)
+          const blockerExpansion = await this.db.query(`
+            WITH RECURSIVE blocker_tree AS (
+              -- Start with blocked items in our list
+              SELECT DISTINCT rb.blocking_request_id as id
+              FROM request_blockers rb
+              JOIN owner_requests blocked ON blocked.id = rb.blocked_request_id
+              WHERE blocked.req_number = ANY($1)
+                AND rb.resolved_at IS NULL
+
+              UNION
+
+              -- Recursively find blockers of blockers
+              SELECT rb.blocking_request_id
+              FROM blocker_tree bt
+              JOIN request_blockers rb ON rb.blocked_request_id = bt.id
+              WHERE rb.resolved_at IS NULL
+            )
+            SELECT DISTINCT r.req_number
+            FROM blocker_tree bt
+            JOIN owner_requests r ON r.id = bt.id
+            WHERE r.req_number != ALL($1)  -- Exclude items already in list
+          `, [targetReqNumbers]);
+
+          addedBlockers = blockerExpansion.map((r: any) => r.req_number);
+
+          if (addedBlockers.length > 0) {
+            targetReqNumbers = [...targetReqNumbers, ...addedBlockers];
+            console.log(`[SDLC API] Expanded directive: +${addedBlockers.length} blockers (${originalCount} -> ${targetReqNumbers.length})`);
+          }
+        }
+
+        // Check for blocked items that cannot be completed (blockers outside scope)
+        let blockedItemsWarning: string[] = [];
+        if (exclusive && targetReqNumbers.length > 0 && !req.body.expandBlockers) {
+          const blockedOutside = await this.db.query(`
+            SELECT DISTINCT blocked.req_number
+            FROM request_blockers rb
+            JOIN owner_requests blocked ON blocked.id = rb.blocked_request_id
+            JOIN owner_requests blocker ON blocker.id = rb.blocking_request_id
+            WHERE blocked.req_number = ANY($1)
+              AND blocker.req_number != ALL($1)
+              AND rb.resolved_at IS NULL
+          `, [targetReqNumbers]);
+
+          blockedItemsWarning = blockedOutside.map((r: any) => r.req_number);
+          if (blockedItemsWarning.length > 0) {
+            console.log(`[SDLC API] WARNING: ${blockedItemsWarning.length} items blocked by REQs outside directive scope`);
+          }
         }
 
         // Create the directive
@@ -2813,18 +3011,40 @@ export class SDLCApiServer {
         // TODO: Publish NATS message for orchestrator
         // this.nats.publish('agog.workflow.directive.activated', directive);
 
+        // Build response with expansion info
+        const responseData: any = {
+          directive: {
+            id: directive.id,
+            type: directive.directive_type,
+            displayName: directive.display_name,
+            targetReqNumbers: directive.target_req_numbers,
+            totalItems: directive.total_items,
+            expiresAt: directive.expires_at
+          },
+          message: `Workflow now focused: ${displayName}`
+        };
+
+        // Add expansion info if blockers were added
+        if (addedBlockers.length > 0) {
+          responseData.expansion = {
+            originalCount,
+            expandedCount: targetReqNumbers.length,
+            addedBlockers,
+            message: `Added ${addedBlockers.length} blocker(s) to ensure completion.`
+          };
+        }
+
+        // Add warning if blocked items exist outside scope
+        if (blockedItemsWarning.length > 0) {
+          responseData.warning = {
+            blockedItemsOutsideScope: blockedItemsWarning,
+            message: `${blockedItemsWarning.length} item(s) are blocked by REQs outside this focus. Consider using expandBlockers=true or adding blockers manually.`
+          };
+        }
+
         res.json({
           success: true,
-          data: {
-            directive: {
-              id: directive.id,
-              type: directive.directive_type,
-              displayName: directive.display_name,
-              targetReqNumbers: directive.target_req_numbers,
-              totalItems: directive.total_items
-            },
-            message: `Workflow now focused: ${displayName}`
-          }
+          data: responseData
         });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
@@ -2908,6 +3128,355 @@ export class SDLCApiServer {
             reqNumber,
             inScope: result[0]?.in_scope ?? true
           }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // Board Configuration Endpoints (REQ-SDLC-1767972294)
+    // =========================================================================
+
+    // GET /api/agent/boards - List all active boards
+    router.get('/boards', async (req: Request, res: Response) => {
+      try {
+        const boards = await this.db.query(`
+          SELECT board_code, board_name, description, routing_tags, routing_mode,
+                 display_order, color, icon, show_all_phases, allowed_phases,
+                 visible_to_agents, managed_by_bu, status, board_version
+          FROM board_configurations
+          WHERE is_active = true AND status = 'published'
+          ORDER BY display_order
+        `);
+
+        res.json({
+          success: true,
+          data: { boards }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // GET /api/agent/boards/:boardCode - Get board configuration
+    router.get('/boards/:boardCode', async (req: Request, res: Response) => {
+      try {
+        const { boardCode } = req.params;
+
+        const board = await this.db.queryOne(`
+          SELECT * FROM board_configurations
+          WHERE board_code = $1 AND is_active = true
+        `, [boardCode]);
+
+        if (!board) {
+          return res.status(404).json({
+            success: false,
+            error: `Board not found: ${boardCode}`
+          });
+        }
+
+        res.json({
+          success: true,
+          data: { board }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // GET /api/agent/boards/:boardCode/requests - Get requests for specific board
+    router.get('/boards/:boardCode/requests', async (req: Request, res: Response) => {
+      try {
+        const { boardCode } = req.params;
+
+        // Use the database function for consistent routing logic
+        const requests = await this.db.query(`
+          SELECT * FROM get_board_requests($1)
+        `, [boardCode]);
+
+        // Get board config for response
+        const board = await this.db.queryOne(`
+          SELECT * FROM board_configurations
+          WHERE board_code = $1 AND is_active = true AND status = 'published'
+        `, [boardCode]);
+
+        if (!board) {
+          return res.status(404).json({
+            success: false,
+            error: `Board not found: ${boardCode}`
+          });
+        }
+
+        res.json({
+          success: true,
+          data: { requests, board }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // POST /api/agent/boards - Create a new board (draft status)
+    router.post('/boards', async (req: Request, res: Response) => {
+      try {
+        const {
+          boardCode,
+          boardName,
+          description,
+          routingTags = [],
+          routingMode = 'any',
+          displayOrder = 0,
+          color = '#3B82F6',
+          icon,
+          visibleToAgents = [],
+          managedByBu,
+          showAllPhases = true,
+          allowedPhases = [],
+          autoAssignAgent,
+          createdBy = 'system'
+        } = req.body;
+
+        if (!boardCode || !boardName) {
+          return res.status(400).json({
+            success: false,
+            error: 'boardCode and boardName are required'
+          });
+        }
+
+        await this.db.query(`
+          INSERT INTO board_configurations (
+            board_code, board_name, description, routing_tags, routing_mode,
+            display_order, color, icon, visible_to_agents, managed_by_bu,
+            show_all_phases, allowed_phases, auto_assign_agent, status, created_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'draft', $14)
+        `, [
+          boardCode, boardName, description, routingTags, routingMode,
+          displayOrder, color, icon, visibleToAgents, managedByBu,
+          showAllPhases, allowedPhases, autoAssignAgent, createdBy
+        ]);
+
+        res.json({
+          success: true,
+          data: { boardCode, status: 'draft' }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // POST /api/agent/boards/:boardCode/publish - Publish a board
+    router.post('/boards/:boardCode/publish', async (req: Request, res: Response) => {
+      try {
+        const { boardCode } = req.params;
+        const { publishedBy = 'system' } = req.body;
+
+        await this.db.query(`
+          SELECT publish_board($1, $2)
+        `, [boardCode, publishedBy]);
+
+        res.json({
+          success: true,
+          data: { boardCode, status: 'published' }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // POST /api/agent/boards/:boardCode/archive - Archive a board
+    router.post('/boards/:boardCode/archive', async (req: Request, res: Response) => {
+      try {
+        const { boardCode } = req.params;
+        const { archivedBy = 'system' } = req.body;
+
+        await this.db.query(`
+          SELECT archive_board($1, $2)
+        `, [boardCode, archivedBy]);
+
+        res.json({
+          success: true,
+          data: { boardCode, status: 'archived' }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // GET /api/agent/boards/stats - Get statistics for all boards
+    router.get('/boards/stats', async (req: Request, res: Response) => {
+      try {
+        const stats = await this.db.query(`
+          SELECT * FROM v_board_stats
+        `);
+
+        res.json({
+          success: true,
+          data: { stats }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // Tag Management Endpoints (REQ-SDLC-1767972294)
+    // =========================================================================
+
+    // GET /api/agent/tags - Get all active tags with usage counts
+    router.get('/tags', async (req: Request, res: Response) => {
+      try {
+        const { category, status = 'active' } = req.query;
+
+        let query = `
+          SELECT tag_name, description, category, color, usage_count,
+                 status, requires_approval, approved_by, approved_at
+          FROM tag_registry
+          WHERE status = $1
+        `;
+        const params: any[] = [status];
+
+        if (category) {
+          query += ` AND category = $${params.length + 1}`;
+          params.push(category);
+        }
+
+        query += ` ORDER BY usage_count DESC, tag_name`;
+
+        const tags = await this.db.query(query, params);
+
+        res.json({
+          success: true,
+          data: { tags }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // GET /api/agent/tags/stats - Get tag usage statistics
+    router.get('/tags/stats', async (req: Request, res: Response) => {
+      try {
+        const stats = await this.db.query(`
+          SELECT * FROM v_tag_stats
+        `);
+
+        res.json({
+          success: true,
+          data: { stats }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // POST /api/agent/tags - Create a new tag
+    router.post('/tags', async (req: Request, res: Response) => {
+      try {
+        const {
+          tagName,
+          description,
+          category = 'other',
+          color = '#6B7280',
+          requiresApproval = true,
+          createdBy = 'system'
+        } = req.body;
+
+        if (!tagName) {
+          return res.status(400).json({
+            success: false,
+            error: 'tagName is required'
+          });
+        }
+
+        await this.db.query(`
+          INSERT INTO tag_registry (tag_name, description, category, color, requires_approval, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (tag_name) DO NOTHING
+        `, [tagName, description, category, color, requiresApproval, createdBy]);
+
+        res.json({
+          success: true,
+          data: { tagName }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // POST /api/agent/tags/:tagName/approve - Approve a tag
+    router.post('/tags/:tagName/approve', async (req: Request, res: Response) => {
+      try {
+        const { tagName } = req.params;
+        const { approvedBy = 'system' } = req.body;
+
+        await this.db.query(`
+          UPDATE tag_registry
+          SET requires_approval = FALSE,
+              approved_by = $1,
+              approved_at = NOW()
+          WHERE tag_name = $2
+        `, [approvedBy, tagName]);
+
+        res.json({
+          success: true,
+          data: { tagName, approved: true }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // PUT /api/agent/requests/:reqNumber/tags - Update request tags
+    router.put('/requests/:reqNumber/tags', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const { tags } = req.body;
+
+        if (!Array.isArray(tags)) {
+          return res.status(400).json({
+            success: false,
+            error: 'tags must be an array'
+          });
+        }
+
+        await this.db.query(`
+          UPDATE owner_requests
+          SET tags = $1, updated_at = NOW()
+          WHERE req_number = $2
+        `, [tags, reqNumber]);
+
+        res.json({
+          success: true,
+          data: { reqNumber, tags }
+        });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // PUT /api/agent/recommendations/:recNumber/tags - Update recommendation tags
+    router.put('/recommendations/:recNumber/tags', async (req: Request, res: Response) => {
+      try {
+        const { recNumber } = req.params;
+        const { tags } = req.body;
+
+        if (!Array.isArray(tags)) {
+          return res.status(400).json({
+            success: false,
+            error: 'tags must be an array'
+          });
+        }
+
+        await this.db.query(`
+          UPDATE recommendations
+          SET tags = $1, updated_at = NOW()
+          WHERE rec_number = $2
+        `, [tags, recNumber]);
+
+        res.json({
+          success: true,
+          data: { recNumber, tags }
         });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
