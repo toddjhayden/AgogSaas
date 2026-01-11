@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import axios from 'axios';
 import { connect, NatsConnection, JetStreamClient, StorageType, RetentionPolicy, StreamConfig, DiscardPolicy } from 'nats';
 import { AgentSpawnerService } from './agent-spawner.service';
 import { OrchestratorService } from './orchestrator.service';
@@ -611,6 +612,15 @@ export class StrategicOrchestratorService {
     this.subscribeToDeliverablesForCaching().catch((error) => {
       console.error('[StrategicOrchestrator] Error in deliverables caching subscription:', error);
     });
+
+    // Publish health heartbeat to SDLC (every 60 seconds)
+    // This enables the Host Listener to verify orchestrator is running before accepting work
+    this.publishHealthHeartbeat(); // Immediately on startup
+    const healthHeartbeatInterval = setInterval(() => {
+      if (this.isRunning) {
+        this.publishHealthHeartbeat();
+      }
+    }, 60000); // Every 60 seconds
 
     console.log('[StrategicOrchestrator] ✅ Daemon running');
     console.log('[StrategicOrchestrator] - Monitoring APPROVED recommendations every 30 seconds');
@@ -2983,6 +2993,31 @@ export class StrategicOrchestratorService {
         // No state in NATS - workflow might be orphaned
         console.warn(`[StrategicOrchestrator] ⚠️ No NATS state found for IN_PROGRESS workflow ${reqNumber}`);
       }
+    }
+  }
+
+  /**
+   * Publish health heartbeat to SDLC infrastructure health endpoint.
+   * This enables the Host Listener to verify orchestrator is running before accepting work.
+   */
+  private async publishHealthHeartbeat(): Promise<void> {
+    try {
+      const sdlcApiUrl = process.env.SDLC_API_URL || 'https://api.agog.fyi';
+
+      await axios.post(`${sdlcApiUrl}/api/agent/infrastructure/health`, {
+        component: 'orchestrator',
+        status: 'healthy',
+        details: {
+          description: 'Strategic Orchestrator - coordinates agent workflows',
+          activeWorkflows: this.workflowHeartbeats.size,
+          isRunning: this.isRunning,
+          useCloudApi: this.useCloudApi,
+        },
+      }, { timeout: 5000 });
+
+      console.log(`[StrategicOrchestrator] 💓 Health heartbeat published (${this.workflowHeartbeats.size} active workflows)`);
+    } catch (error: any) {
+      console.error(`[StrategicOrchestrator] Failed to publish health heartbeat: ${error.message}`);
     }
   }
 
