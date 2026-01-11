@@ -13,14 +13,27 @@ REM
 REM Location: D:\GitHub\agogsaas\.claude\START_AGENTS.bat
 REM ===================================================================
 
-setlocal enabledelayedexpansion
-
 REM Get the repo root (parent of .claude directory)
-set "REPO_ROOT=%~dp0.."
+pushd "%~dp0.."
+set "REPO_ROOT=%CD%"
+popd
+
 set "ERP_ROOT=%REPO_ROOT%\Implementation\print-industry-erp"
 set "AGENT_BACKEND=%ERP_ROOT%\agent-backend"
 
+echo.
+echo Resolved paths:
+echo   REPO_ROOT: %REPO_ROOT%
+echo   ERP_ROOT: %ERP_ROOT%
+echo   AGENT_BACKEND: %AGENT_BACKEND%
+echo.
+
 cd /d "%REPO_ROOT%"
+if errorlevel 1 (
+    echo ERROR: Could not change to REPO_ROOT: %REPO_ROOT%
+    pause
+    exit /b 1
+)
 
 REM Set NATS connection info
 set NATS_URL=nats://localhost:4223
