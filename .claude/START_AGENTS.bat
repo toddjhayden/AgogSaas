@@ -1,6 +1,6 @@
 @echo off
 REM ===================================================================
-REM AGOG AGENTIC SYSTEM - MASTER STARTUP SCRIPT (VPS SDLC MODE)
+REM AGOG AGENTIC SYSTEM - START AGENTS (VPS SDLC MODE)
 REM ===================================================================
 REM
 REM This starts the complete multi-agent workflow system using the
@@ -10,9 +10,17 @@ REM SDLC Services on VPS:
 REM   - API: https://api.agog.fyi
 REM   - GUI: https://sdlc.agog.fyi
 REM
+REM Location: D:\GitHub\agogsaas\.claude\START_AGENTS.bat
 REM ===================================================================
 
-cd /d D:\GitHub\agogsaas
+setlocal enabledelayedexpansion
+
+REM Get the repo root (parent of .claude directory)
+set "REPO_ROOT=%~dp0.."
+set "ERP_ROOT=%REPO_ROOT%\Implementation\print-industry-erp"
+set "AGENT_BACKEND=%ERP_ROOT%\agent-backend"
+
+cd /d "%REPO_ROOT%"
 
 REM Set NATS connection info
 set NATS_URL=nats://localhost:4223
@@ -23,8 +31,8 @@ set SDLC_API_URL=https://api.agog.fyi
 set SDLC_AGENT_ID=local-orchestrator
 
 REM Load NATS_PASSWORD from .env.local in agent-backend (gitignored)
-if exist "D:\GitHub\agogsaas\Implementation\print-industry-erp\agent-backend\.env.local" (
-    for /f "tokens=1,* delims==" %%a in ('findstr /B "NATS_PASSWORD" "D:\GitHub\agogsaas\Implementation\print-industry-erp\agent-backend\.env.local"') do set %%a=%%b
+if exist "%AGENT_BACKEND%\.env.local" (
+    for /f "tokens=1,* delims==" %%a in ('findstr /B "NATS_PASSWORD" "%AGENT_BACKEND%\.env.local"') do set %%a=%%b
 )
 
 if "%NATS_PASSWORD%"=="" (
@@ -38,8 +46,6 @@ if "%NATS_PASSWORD%"=="" (
 
 REM Host-side scripts use localhost for Ollama (Docker exposes port 11434)
 set HOST_OLLAMA_URL=http://localhost:11434
-
-cd /d D:\GitHub\agogsaas\Implementation\print-industry-erp
 
 echo.
 echo ===================================================================
@@ -68,11 +74,11 @@ echo   - Recursion prevention (max depth 3)
 echo   - And 8 more...
 echo.
 
-
 echo.
 echo [STEP 1] Starting Docker containers (VPS mode - no local SDLC DB)...
 echo.
-REM Use VPS-mode compose file (excludes sdlc-db)
+
+cd /d "%ERP_ROOT%"
 docker-compose -f docker-compose.agents.yml up -d nats agent-postgres ollama
 
 if errorlevel 1 (
@@ -150,8 +156,7 @@ echo   - NATS Monitoring:   http://localhost:8223
 echo   - Host Listener:     Running in this window
 echo.
 
-cd /d D:\GitHub\agogsaas\Implementation\print-industry-erp\agent-backend
-
+cd /d "%AGENT_BACKEND%"
 tsx scripts/host-agent-listener.ts
 
 echo.
