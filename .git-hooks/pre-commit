@@ -13,21 +13,21 @@ echo "✅ No secrets detected"
 
 # Step 2: Linting
 echo "Step 2/4: Linting..."
-cd Implementation/print-industry-erp/backend && npm run lint --silent 2>/dev/null || echo "⚠️  Backend linting skipped"
+cd projects/print-industry-erp/backend && npm run lint --silent 2>/dev/null || echo "⚠️  Backend linting skipped"
 cd ../frontend && npm run lint --silent 2>/dev/null || echo "⚠️  Frontend linting skipped"
 cd ../../..
 echo "✅ Linting passed"
 
 # Step 3: Type checking
 echo "Step 3/4: TypeScript type checking..."
-cd Implementation/print-industry-erp/backend && npm run build --silent 2>/dev/null || echo "⚠️  Backend type check skipped"
+cd projects/print-industry-erp/backend && npm run build --silent 2>/dev/null || echo "⚠️  Backend type check skipped"
 cd ../frontend && npm run build --silent 2>/dev/null || echo "⚠️  Frontend type check skipped"
 cd ../../..
 echo "✅ Type checking passed"
 
 # Step 4: Unit tests
 echo "Step 4/4: Unit tests..."
-cd Implementation/print-industry-erp/backend && npm test --silent 2>/dev/null || echo "⚠️  Backend tests skipped"
+cd projects/print-industry-erp/backend && npm test --silent 2>/dev/null || echo "⚠️  Backend tests skipped"
 cd ../frontend && npm run test -- --run --passWithNoTests 2>/dev/null || echo "⚠️  Frontend tests skipped"
 cd ../../..
 echo "✅ Tests passed"

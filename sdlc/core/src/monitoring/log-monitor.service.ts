@@ -41,34 +41,29 @@ export class LogMonitorService {
   // Define error patterns to monitor
   private errorPatterns: ErrorPattern[] = [
     {
-      pattern: /OWNER_REQUESTS\.md not found/i,
+      pattern: /SDLC API.*unreachable|SDLC_API_URL.*not configured/i,
       severity: 'critical',
-      description: 'OWNER_REQUESTS.md file not accessible',
-      alertThreshold: 5,
+      description: 'SDLC API connectivity issue',
+      alertThreshold: 3,
       autoFix: async () => {
-        console.log('[LogMonitor] Auto-fix: Checking OWNER_REQUESTS.md mount...');
-
-        // Check if file exists
-        const filePath = '/app/project-spirit/owner_requests/OWNER_REQUESTS.md';
-        if (!fs.existsSync(filePath)) {
-          console.log('[LogMonitor] File not found at:', filePath);
-
-          // Check if parent directory exists
-          const parentDir = '/app/project-spirit/owner_requests';
-          if (!fs.existsSync(parentDir)) {
-            console.log('[LogMonitor] Parent directory missing. Volume mount issue detected.');
-            console.log('[LogMonitor] This requires container restart with proper volume mount.');
-            return false;
-          }
-
-          // TODO: OWNER_REQUESTS.md is deprecated - REQs now managed in sdlc_control.owner_requests database
-          // This file monitoring code should be removed once database migration is complete
-          console.log('[LogMonitor] OWNER_REQUESTS.md monitoring deprecated - use database instead');
+        console.log('[LogMonitor] Auto-fix: Checking SDLC API connectivity...');
+        const apiUrl = process.env.SDLC_API_URL;
+        if (!apiUrl) {
+          console.log('[LogMonitor] SDLC_API_URL not configured in environment');
           return false;
         }
-
-        console.log('[LogMonitor] File exists. Path configuration issue fixed.');
-        return true;
+        try {
+          const response = await fetch(`${apiUrl}/api/agent/health`);
+          if (response.ok) {
+            console.log('[LogMonitor] SDLC API is reachable');
+            return true;
+          }
+          console.log('[LogMonitor] SDLC API returned non-OK status');
+          return false;
+        } catch (error) {
+          console.log('[LogMonitor] SDLC API unreachable');
+          return false;
+        }
       }
     },
     {
@@ -247,7 +242,7 @@ export class LogMonitorService {
     }
 
     try {
-      const containers = ['agogsaas-agents-backend', 'agogsaas-agents-nats', 'agogsaas-agents-postgres'];
+      const containers = ['sdlc-core', 'sdlc-nats', 'sdlc-ollama'];
 
       for (const container of containers) {
         const status = execSync(`docker inspect -f '{{.State.Status}}' ${container} 2>&1 || echo "not_found"`, {
@@ -283,7 +278,7 @@ export class LogMonitorService {
 
     try {
       // Get last 200 lines of logs
-      const logs = execSync('docker logs agogsaas-agents-backend --tail 200 2>&1', {
+      const logs = execSync('docker logs sdlc-core --tail 200 2>&1', {
         encoding: 'utf-8',
         maxBuffer: 1024 * 1024 // 1MB buffer
       });
@@ -363,7 +358,7 @@ export class LogMonitorService {
         description: 'NATS connectivity check failed',
         autoFixed: false
       });
-      result.remediation.push('Check NATS service: docker logs agogsaas-agents-nats');
+      result.remediation.push('Check NATS service: docker logs sdlc-nats');
     }
   }
 

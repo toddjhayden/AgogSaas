@@ -334,10 +334,10 @@ async function startAllServices() {
   } catch (error: any) {
     console.error('\n💥 Failed to start services:', error.message);
     console.error('\nTroubleshooting:');
-    console.error('  1. Ensure NATS is running: docker ps | grep nats');
+    console.error('  1. Ensure NATS is running: docker ps | grep sdlc-nats');
     console.error('  2. Check NATS_URL in .env (should be nats://nats:4222)');
-    console.error('  3. Verify OWNER_REQUESTS.md exists at /app/project-spirit/owner_requests/');
-    console.error('  4. Check logs: docker logs agogsaas-agents-backend');
+    console.error('  3. Verify SDLC_API_URL is set and VPS is reachable');
+    console.error('  4. Check logs: docker logs sdlc-core');
     console.error('\nError details:', error);
 
     // Cleanup any started services

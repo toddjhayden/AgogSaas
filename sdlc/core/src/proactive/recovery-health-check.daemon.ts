@@ -7,10 +7,10 @@
  */
 
 import { connect, NatsConnection, JetStreamClient } from 'nats';
-import * as fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import { isRunningInDocker } from '../utils/environment';
+import { SDLCApiClient, createSDLCApiClient } from '../api/sdlc-api.client';
 
 export interface HealthCheckResult {
   timestamp: string;
@@ -28,7 +28,7 @@ export class RecoveryHealthCheckDaemon {
   private js!: JetStreamClient;
   private isRunning = false;
   private checkCount = 0;
-  private ownerRequestsPath = process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md';
+  private sdlcApi: SDLCApiClient | null = null;
 
   // Track spawned processes (so we can monitor and restart them)
   private orchestratorProcess: ChildProcess | null = null;
@@ -47,6 +47,14 @@ export class RecoveryHealthCheckDaemon {
     });
 
     this.js = this.nc.jetstream();
+
+    // Initialize SDLC API client for database operations
+    this.sdlcApi = createSDLCApiClient();
+    if (this.sdlcApi) {
+      console.log('[RecoveryHealthCheck] Connected to SDLC API');
+    } else {
+      console.warn('[RecoveryHealthCheck] SDLC_API_URL not configured - workflow recovery limited');
+    }
 
     console.log('[RecoveryHealthCheck] Daemon initialized');
   }
@@ -189,41 +197,47 @@ export class RecoveryHealthCheckDaemon {
 
   /**
    * Find workflows stuck in IN_PROGRESS for > 1 hour
+   * Now uses SDLC API instead of file-based OWNER_REQUESTS.md
    */
   private async findStuckWorkflows(): Promise<Array<{ reqNumber: string; lastUpdated: Date }>> {
-    if (!fs.existsSync(this.ownerRequestsPath)) {
-      console.log(`[RecoveryHealthCheck] OWNER_REQUESTS.md not found at ${this.ownerRequestsPath}`);
+    if (!this.sdlcApi) {
+      console.log('[RecoveryHealthCheck] SDLC API not configured - skipping stuck workflow check');
       return [];
     }
 
-    const content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+    try {
+      // Get all in_progress requests from the database
+      const requests = await this.sdlcApi.getRequests({ phase: 'in_progress' });
+      const stuck: Array<{ reqNumber: string; lastUpdated: Date }> = [];
 
-    // Parse IN_PROGRESS requests
-    const requestPattern = /###\s+(REQ-[A-Z-]+-\d+):[^\n]*\n+\*\*Status\*\*:\s*IN_PROGRESS/g;
-    const stuck: Array<{ reqNumber: string; lastUpdated: Date }> = [];
-    let match;
+      for (const request of requests) {
+        // Check when this workflow was last updated by looking at NATS
+        const lastDeliverable = await this.getLastDeliverableTime(request.reqNumber);
 
-    while ((match = requestPattern.exec(content)) !== null) {
-      const reqNumber = match[1];
+        if (lastDeliverable) {
+          const hoursSinceUpdate = (Date.now() - lastDeliverable.getTime()) / (1000 * 60 * 60);
 
-      // Check when this workflow was last updated by looking at NATS
-      const lastDeliverable = await this.getLastDeliverableTime(reqNumber);
+          if (hoursSinceUpdate > 1) {
+            stuck.push({ reqNumber: request.reqNumber, lastUpdated: lastDeliverable });
+            console.log(`[RecoveryHealthCheck] ${request.reqNumber} stuck for ${hoursSinceUpdate.toFixed(1)} hours`);
+          }
+        } else {
+          // No deliverable found - check request updatedAt timestamp
+          const requestUpdated = new Date(request.updatedAt);
+          const hoursSinceUpdate = (Date.now() - requestUpdated.getTime()) / (1000 * 60 * 60);
 
-      if (lastDeliverable) {
-        const hoursSinceUpdate = (Date.now() - lastDeliverable.getTime()) / (1000 * 60 * 60);
-
-        if (hoursSinceUpdate > 1) {
-          stuck.push({ reqNumber, lastUpdated: lastDeliverable });
-          console.log(`[RecoveryHealthCheck] ${reqNumber} stuck for ${hoursSinceUpdate.toFixed(1)} hours`);
+          if (hoursSinceUpdate > 1) {
+            stuck.push({ reqNumber: request.reqNumber, lastUpdated: requestUpdated });
+            console.log(`[RecoveryHealthCheck] ${request.reqNumber} has no deliverables - stuck for ${hoursSinceUpdate.toFixed(1)} hours`);
+          }
         }
-      } else {
-        // No deliverable found - workflow never started or failed immediately
-        stuck.push({ reqNumber, lastUpdated: new Date(0) });
-        console.log(`[RecoveryHealthCheck] ${reqNumber} has no deliverables - never started`);
       }
-    }
 
-    return stuck;
+      return stuck;
+    } catch (error: any) {
+      console.error('[RecoveryHealthCheck] Failed to query stuck workflows:', error.message);
+      return [];
+    }
   }
 
   /**
@@ -338,28 +352,42 @@ export class RecoveryHealthCheckDaemon {
   }
 
   /**
-   * Update request status in OWNER_REQUESTS.md
+   * Update request status via SDLC API
+   * Maps legacy status codes to SDLC phases
    */
   private async updateRequestStatus(reqNumber: string, newStatus: string): Promise<boolean> {
+    if (!this.sdlcApi) {
+      console.error('[RecoveryHealthCheck] SDLC API not configured - cannot update status');
+      return false;
+    }
+
     try {
-      let content = fs.readFileSync(this.ownerRequestsPath, 'utf-8');
+      // Map legacy status to SDLC phase
+      const STATUS_TO_PHASE: Record<string, string> = {
+        'NEW': 'backlog',
+        'PENDING': 'backlog',
+        'IN_PROGRESS': 'in_progress',
+        'BLOCKED': 'blocked',
+        'COMPLETE': 'done',
+        'CANCELLED': 'cancelled',
+      };
 
-      const statusPattern = new RegExp(
-        `(###\\s+${reqNumber}:[^\\n]*\\n+\\*\\*Status\\*\\*:\\s*)\\w+`,
-        'g'
-      );
+      const phase = STATUS_TO_PHASE[newStatus] || 'backlog';
+      const isBlocked = newStatus === 'BLOCKED';
 
-      const newContent = content.replace(statusPattern, `$1${newStatus}`);
+      const success = await this.sdlcApi.updateRequestStatus(reqNumber, {
+        phase,
+        isBlocked,
+        blockedReason: isBlocked ? 'Recovery daemon marked as blocked' : undefined,
+      });
 
-      if (newContent === content) {
-        console.error(`[RecoveryHealthCheck] Status pattern not found for ${reqNumber}`);
-        return false;
+      if (success) {
+        console.log(`[RecoveryHealthCheck] ✅ Updated ${reqNumber} status to ${newStatus} (phase: ${phase})`);
+      } else {
+        console.error(`[RecoveryHealthCheck] Failed to update ${reqNumber} via API`);
       }
 
-      fs.writeFileSync(this.ownerRequestsPath, newContent, 'utf-8');
-      console.log(`[RecoveryHealthCheck] ✅ Updated ${reqNumber} status to ${newStatus}`);
-      return true;
-
+      return success;
     } catch (error: any) {
       console.error(`[RecoveryHealthCheck] Failed to update status for ${reqNumber}:`, error.message);
       return false;
@@ -401,7 +429,7 @@ export class RecoveryHealthCheckDaemon {
       NATS_URL: process.env.NATS_URL || 'nats://localhost:4223',
       NATS_USER: process.env.NATS_USER || 'agents',
       NATS_PASSWORD: process.env.NATS_PASSWORD,
-      OWNER_REQUESTS_PATH: process.env.OWNER_REQUESTS_PATH || '/app/project-spirit/owner_requests/OWNER_REQUESTS.md'
+      SDLC_API_URL: process.env.SDLC_API_URL
     };
 
     // Use PowerShell Start-Process with -WindowStyle Hidden (only way that works on Windows)

@@ -95,10 +95,10 @@ Sasha is spawned by the host listener when:
 ### NATS Health
 ```bash
 # Check NATS container status
-docker ps | grep nats
+docker ps | grep sdlc-nats
 
-# Check NATS connectivity
-curl -s http://localhost:8222/healthz
+# Check NATS connectivity (monitoring port)
+curl -s http://localhost:8223/healthz
 
 # Check JetStream status
 nats stream ls --server=nats://localhost:4223
@@ -107,19 +107,18 @@ nats stream ls --server=nats://localhost:4223
 nats consumer ls --server=nats://localhost:4223 <stream-name>
 
 # View NATS logs
-docker logs agogsaas-nats --tail 100
+docker logs sdlc-nats --tail 100
 ```
 
 ### SDLC Database Health
 ```bash
-# Check VPS connectivity
+# Check VPS API connectivity
 curl -s https://api.agog.fyi/api/agent/health
 
-# Direct database check (if SSH available)
+# Direct database check via VPS (if SSH available)
 ssh root@api.agog.fyi "docker exec postgres psql -U agogsaas_user -d agogsaas -c 'SELECT 1'"
 
-# Check local agent-postgres
-docker exec agent-postgres psql -U agent_user -d agent_memory -c 'SELECT 1'
+# Note: No local postgres - all database operations go through VPS API
 ```
 
 ### Container Health
@@ -157,23 +156,23 @@ curl http://localhost:11434/api/embeddings -d '{"model": "nomic-embed-text", "pr
 
 ```bash
 # Step 1: Check if NATS container exists but stopped
-docker ps -a | grep nats
+docker ps -a | grep sdlc-nats
 
 # Step 2: If stopped, start it
-docker start agogsaas-nats
+docker start sdlc-nats
 
 # Step 3: If not exists or corrupted, recreate
-cd /path/to/agogsaas
-docker-compose -f docker-compose.agents.yml up -d nats
+cd /path/to/agogsaas/sdlc
+docker-compose up -d nats
 
 # Step 4: Verify JetStream
 nats stream ls --server=nats://localhost:4223
 
 # Step 5: If streams missing, they should auto-recreate on agent startup
-# Check orchestrator logs for stream creation
+# Check core logs: docker logs sdlc-core --tail 100
 
 # Step 6: Verify from health endpoint
-curl -s https://api.agog.fyi/api/agent/health | grep nats
+curl -s https://api.agog.fyi/api/agent/health
 ```
 
 ### Container Recovery

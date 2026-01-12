@@ -190,19 +190,31 @@ class SeniorAuditorDaemon {
       console.warn('[Sam] No SDLC_API_URL configured - REQs will only be created locally');
     }
 
-    // Connect to agent_memory database (REQUIRED - Sam stores audit results here)
-    this.db = new Pool({
-      host: process.env.AGENT_DB_HOST || 'localhost',
-      port: parseInt(process.env.AGENT_DB_PORT || '5434'),
-      database: process.env.AGENT_DB_NAME || 'agent_memory',
-      user: process.env.AGENT_DB_USER || 'postgres',
-      password: process.env.AGENT_DB_PASSWORD || 'postgres',
-    });
-    await this.db.query('SELECT 1'); // Test connection
-    console.log('[Sam] Connected to agent_memory database');
+    // Connect to agent_memory database (OPTIONAL - Sam stores audit history here)
+    // If DATABASE_URL is set, use it for audit persistence
+    // Otherwise, audits are ephemeral (lost on restart)
+    const dbUrl = process.env.DATABASE_URL;
+    if (dbUrl) {
+      try {
+        this.db = new Pool({
+          connectionString: dbUrl,
+          connectionTimeoutMillis: 10000,
+          max: 3
+        });
+        await this.db.query('SELECT 1'); // Test connection
+        console.log('[Sam] Connected to database for audit persistence');
 
-    // Ensure audit table exists
-    await this.ensureAuditTable();
+        // Ensure audit table exists
+        await this.ensureAuditTable();
+      } catch (error: any) {
+        console.warn(`[Sam] Database connection failed: ${error.message}`);
+        console.warn('[Sam] Running without audit persistence (history lost on restart)');
+        this.db = null;
+      }
+    } else {
+      console.warn('[Sam] DATABASE_URL not configured - running without audit persistence');
+      this.db = null;
+    }
 
     // Connect to NATS (REQUIRED - Sam publishes to NATS for Host Listener)
     this.nc = await connect({
@@ -768,7 +780,7 @@ ${fix.fixDescription}
 
   private async saveAuditToDatabase(result: AuditResult): Promise<void> {
     if (!this.db) {
-      console.warn('[Sam] No database connection, skipping save');
+      console.log('[Sam] No database connection - audit result not persisted');
       return;
     }
 
