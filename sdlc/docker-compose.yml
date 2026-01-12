@@ -49,6 +49,8 @@ services:
       # SDLC API (VPS) - all database operations go through API
       SDLC_API_URL: ${SDLC_API_URL:?SDLC_API_URL required}
       SDLC_AGENT_ID: ${SDLC_AGENT_ID:-local-sdlc-core}
+      # Workflow persistence database (optional - degraded mode if not set)
+      DATABASE_URL: ${DATABASE_URL:-}
       # Ollama for embeddings (local)
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       # Managed project paths (mounted from projects/)

@@ -2,6 +2,9 @@
  * Workflow Persistence Service
  * Stores workflow state in PostgreSQL instead of in-memory Map
  * Ensures workflows survive container restarts
+ *
+ * Requires DATABASE_URL environment variable for VPS database connection.
+ * If DATABASE_URL is not set, operates in degraded mode (in-memory only).
  */
 
 import { Pool, PoolClient } from 'pg';
@@ -19,13 +22,45 @@ export interface PersistedWorkflow {
 }
 
 export class WorkflowPersistenceService {
-  private pool: Pool;
+  private pool: Pool | null = null;
+  private enabled: boolean = false;
 
   constructor() {
-    // Use DATABASE_URL if set (for Docker), otherwise use localhost:5434 (external port mapping)
-    const dbUrl = process.env.DATABASE_URL ||
-      'postgresql://agent_user:agent_dev_password_2024@localhost:5434/agent_memory';
-    this.pool = new Pool({ connectionString: dbUrl });
+    const dbUrl = process.env.DATABASE_URL;
+
+    if (!dbUrl) {
+      console.warn('[WorkflowPersistence] ⚠️  DATABASE_URL not configured - running in degraded mode (in-memory only)');
+      console.warn('[WorkflowPersistence] Workflows will NOT survive container restarts');
+      console.warn('[WorkflowPersistence] Set DATABASE_URL in .env to enable persistence');
+      this.enabled = false;
+      return;
+    }
+
+    // Mask password in log output
+    const maskedUrl = dbUrl.replace(/:([^:@]+)@/, ':***@');
+    console.log(`[WorkflowPersistence] Connecting to database: ${maskedUrl}`);
+
+    this.pool = new Pool({
+      connectionString: dbUrl,
+      connectionTimeoutMillis: 10000,
+      max: 5
+    });
+    this.enabled = true;
+
+    // Test connection on startup
+    this.pool.query('SELECT 1')
+      .then(() => console.log('[WorkflowPersistence] ✅ Database connection verified'))
+      .catch((err) => {
+        console.error(`[WorkflowPersistence] ❌ Database connection failed: ${err.message}`);
+        this.enabled = false;
+      });
+  }
+
+  /**
+   * Check if persistence is enabled
+   */
+  isEnabled(): boolean {
+    return this.enabled && this.pool !== null;
   }
 
   /**
@@ -38,6 +73,11 @@ export class WorkflowPersistenceService {
     currentStage?: number;
     metadata?: Record<string, any>;
   }): Promise<void> {
+    if (!this.isEnabled()) {
+      console.log(`[WorkflowPersistence] (degraded) Skipping persist for: ${workflow.reqNumber}`);
+      return;
+    }
+
     const query = `
       INSERT INTO agent_workflows (req_number, title, assigned_to, status, current_stage, metadata)
       VALUES ($1, $2, $3, 'running', $4, $5)
@@ -47,7 +87,7 @@ export class WorkflowPersistenceService {
             updated_at = NOW()
     `;
 
-    await this.pool.query(query, [
+    await this.pool!.query(query, [
       workflow.reqNumber,
       workflow.title,
       workflow.assignedTo,
@@ -62,8 +102,12 @@ export class WorkflowPersistenceService {
    * Get workflow by req number
    */
   async getWorkflow(reqNumber: string): Promise<PersistedWorkflow | null> {
+    if (!this.isEnabled()) {
+      return null;
+    }
+
     const query = 'SELECT * FROM agent_workflows WHERE req_number = $1';
-    const result = await this.pool.query(query, [reqNumber]);
+    const result = await this.pool!.query(query, [reqNumber]);
 
     if (result.rows.length === 0) {
       return null;
@@ -87,13 +131,17 @@ export class WorkflowPersistenceService {
    * Update workflow stage
    */
   async updateStage(reqNumber: string, stage: number): Promise<void> {
+    if (!this.isEnabled()) {
+      return;
+    }
+
     const query = `
       UPDATE agent_workflows
       SET current_stage = $1, updated_at = NOW()
       WHERE req_number = $2
     `;
 
-    await this.pool.query(query, [stage, reqNumber]);
+    await this.pool!.query(query, [stage, reqNumber]);
     console.log(`[WorkflowPersistence] Updated ${reqNumber} to stage ${stage}`);
   }
 
@@ -101,13 +149,17 @@ export class WorkflowPersistenceService {
    * Mark workflow as complete
    */
   async completeWorkflow(reqNumber: string): Promise<void> {
+    if (!this.isEnabled()) {
+      return;
+    }
+
     const query = `
       UPDATE agent_workflows
       SET status = 'complete', completed_at = NOW(), updated_at = NOW()
       WHERE req_number = $1
     `;
 
-    await this.pool.query(query, [reqNumber]);
+    await this.pool!.query(query, [reqNumber]);
     console.log(`[WorkflowPersistence] Completed workflow: ${reqNumber}`);
   }
 
@@ -115,6 +167,10 @@ export class WorkflowPersistenceService {
    * Mark workflow as blocked
    */
   async blockWorkflow(reqNumber: string, reason: string): Promise<void> {
+    if (!this.isEnabled()) {
+      return;
+    }
+
     const query = `
       UPDATE agent_workflows
       SET status = 'blocked',
@@ -123,7 +179,7 @@ export class WorkflowPersistenceService {
       WHERE req_number = $1
     `;
 
-    await this.pool.query(query, [reqNumber, reason]);
+    await this.pool!.query(query, [reqNumber, reason]);
     console.log(`[WorkflowPersistence] Blocked workflow: ${reqNumber} - ${reason}`);
   }
 
@@ -131,8 +187,12 @@ export class WorkflowPersistenceService {
    * Get all running workflows
    */
   async getRunningWorkflows(): Promise<PersistedWorkflow[]> {
+    if (!this.isEnabled()) {
+      return [];
+    }
+
     const query = "SELECT * FROM agent_workflows WHERE status = 'running' ORDER BY started_at ASC";
-    const result = await this.pool.query(query);
+    const result = await this.pool!.query(query);
 
     return result.rows.map(row => ({
       reqNumber: row.req_number,
@@ -152,6 +212,11 @@ export class WorkflowPersistenceService {
    * Returns workflows that were running when container crashed
    */
   async recoverWorkflows(): Promise<PersistedWorkflow[]> {
+    if (!this.isEnabled()) {
+      console.log('[WorkflowPersistence] (degraded) Skipping workflow recovery - no database');
+      return [];
+    }
+
     console.log('[WorkflowPersistence] Recovering workflows from database...');
 
     const running = await this.getRunningWorkflows();
@@ -164,6 +229,10 @@ export class WorkflowPersistenceService {
    * Cleanup old completed workflows
    */
   async cleanup(): Promise<number> {
+    if (!this.isEnabled()) {
+      return 0;
+    }
+
     const query = `
       DELETE FROM agent_workflows
       WHERE status = 'complete'
@@ -171,7 +240,7 @@ export class WorkflowPersistenceService {
       RETURNING req_number
     `;
 
-    const result = await this.pool.query(query);
+    const result = await this.pool!.query(query);
     const count = result.rowCount || 0;
 
     if (count > 0) {
@@ -185,6 +254,8 @@ export class WorkflowPersistenceService {
    * Close database connection
    */
   async close(): Promise<void> {
-    await this.pool.end();
+    if (this.pool) {
+      await this.pool.end();
+    }
   }
 }
