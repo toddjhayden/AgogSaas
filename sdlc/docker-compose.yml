@@ -1,6 +1,7 @@
 # SDLC Platform - Development Stack
 # Container naming: sdlc-* (formerly agogsaas-agents-*)
 # Use: docker-compose -f sdlc/docker-compose.yml up -d
+# Requires: sdlc/.env file with credentials
 
 services:
   # NATS Jetstream - Agent Communication
@@ -25,9 +26,9 @@ services:
     image: pgvector/pgvector:pg16
     container_name: sdlc-postgres
     environment:
-      POSTGRES_USER: agent_user
-      POSTGRES_PASSWORD: agent_dev_password_2024
-      POSTGRES_DB: agent_memory
+      POSTGRES_USER: ${SDLC_DB_USER:?SDLC_DB_USER required}
+      POSTGRES_PASSWORD: ${SDLC_DB_PASSWORD:?SDLC_DB_PASSWORD required}
+      POSTGRES_DB: ${SDLC_DB_NAME:-agent_memory}
     ports:
       - "5434:5432"
     volumes:
@@ -35,7 +36,7 @@ services:
       - ./migrations/00-init-all-databases.sh:/docker-entrypoint-initdb.d/00-init-all-databases.sh
       - ./migrations:/migrations:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agent_user -d agent_memory"]
+      test: ["CMD-SHELL", "pg_isready -U ${SDLC_DB_USER:-agent_user} -d ${SDLC_DB_NAME:-agent_memory}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,29 +63,29 @@ services:
       dockerfile: Dockerfile
     container_name: sdlc-core
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${NODE_ENV:-development}
       # NATS Configuration
       NATS_URL: nats://nats:4222
-      NATS_USER: agents
-      NATS_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD environment variable is required}
+      NATS_USER: ${NATS_USER:?NATS_USER required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD required}
       # SDLC Database (PostgreSQL + pgvector)
-      DATABASE_URL: postgresql://agent_user:agent_dev_password_2024@postgres:5432/agent_memory
-      SDLC_DATABASE_URL: postgresql://agent_user:agent_dev_password_2024@postgres:5432/agent_memory
+      DATABASE_URL: postgresql://${SDLC_DB_USER}:${SDLC_DB_PASSWORD}@postgres:5432/${SDLC_DB_NAME:-agent_memory}
+      SDLC_DATABASE_URL: postgresql://${SDLC_DB_USER}:${SDLC_DB_PASSWORD}@postgres:5432/${SDLC_DB_NAME:-agent_memory}
       SDLC_DB_HOST: postgres
       SDLC_DB_PORT: 5432
-      SDLC_DB_NAME: agent_memory
-      SDLC_DB_USER: agent_user
-      SDLC_DB_PASSWORD: agent_dev_password_2024
+      SDLC_DB_NAME: ${SDLC_DB_NAME:-agent_memory}
+      SDLC_DB_USER: ${SDLC_DB_USER}
+      SDLC_DB_PASSWORD: ${SDLC_DB_PASSWORD}
       # Agent Memory Database (same as SDLC for now)
       AGENT_DB_HOST: postgres
       AGENT_DB_PORT: 5432
-      AGENT_DB_NAME: agent_memory
-      AGENT_DB_USER: agent_user
-      AGENT_DB_PASSWORD: agent_dev_password_2024
+      AGENT_DB_NAME: ${SDLC_DB_NAME:-agent_memory}
+      AGENT_DB_USER: ${SDLC_DB_USER}
+      AGENT_DB_PASSWORD: ${SDLC_DB_PASSWORD}
       # Ollama for embeddings
-      OLLAMA_URL: http://ollama:11434
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       # Managed project paths (mounted from projects/)
-      PROJECT_ROOT: /workspace/projects
+      PROJECT_ROOT: ${PROJECT_ROOT:-/workspace/projects}
     ports:
       - "4002:4000"  # SDLC API
     depends_on:
