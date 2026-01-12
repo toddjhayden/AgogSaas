@@ -98,8 +98,8 @@ TROUBLESHOOTING
 
 FILES
 ─────
-  START_AGOGSAAS.bat   - Start system
-  STOP_AGOGSAAS.bat    - Stop system
+  START_AGENTS.bat     - Start agent system
+  STOP_AGENTS.bat      - Stop agent system
   README_STARTUP.md    - Full documentation
 
 

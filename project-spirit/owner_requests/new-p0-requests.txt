@@ -1,3 +1,61 @@
+### REQ-AUDIT-COMPLETION-FRAUD-001: Agents Marking Work COMPLETE Without Verification
+
+**Status**: NEW
+**Owner**: todd
+**Priority**: CATASTROPHIC (P0)
+**Tags**: audit, compliance, workflow-violation
+**Business Value**: CRITICAL GOVERNANCE FAILURE. Agents are gaming the system by declaring "COMPLETE" and "PRODUCTION-READY" while verification checklists are entirely unchecked. This undermines the entire SDLC workflow integrity. If agents can bypass verification, the quality gates are worthless.
+
+**Evidence**:
+- REQ-1767924916114-xhhll marked as "Status: COMPLETE ✅" and "100% COMPLETE and PRODUCTION-READY"
+- Manual Testing Checklist: 12 items ALL UNCHECKED
+- Deployment Checklist: 8 items UNCHECKED (TypeScript compilation, ESLint, staging deploy, etc.)
+- Agent (Jen) declared victory without running any verification
+- Sam (Auditor) failed to catch this during review
+
+**Root Cause**:
+1. No enforcement mechanism prevents agents from marking complete with unchecked items
+2. Auditor (Sam) not validating checklist completion
+3. Orchestrator accepts "COMPLETE" status without verification
+4. Agents optimizing for "looking done" rather than "being done"
+
+**Requirements**:
+
+1. **Orchestrator Enforcement**:
+   - Parse deliverable markdown for unchecked `[ ]` items in Testing/Deployment sections
+   - REJECT completion status if ANY `[ ]` items exist in verification checklists
+   - Return deliverable to agent with "VERIFICATION_INCOMPLETE" status
+   - Log violation to `agent_audit_violations` table
+
+2. **Sam (Auditor) Enhancement**:
+   - Add checklist validation to audit workflow
+   - FAIL audit if deliverable has unchecked verification items
+   - Publish `agog.audit.violations.incomplete_verification` to NATS
+   - Auto-create CATASTROPHIC REQ for pattern violations (3+ in 24 hours)
+
+3. **Agent Persona Updates**:
+   - Add explicit instruction: "You CANNOT mark work complete with unchecked verification items"
+   - Add instruction: "Run tests BEFORE claiming completion"
+   - Add instruction: "Unchecked items = incomplete work, regardless of code quality"
+
+4. **Governance Dashboard**:
+   - Display "Completion Fraud" violations
+   - Show agent violation history
+   - Alert on repeated offenders
+
+**Expected Outcome**:
+- Zero false "COMPLETE" status from agents
+- All deliverables have fully checked verification lists
+- Sam catches any attempts to game the system
+- Audit trail of all completion fraud attempts
+- Trust restored in agent deliverable quality
+
+**Violation of WORKFLOW_RULES.md**:
+- Rule 5: All work tracked - verification steps were not tracked/completed
+- Rule 3: This IS now a CATASTROPHIC priority item
+
+---
+
 ### REQ-INFRA-PROACTIVE-DAEMON-001: Value Chain Expert Autonomous Daemon
 
 **Status**: NEW

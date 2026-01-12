@@ -1,0 +1,128 @@
+# SDLC Platform - Development Stack
+# Container naming: sdlc-* (formerly agogsaas-agents-*)
+# Use: docker-compose -f sdlc/docker-compose.yml up -d
+
+services:
+  # NATS Jetstream - Agent Communication
+  nats:
+    image: nats:latest
+    container_name: sdlc-nats
+    command:
+      - "-c"
+      - "/etc/nats/nats-server.conf"
+    ports:
+      - "4223:4222"  # Client port
+      - "8223:8222"  # Monitoring port
+    volumes:
+      - sdlc_nats_data:/data
+      - ./infrastructure/nats/nats-server.conf:/etc/nats/nats-server.conf
+    restart: unless-stopped
+    networks:
+      - sdlc_network
+
+  # SDLC PostgreSQL - Memory, Codebase Index, SDLC Control
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: sdlc-postgres
+    environment:
+      POSTGRES_USER: agent_user
+      POSTGRES_PASSWORD: agent_dev_password_2024
+      POSTGRES_DB: agent_memory
+    ports:
+      - "5434:5432"
+    volumes:
+      - sdlc_postgres_data:/var/lib/postgresql/data
+      - ./migrations/00-init-all-databases.sh:/docker-entrypoint-initdb.d/00-init-all-databases.sh
+      - ./migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_user -d agent_memory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - sdlc_network
+
+  # Ollama - AI Model Server (embeddings + local LLM)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sdlc-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - sdlc_ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - sdlc_network
+
+  # SDLC Core - Orchestration System
+  core:
+    build:
+      context: ./core
+      dockerfile: Dockerfile
+    container_name: sdlc-core
+    environment:
+      NODE_ENV: development
+      # NATS Configuration
+      NATS_URL: nats://nats:4222
+      NATS_USER: agents
+      NATS_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD environment variable is required}
+      # SDLC Database (PostgreSQL + pgvector)
+      DATABASE_URL: postgresql://agent_user:agent_dev_password_2024@postgres:5432/agent_memory
+      SDLC_DATABASE_URL: postgresql://agent_user:agent_dev_password_2024@postgres:5432/agent_memory
+      SDLC_DB_HOST: postgres
+      SDLC_DB_PORT: 5432
+      SDLC_DB_NAME: agent_memory
+      SDLC_DB_USER: agent_user
+      SDLC_DB_PASSWORD: agent_dev_password_2024
+      # Agent Memory Database (same as SDLC for now)
+      AGENT_DB_HOST: postgres
+      AGENT_DB_PORT: 5432
+      AGENT_DB_NAME: agent_memory
+      AGENT_DB_USER: agent_user
+      AGENT_DB_PASSWORD: agent_dev_password_2024
+      # Ollama for embeddings
+      OLLAMA_URL: http://ollama:11434
+      # Managed project paths (mounted from projects/)
+      PROJECT_ROOT: /workspace/projects
+    ports:
+      - "4002:4000"  # SDLC API
+    depends_on:
+      nats:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    volumes:
+      # SDLC core code
+      - ./core/src:/app/src
+      - ./core/scripts:/app/scripts
+      - ./core/package.json:/app/package.json
+      - sdlc_core_node_modules:/app/node_modules
+      # Agent personas
+      - ./agents/personas:/app/agents/personas
+      - ./agents/onboarding:/app/agents/onboarding
+      # Managed projects (each project has sdlc.config.json)
+      - ../projects:/workspace/projects
+      # Logs
+      - ./logs:/app/logs
+    command: npm run daemon:full
+    restart: unless-stopped
+    networks:
+      - sdlc_network
+
+volumes:
+  sdlc_nats_data:
+    name: sdlc_nats_data
+  sdlc_postgres_data:
+    name: sdlc_postgres_data
+  sdlc_core_node_modules:
+    name: sdlc_core_node_modules
+  sdlc_ollama_data:
+    name: sdlc_ollama_data
+
+networks:
+  sdlc_network:
+    name: sdlc_network
+    driver: bridge

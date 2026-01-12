@@ -178,7 +178,7 @@ Phases B, C, D, E of `blocked-catastrophic-escalation.md` have been implemented:
 
 ---
 
-## Commands to Start System
+## Commands to Start System (OBSOLETE - see line 278)
 
 ```bash
 cd D:\GitHub\agogsaas\Implementation\print-industry-erp\agent-backend
@@ -200,3 +200,173 @@ User is the system owner reviewing why:
 3. Priority system wasn't correctly mapped
 
 Goal is to make the agentic workflow system more robust with proper escalation paths.
+
+---
+
+## Task Tool / NATS Spawn Issue (DISCOVERED 2026-01-11)
+
+### Problem Discovered
+
+Agents (Roy, Jen, Billy, Sam, Cynthia) were failing with EPERM symlink errors:
+
+```
+Error: EPERM: operation not permitted, symlink 'C:\Users\toddj\.claude\projects\...\subagents\agent-*.jsonl'
+-> 'C:\Users\toddj\AppData\Local\Temp\claude\...\tasks\*.output'
+```
+
+### Root Cause
+
+1. Agents were using Claude Code's built-in **Task tool** to spawn subagents
+2. Task tool on Windows in `--print` mode tries to create symlinks for output tracking
+3. Symlink creation fails with EPERM (Windows permission issue in non-interactive mode)
+
+### Correct Workflow
+
+Agents should NOT spawn directly. The correct flow is:
+
+1. **Sam** publishes to `agog.spawn.request` via NATS
+2. **Host-Agent-Listener** receives the NATS message
+3. **Listener** spawns the agent with `--dangerously-skip-permissions --print`
+4. **Agent** completes work, publishes deliverable
+5. **Listener** captures result
+
+### Why Agents Used Task Tool
+
+1. Claude Code's Task tool is presented as a built-in feature
+2. Agent personas say "don't use NATS" (for APPLICATION code), but agents interpreted this as "NATS isn't available"
+3. No explicit prohibition of Task tool in agent personas
+4. Only Sam had NATS spawn instructions, other agents didn't know the correct method
+
+### Evidence From Logs
+
+- **Jan 9**: First occurrence in `host-listener-2026-01-09.log` (Billy, Sam, Cynthia, Jen all had EPERM)
+- **Jan 11**: Same errors (Roy, Jen after START_AGENTS.bat refactor - but refactor wasn't the cause)
+
+### Plan Created
+
+Created comprehensive fix plan at:
+`D:\GitHub\agogsaas\.claude\plans\AGENT_NATS_TASK_TOOL_FIX_PLAN.md`
+
+**Key Changes Required:**
+
+1. **AGOG_AGENT_ONBOARDING.md** - Add section clarifying:
+   - YOUR runtime (NATS available) vs APPLICATION code (no NATS)
+   - Explicit Task tool prohibition
+
+2. **All Agent Personas** - Add:
+   - "DO NOT use Task tool"
+   - Only Sam can request spawns (via NATS)
+   - Others note dependencies in deliverable
+
+### Agent Categorization
+
+| Category | Agents | Can Request Spawns? |
+|----------|--------|---------------------|
+| Coordinators | Sam, Orchestrator | YES (via NATS) |
+| Implementation | Roy, Jen | NO |
+| QA | Billy, Liz, Todd, Vic | NO |
+| Research | Cynthia, Sylvia | NO |
+| Support | Priya, Berry, Tim, Miki | NO |
+
+### Status
+
+- Plan created: DONE
+- Implementation: PENDING (awaiting approval)
+
+---
+
+## Commands to Start System (UPDATED)
+
+**NEW location** - moved from `agent-backend/START_SYSTEM.bat`:
+
+```bash
+cd D:\GitHub\agogsaas\.claude
+START_AGENTS.bat
+```
+
+---
+
+## Task Tool/NATS Fix Implementation (COMPLETED 2026-01-11)
+
+All agent personas have been updated with:
+
+1. **AGOG_AGENT_ONBOARDING.md** - Added sections:
+   - "Your Runtime vs Application Code" - clarifies NATS is available to agents but not in app code
+   - "Task Tool Prohibition" - explicit rule never to use Task tool
+   - Spawn Permission Matrix
+
+2. **WORKFLOW_RULES.md** - Added Rule 6:
+   - Agent Spawn Permissions
+   - Who can request spawns (only Sam, Orchestrator)
+   - How spawns work via NATS
+   - Prohibited actions
+
+3. **sam-senior-auditor.md** - Added:
+   - "Agent Spawning Method (NATS ONLY)" section
+   - Reinforced NATS spawn code example
+   - Explicit Task tool prohibition
+
+4. **roy-backend.md & jen-frontend.md** - Added:
+   - "YOUR Runtime vs YOUR Code" clarification table
+   - "Do NOT Spawn Other Agents" section
+
+5. **QA Agents (billy, liz, todd, vic)** - Added:
+   - "Do NOT Spawn Other Agents" section
+   - Instruction to use `needs_*` flags for specialists
+
+6. **Support Agents (cynthia, sylvia, priya, berry, tim, miki)** - Added:
+   - "Do NOT Spawn Other Agents" section
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `.claude/agents/AGOG_AGENT_ONBOARDING.md` | +2 critical sections |
+| `.claude/WORKFLOW_RULES.md` | +Rule 6 |
+| `.claude/agents/sam-senior-auditor.md` | +NATS-only spawn section |
+| `.claude/agents/roy-backend.md` | +clarification + prohibition |
+| `.claude/agents/jen-frontend.md` | +clarification + prohibition |
+| `.claude/agents/billy-qa.md` | +prohibition section |
+| `.claude/agents/liz-frontend-tester.md` | +prohibition section |
+| `.claude/agents/todd-performance-tester.md` | +prohibition section |
+| `.claude/agents/vic-security-tester.md` | +prohibition section |
+| `.claude/agents/cynthia-research-new.md` | +prohibition section |
+| `.claude/agents/sylvia-critique.md` | +prohibition section |
+| `.claude/agents/priya-statistics.md` | +prohibition section |
+| `.claude/agents/berry-devops.md` | +prohibition section |
+| `.claude/agents/tim-documentation.md` | +prohibition section |
+| `.claude/agents/miki-devops.md` | +prohibition section |
+
+### Expected Outcome
+
+- No more EPERM symlink errors from Task tool usage
+- Agents will use NATS for spawn requests (Sam only)
+- Other agents will note dependencies in deliverables
+- Correct workflow: Sam -> NATS -> Host Listener -> spawn
+
+---
+
+## Documentation Cleanup (COMPLETED 2026-01-11)
+
+Updated outdated documentation files to reflect current batch file names.
+
+### Files Updated
+
+| File | Changes |
+|------|---------|
+| `README_STARTUP.md` | `START_AGOGSAAS.bat` → `START_AGENTS.bat`, `STOP_AGOGSAAS.bat` → `STOP_AGENTS.bat`, version 1.1 |
+| `QUICK_START.txt` | Updated batch file names in FILES section |
+| `AGENTIC_SYSTEM_FLOWCHART.txt` | Line 1332: `START_SYSTEM.bat` → `START_AGENTS.bat`, `STOP_SYSTEM.bat` → `STOP_AGENTS.bat` |
+
+### Files Archived
+
+| File | Reason |
+|------|--------|
+| `WORKFLOW_GAPS_ANALYSIS.md` → `archive/docs/` | Dated Dec 2025, most gaps now fixed |
+
+### No Changes Needed
+
+| File | Reason |
+|------|--------|
+| `SDLC-AI-API-REFERENCE.md` | Cloud API reference, unrelated to startup scripts |
+| `WORKFLOW_RULES.md` | Already updated with Rule 6 (Agent Spawn Permissions) |

@@ -1,0 +1,62 @@
+{
+  "name": "@sdlc/core",
+  "version": "1.0.0",
+  "description": "SDLC Platform Core - Agent Orchestration System",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "build:check": "tsc --noEmit",
+    "type:check": "tsc --noEmit",
+    "lint": "eslint src scripts --ext .ts",
+    "start": "node dist/index.js",
+    "daemon:start": "ts-node scripts/start-strategic-orchestrator.ts",
+    "daemon:full": "ts-node scripts/start-all-monitoring-services.ts",
+    "host:listener": "ts-node scripts/host-agent-listener.ts",
+    "proactive:start": "ts-node scripts/start-proactive-daemons.ts",
+    "spawn:sam:p0": "ts-node scripts/spawn-sam-p0-audit.ts",
+    "sdlc:start": "ts-node scripts/start-sdlc-control.ts",
+    "sdlc:migrate": "tsx scripts/migrate-owner-requests-to-sdlc.ts",
+    "test:auto-deploy": "ts-node scripts/test-auto-deploy-integration.ts"
+  },
+  "keywords": [
+    "agent",
+    "orchestration",
+    "ai",
+    "development"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.67.0",
+    "@opentelemetry/exporter-jaeger": "^1.28.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.209.0",
+    "@opentelemetry/instrumentation-express": "^0.57.0",
+    "@opentelemetry/instrumentation-http": "^0.209.0",
+    "@opentelemetry/instrumentation-pg": "^0.61.0",
+    "@opentelemetry/resources": "^1.28.0",
+    "@opentelemetry/sdk-node": "^0.209.0",
+    "@opentelemetry/sdk-trace-base": "^1.28.0",
+    "@opentelemetry/sdk-trace-node": "^1.28.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0",
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.22.1",
+    "nats": "^2.18.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/node": "^20.10.4",
+    "@types/pg": "^8.10.9",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.1",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1325,16 +1325,16 @@ Docker: agogsaas-agents-postgres
 
 
 ================================================================================
-STARTUP COMMANDS (Updated 2025-12-28)
+STARTUP COMMANDS (Updated 2026-01-11)
 ================================================================================
 
 Method 1: Master Script (Recommended)
-├── START_SYSTEM.bat
+├── START_AGENTS.bat
 │   ├── Starts Docker containers (all daemons)
 │   ├── Starts Windows Host Listener
 │   └── Shows startup progress
 │
-└── STOP_SYSTEM.bat
+└── STOP_AGENTS.bat
     └── Stops everything cleanly
 
 Method 2: Manual
@@ -1355,43 +1355,3 @@ Location: D:\GitHub\agogsaas\Implementation\print-industry-erp\
                             END OF FLOWCHART
                    Critical Workflow Gaps DEPLOYED & RUNNING
 ================================================================================
-
-DEPLOYED Gap Fixes (ACTUALLY RUNNING - Verified 2025-12-29):
-1.  ✅ Reduced timeouts to 1 hour or less
-2.  ✅ IN_PROGRESS recovery on restart
-3.  ✅ Maximum workflow duration (8 hours)
-4.  ✅ Orchestrator startup recovery
-5.  ✅ Workflow heartbeat monitoring (every 2 min, 30 min timeout)
-6.  ✅ Escalation mechanism (status update, NATS event, file logging)
-7.  ✅ Parent resumption error handling (try/catch in subscribeToSubRequirementCompletions)
-8.  ✅ Sub-requirement monitoring recovery
-9.  ✅ Agent error event monitoring (subscribes to agog.errors.agent.>)
-10. ✅ Billy retry limit (max 3 failures, then escalate)
-11. ✅ Priya bypass race condition (Berry Auto-Deploy handles)
-12. ✅ Concurrency limit (max 5 concurrent workflows)
-13. ✅ State reconciliation daemon (NATS = source of truth, every 5 min)
-17. ✅ Workflow completion polling (handled by reconciliation daemon)
-18. ✅ Deliverable validation (schema validation in waitForDeliverable)
-21. ✅ Infinite recursion prevention (max depth: 3 levels)
-22. ✅ Proactive daemons integrated - 2025-12-30
-    └── MetricsProvider, RecommendationPublisher, RecoveryHealthCheck
-    └── ValueChainExpert, Marcus (Inventory), Sarah (Sales), Alex (Procurement)
-    └── Sam (Senior Auditor) - runs at startup + daily at 2 AM
-        → Creates agog.requirements.new for system health issues
-23. ✅ Docker/Host communication for agent spawning - 2025-12-29
-    └── Docker daemons publish to NATS, Host Listener spawns Claude agents
-
-REMAINING GAPS (Not Deployed - Lower Priority):
-14. ⏸️ Deployment rollback verification with smoke tests
-15. ⏸️ NATS unavailable fallback (PostgreSQL)
-16. ⏸️ Host Listener crash recovery (.claude/spawned tracking)
-19. ⏸️ Git transaction safety (branch creation, rollback)
-20. ⏸️ Migration transactionality (BEGIN/COMMIT/ROLLBACK)
-
-OBSOLETE (Removed):
-- WorkflowRecoveryDaemon - replaced by RecoveryHealthCheckDaemon (runs every 5h)
-
-Status: 18 of 23 gaps DEPLOYED and RUNNING
-        All critical workflow stuck states are now covered
-        Proactive work generation now functional (12 services in Docker)
-        Remaining gaps are deployment/infrastructure hardening

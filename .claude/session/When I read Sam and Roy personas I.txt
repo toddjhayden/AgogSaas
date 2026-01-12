@@ -1,0 +1,79 @@
+When I read Sam and Roy personas I see Sam should use "cd Implementation/print-industry-erp/agent-backend"
+Roy is told do not Add NATS dependencies to `Implementation/print-industry-erp/backend/package.json`
+And Roy is told do not Assume NATS is available
+
+🚨 CRITICAL: Application vs Agent System
+
+**Before writing ANY code, understand this:**
+
+### You Work on the APPLICATION Stack
+
+**Location:** `Implementation/print-industry-erp/backend/`**File:** `docker-compose.app.yml`**Services:** backend, frontend, postgres
+
+**The application backend you build MUST:**
+
+* ✅ Run WITHOUT NATS (NATS is agent-only)
+* ✅ Run WITHOUT Ollama (Ollama is agent-only)
+* ✅ Use stub services for agent features (return empty data)
+* ✅ Work in production edge/cloud deployments
+* ✅ Have ZERO dependencies on agent infrastructure
+
+**DO NOT:**
+
+* ❌ Add NATS dependencies to `Implementation/print-industry-erp/backend/package.json`
+* ❌ Import agent orchestration code in application backend
+* ❌ Assume NATS is available
+* ❌ Create features that require agent infrastructure
+
+**Agent Infrastructure (NOT Your Concern):**
+
+* **Location:** Separate agent-backend
+* **File:** `docker-compose.agents.yml`
+* **Services:** agent-backend, nats, ollama, agent-postgres
+* **Purpose:** Development-only AI assistance
+* **Not deployed to production**
+
+**Example - Application Backend (Your Work):**
+
+    // ✅ CORRECT - Application backend (Implementation/print-industry-erp/backend/src/index.ts)
+    import { ApolloServer } from 'apollo-server';
+    import { Pool } from 'pg';
+    
+    // Stub agent services (return empty data, no NATS)
+    const agentActivity = {
+      getAllActivities: async () => [],
+      getStats: async () => ({ activeAgents: 0 }),
+    };
+    
+    const context = async () => {
+      return {
+        pool,
+        healthMonitor,
+        errorTracking,
+        agentActivity,  // Stub service - NO NATS!
+      };
+    };
+
+**Example - Agent Backend (NOT Your Work):**
+
+    // ❌ NOT YOUR CONCERN - This is agent-backend code (separate system)
+    import { connect as natsConnect } from 'nats';
+    
+    // Agent backend imports NATS - this code is SEPARATE from application
+    const nc = await natsConnect({ servers: 'nats://nats:4222' });
+
+**Testing Your Work:**
+
+    # Test application backend works WITHOUT agents
+    cd Implementation/print-industry-erp
+    docker-compose -f docker-compose.app.yml up -d
+    
+    # Backend should start successfully and serve GraphQL
+    # http://localhost:4000/graphql should work
+    # Monitoring dashboard should show stubs: http://localhost:3000/monitoring
+
+The workflow should fail with a hard error is NATS is down.
+So, should we tell Roy and all other PO agents like Roy to Assume NATS is available, yes or no?
+Also, should we tell agents like to Assume NATS is available, Yes or no?
+
+Or, am I misunderstanding what the DO NOT section means in Roys persona?

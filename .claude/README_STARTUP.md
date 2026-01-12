@@ -4,7 +4,7 @@
 
 ### Starting the System
 
-**Double-click:** `START_AGOGSAAS.bat`
+**Double-click:** `START_AGENTS.bat`
 
 This will:
 1. ✅ Start Docker services (NATS, PostgreSQL, Backend, Frontend)
@@ -13,7 +13,7 @@ This will:
 
 ### Stopping the System
 
-**Double-click:** `STOP_AGOGSAAS.bat`
+**Double-click:** `STOP_AGENTS.bat`
 
 This will:
 1. ✅ Stop Strategic Orchestrator daemon
@@ -210,7 +210,7 @@ GRAPHQL_PORT=4000
 ## Daily Operations
 
 ### Morning Startup
-1. Double-click `START_AGOGSAAS.bat`
+1. Double-click `START_AGENTS.bat`
 2. Wait for "AgogSaaS System Started Successfully!"
 3. Verify services at http://localhost:8223
 4. Check for any overnight escalations
@@ -223,7 +223,7 @@ GRAPHQL_PORT=4000
 
 ### End of Day
 1. Let workflows complete (don't interrupt mid-stage)
-2. Double-click `STOP_AGOGSAAS.bat`
+2. Double-click `STOP_AGENTS.bat`
 3. Review completed deliverables
 
 ---
@@ -233,8 +233,8 @@ GRAPHQL_PORT=4000
 **Location:** D:\GitHub\agogsaas\.claude\
 
 **Files:**
-- `START_AGOGSAAS.bat` - Start system
-- `STOP_AGOGSAAS.bat` - Stop system
+- `START_AGENTS.bat` - Start agent system
+- `STOP_AGENTS.bat` - Stop agent system
 - `README_STARTUP.md` - This file
 
 **Logs:**
@@ -244,5 +244,5 @@ GRAPHQL_PORT=4000
 
 ---
 
-**Last Updated:** 2025-12-21
-**Version:** 1.0
+**Last Updated:** 2026-01-11
+**Version:** 1.1

@@ -1,6 +1,0 @@
-# Test Data Schema (DEVELOPMENT ONLY)
-# Remove before production deployment
-
-type Mutation {
-  loadP2TestData: String!
-}

@@ -70,6 +70,7 @@ test-results/
 tmp/
 temp/
 *.tmp
+tmpclaude-*
 
 # NATS Jetstream data
 data/
@@ -91,3 +92,4 @@ Implementation/print-industry-erp/backend/agent-output/nats-scripts/*
 Implementation/print-industry-erp/backend/agent-output/deliverables/*
 nul
 NUL
+sdlc/.env

@@ -1,0 +1,72 @@
+{
+  "$schema": "../sdlc.config.schema.json",
+  "project": {
+    "id": "agog-print-erp",
+    "name": "AGOG Print Industry ERP",
+    "description": "Multi-tenant print industry ERP system with WMS, procurement, sales, and shipping modules",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "backend": "./backend",
+    "frontend": "./frontend",
+    "docs": "./docs",
+    "deliverables": "./.deliverables"
+  },
+  "stack": {
+    "backend": {
+      "runtime": "node",
+      "framework": "nestjs",
+      "language": "typescript",
+      "database": "postgresql"
+    },
+    "frontend": {
+      "runtime": "node",
+      "framework": "react",
+      "language": "typescript",
+      "bundler": "vite"
+    }
+  },
+  "agents": {
+    "enabled": true,
+    "personas": [
+      "roy-backend",
+      "jen-frontend",
+      "billy-qa",
+      "sylvia-critique",
+      "cynthia-research-new",
+      "priya-statistics",
+      "berry-devops",
+      "miki-devops",
+      "tim-documentation",
+      "liz-frontend-tester",
+      "todd-performance-tester",
+      "vic-security-tester",
+      "sam-senior-auditor",
+      "chuck-senior-review-agent"
+    ],
+    "productOwners": [
+      "marcus-warehouse-po",
+      "sarah-sales-po",
+      "alex-procurement-po"
+    ]
+  },
+  "workflows": {
+    "requireResearch": true,
+    "requireCritique": true,
+    "requireQA": true,
+    "requireSeniorReview": true,
+    "autoDeployOnApproval": false
+  },
+  "codebaseIndex": {
+    "enabled": true,
+    "database": "sdlc_control",
+    "table": "project_codebase_index",
+    "excludePatterns": [
+      "node_modules/**",
+      "dist/**",
+      ".git/**",
+      "*.log",
+      "coverage/**"
+    ]
+  }
+}

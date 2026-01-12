@@ -74,6 +74,43 @@ Dependencies:
 
 ---
 
+---
+
+## Rule 6: Agent Spawn Permissions (CRITICAL)
+
+**Only designated agents can request other agent spawns.**
+
+### Who Can Request Spawns
+
+| Agent | Can Request Spawns? | Method |
+|-------|---------------------|--------|
+| Sam (Auditor) | YES | NATS: `agog.spawn.request` |
+| Orchestrator | YES | Built-in to Host Listener |
+| All Other Agents | NO | Note in deliverable only |
+
+### How Spawns Work
+
+1. **Sam** publishes to `agog.spawn.request` via NATS
+2. **Host-Agent-Listener** receives message
+3. **Listener** spawns agent with `--dangerously-skip-permissions --print`
+4. **Agent** completes work, publishes deliverable
+5. **Listener** captures result
+
+### Prohibited Actions
+
+- **NEVER use Claude Code's Task tool** to spawn subagents
+- **NEVER spawn agents directly** - only request via NATS
+- **NEVER bypass the Host Listener** spawn workflow
+
+### What Non-Spawn Agents Do
+
+If you identify work requiring another agent:
+1. Complete YOUR assigned task first
+2. Note the dependency in your deliverable
+3. Sam or Orchestrator will coordinate follow-up
+
+**Rationale:** Task tool fails on Windows with EPERM symlink errors. Central spawn control via Host Listener ensures proper agent lifecycle management.
+
 ## Enforcement
 
 These rules are enforced by:
