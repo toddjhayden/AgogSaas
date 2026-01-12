@@ -1,6 +1,6 @@
 # Session: SDLC Infrastructure Fix and VPS Migration
-**Date:** 2026-01-12 (Morning Session)
-**Duration:** ~1 hour
+**Date:** 2026-01-12 (Full Day Session)
+**Duration:** ~4 hours
 
 ---
 
@@ -171,6 +171,130 @@ Currently gracefully degrading (checks skipped).
 
 ---
 
+---
+
+## Part 4: DATABASE INCIDENT (CRITICAL)
+
+### What Happened
+The `recovery-health-check.daemon.ts` fix had a bug in `updateRequestStatus()`:
+```typescript
+const STATUS_TO_PHASE: Record<string, string> = {
+  'PENDING': 'backlog',  // ← WRONG - should not map to backlog
+};
+```
+
+When sdlc-core started:
+1. Recovery daemon queried ALL `in_progress` requests from VPS
+2. Found items with no NATS deliverables
+3. Called `updateRequestStatus(reqNumber, 'PENDING')`
+4. Which mapped to `backlog` phase
+5. **Mass-updated ALL requests in VPS database to backlog**
+
+### Impact
+- All requests in VPS database now have `currentPhase: 'backlog'`
+- Workflow state lost
+- ~50+ requests affected
+
+### Recovery Strategy Decided
+Instead of trying to recover workflow state, use this as opportunity to:
+1. **Build codebase embeddings** (long overdue) - index `projects/print-industry-erp/`
+2. **Let Sam audit** the actual application
+3. **Create CATASTROPHIC REQs** for broken code
+4. **Agents check embeddings** before working ("is this already done?")
+
+Codebase becomes source of truth, not workflow state.
+
+---
+
+## Part 5: Strategic Plan Created
+
+Created: `sdlc/tasklist/proposed/STRATEGIC_PLAN_EMBEDDINGS_AND_QUALITY_RESET.md`
+
+**Scope Clarification:**
+- EMBEDDING TARGET: AgogSaaS Application (`projects/print-industry-erp/`)
+- NOT embedding: `sdlc/` (orchestration system)
+
+**Note:** Existing detailed plan already exists at:
+`.claude/plans/CODEBASE_EMBEDDING_SEARCH_PLAN.md`
+
+---
+
+## Part 6: Infrastructure Gaps Identified
+
+| Directory | Status |
+|-----------|--------|
+| `sdlc/infrastructure/nats/` | Has `nats-server.conf` ✅ |
+| `sdlc/infrastructure/ollama/` | **EMPTY** - needs setup docs |
+| `sdlc/infrastructure/postgres/` | **EMPTY** - needs pgvector schema |
+
+Removed orphaned empty directory: `sdlc/proactive/`
+
+---
+
+## NATS Data Status
+
+JetStream data IS persisted and intact:
+- 12 streams, 1156 messages
+- `agog_orchestration_events`: 637 messages (workflow history)
+- `agog_features_*`: deliverables from agents
+- Data can potentially be used for recovery if needed
+
+---
+
+## Commits Made
+
+1. `feat(sdlc): Complete SDLC platform separation and infrastructure setup`
+2. `fix(sdlc): Remove hardcoded credentials from docker-compose.yml`
+3. `fix(sdlc): Remove hardcoded credentials from WorkflowPersistenceService`
+4. `fix(sdlc): Remove obsolete paths and fix ECONNREFUSED error`
+5. `docs: Update session documentation with completed fixes`
+
+---
+
+## Files Changed (This Session)
+
+| File | Change |
+|------|--------|
+| `sdlc/docker-compose.yml` | Removed postgres, updated to use VPS API, added DATABASE_URL |
+| `sdlc/.env` | Points to VPS API |
+| `sdlc/.env.example` | Template for VPS config, added DATABASE_URL docs |
+| `sdlc/core/scripts/*.ts` | Restored 7 missing scripts |
+| `sdlc/migrations/sdlc-control/V0.0.35-37` | New migrations (applied to local, need VPS) |
+| `sdlc/core/src/orchestration/workflow-persistence.service.ts` | Security fix: removed hardcoded credentials, added graceful degradation |
+| `.git-hooks/pre-commit` | Updated paths from Implementation/ to projects/ |
+| `sdlc/core/src/proactive/recovery-health-check.daemon.ts` | Removed OWNER_REQUESTS.md dependency, uses SDLC API - **CAUSED DB INCIDENT** |
+| `sdlc/core/scripts/start-all-monitoring-services.ts` | Updated error messages |
+| `sdlc/core/src/monitoring/log-monitor.service.ts` | Updated container names |
+| `sdlc/agents/personas/sasha-workflow-expert.md` | Updated diagnostic commands |
+| `sdlc/core/src/proactive/senior-auditor.daemon.ts` | Fixed ECONNREFUSED - optional database |
+| `sdlc/tasklist/proposed/STRATEGIC_PLAN_*.md` | New strategic plan for embeddings + quality reset |
+
+---
+
+## Running Containers
+
+| Container | Status | Purpose |
+|-----------|--------|---------|
+| sdlc-nats | Running ✅ | Agent messaging (JetStream persisted) |
+| sdlc-ollama | Running ✅ | Embeddings (future) |
+| sdlc-core | Running ✅ | All orchestration daemons active |
+
+---
+
+## Next Steps (for next session)
+
+1. **DO NOT restart sdlc-core** until recovery daemon bug is fixed
+2. **Decide on recovery approach:**
+   - Option A: Restore VPS database from backup
+   - Option B: Proceed with embeddings + Sam audit strategy
+3. **If Option B:**
+   - Review existing plan: `.claude/plans/CODEBASE_EMBEDDING_SEARCH_PLAN.md`
+   - Add infrastructure docs to empty directories
+   - Implement embeddings indexer
+4. **Fix recovery daemon** - remove the buggy PENDING→backlog mapping
+
+---
+
 ## Session End
-**Status:** All infrastructure fixes complete, sdlc-core running stably
+**Status:** INCIDENT - VPS database corrupted, strategic recovery plan created
 **Branch:** `feature/sdlc-separation`
