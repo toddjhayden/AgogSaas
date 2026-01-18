@@ -1341,6 +1341,20 @@ export class SDLCApiServer {
       }
     });
 
+    // Check if a request with given title exists (for duplicate prevention)
+    router.get('/requests/by-title/:title', async (req: Request, res: Response) => {
+      try {
+        const title = decodeURIComponent(req.params.title);
+        const result = await this.db.query(
+          'SELECT id FROM owner_requests WHERE title = $1 LIMIT 1',
+          [title]
+        );
+        res.json({ success: true, data: { exists: result.length > 0 } });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Update owner request status/phase (and optionally title/description)
     router.put('/requests/:reqNumber/status', async (req: Request, res: Response) => {
       try {

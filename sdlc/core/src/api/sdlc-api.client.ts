@@ -307,6 +307,15 @@ export class SDLCApiClient {
   }
 
   /**
+   * Check if a request with the given title already exists
+   * Used to prevent duplicate recommendations for the same feature
+   */
+  async requestExistsByTitle(title: string): Promise<boolean> {
+    const response = await this.request<{ exists: boolean }>('GET', `/api/agent/requests/by-title/${encodeURIComponent(title)}`);
+    return response.success && response.data?.exists === true;
+  }
+
+  /**
    * Update request approval fields (for recommendations requiring approval)
    */
   async updateRequestApproval(reqNumber: string, updates: {
