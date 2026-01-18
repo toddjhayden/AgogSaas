@@ -905,33 +905,35 @@ export class SDLCApiServer {
     // Recommendations
     // =========================================================================
 
+    // UNIFIED: Get recommendations from owner_requests where requires_approval=true
     router.get('/recommendations', async (req: Request, res: Response) => {
       try {
         const status = req.query.status as string | undefined;
         const urgency = req.query.urgency as string | undefined;
 
-        let whereClause = '';
+        // Base filter: items that require approval (recommendations)
+        let whereClause = "WHERE requires_approval = true";
         const params: string[] = [];
 
         if (status) {
           params.push(status);
-          whereClause = `WHERE status = $${params.length}`;
+          whereClause += ` AND approval_status = $${params.length}`;
         }
         if (urgency) {
           params.push(urgency);
-          whereClause += (whereClause ? ' AND' : 'WHERE') + ` urgency = $${params.length}`;
+          whereClause += ` AND priority = $${params.length}`;
         }
 
         const result = await this.db.query(`
           SELECT
-            id, rec_number, title, description, rationale, expected_benefits,
-            recommended_by_agent, recommendation_type, urgency, impact_level,
-            affected_bus, status, source_req_number, reviewed_by, reviewed_at,
+            id, req_number, title, description, rationale, expected_benefits,
+            recommended_by_agent, request_type, priority, impact_level,
+            affected_bus, approval_status, current_phase, reviewed_by, reviewed_at,
             created_at, updated_at
-          FROM recommendations
+          FROM owner_requests
           ${whereClause}
           ORDER BY
-            CASE urgency
+            CASE priority
               WHEN 'critical' THEN 1
               WHEN 'high' THEN 2
               WHEN 'medium' THEN 3
@@ -940,21 +942,21 @@ export class SDLCApiServer {
             created_at DESC
         `, params);
 
-        // Transform to GUI-expected format
+        // Transform to GUI-expected format (maintain backward compatibility)
         const recommendations = result.map((r: any) => ({
           id: r.id,
-          recNumber: r.rec_number,
+          recNumber: r.req_number,
           title: r.title,
           description: r.description,
           rationale: r.rationale,
           expectedBenefits: r.expected_benefits,
           recommendedBy: r.recommended_by_agent,
-          type: r.recommendation_type,
-          urgency: r.urgency,
+          type: r.request_type,
+          urgency: r.priority,
           impactLevel: r.impact_level,
           affectedBus: r.affected_bus || [],
-          status: r.status,
-          sourceReq: r.source_req_number,
+          status: r.approval_status,
+          currentPhase: r.current_phase,
           reviewedBy: r.reviewed_by,
           reviewedAt: r.reviewed_at,
           createdAt: r.created_at,
@@ -967,7 +969,8 @@ export class SDLCApiServer {
       }
     });
 
-    // Create a new recommendation
+    // Create a new recommendation (UNIFIED: writes to owner_requests with requires_approval=true)
+    // Recommendations use REC- prefix but go into owner_requests table
     router.post('/recommendations', async (req: Request, res: Response) => {
       try {
         const {
@@ -982,37 +985,48 @@ export class SDLCApiServer {
           });
         }
 
+        // Map urgency to priority (recommendations use urgency, requests use priority)
+        const priorityMap: Record<string, string> = {
+          'critical': 'critical',
+          'high': 'high',
+          'medium': 'medium',
+          'low': 'low'
+        };
+
         const result = await this.db.query(`
-          INSERT INTO recommendations (
-            rec_number, title, description, rationale, expected_benefits,
-            recommended_by_agent, recommendation_type, urgency, impact_level,
-            affected_bus, source_req_number, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
-          RETURNING id, rec_number, title, status, created_at
+          INSERT INTO owner_requests (
+            req_number, title, description, request_type, priority,
+            primary_bu, affected_bus, current_phase, source,
+            requires_approval, approval_status,
+            recommended_by_agent, rationale, expected_benefits, impact_level
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_approval', 'recommendation',
+            TRUE, 'pending', $8, $9, $10, $11)
+          RETURNING id, req_number, title, current_phase, approval_status, created_at
         `, [
           recNumber,
           title,
           description || 'No description provided',
+          type || 'enhancement',
+          priorityMap[urgency] || urgency || 'medium',
+          affectedBus?.[0] || 'core-infra',
+          affectedBus || [],
+          recommendedBy || req.headers['x-agent-id'] || 'unknown',
           rationale || 'Generated via API',
           expectedBenefits || 'See description',
-          recommendedBy || req.headers['x-agent-id'] || 'unknown',
-          type || 'enhancement',
-          urgency || 'medium',
-          impactLevel || 'medium',
-          affectedBus || [],
-          sourceReq || null
+          impactLevel || 'medium'
         ]);
 
         const r = result[0];
-        console.log(`[SDLC API] Created recommendation: ${r.rec_number}`);
+        console.log(`[SDLC API] Created recommendation in owner_requests: ${r.req_number}`);
 
         res.status(201).json({
           success: true,
           data: {
             id: r.id,
-            recNumber: r.rec_number,
+            recNumber: r.req_number,
             title: r.title,
-            status: r.status,
+            status: r.approval_status,
+            currentPhase: r.current_phase,
             createdAt: r.created_at
           }
         });
@@ -1028,6 +1042,7 @@ export class SDLCApiServer {
     });
 
     // Update recommendation status (approve, reject, move between phases)
+    // UNIFIED: Recommendations are in owner_requests with REC- prefix
     router.put('/recommendations/:id/status', async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
@@ -1048,10 +1063,23 @@ export class SDLCApiServer {
           });
         }
 
-        // Build update query
-        const updates: string[] = ['status = $1', 'updated_at = NOW()'];
-        const params: any[] = [status];
-        let paramIndex = 2;
+        // Map recommendation status to owner_requests fields
+        // approved -> approval_status='approved', current_phase='backlog'
+        // rejected -> approval_status='rejected', current_phase='rejected'
+        // deferred -> approval_status='deferred'
+        const phaseMap: Record<string, string> = {
+          'approved': 'backlog',
+          'rejected': 'rejected',
+          'deferred': 'pending_approval',
+          'pending': 'pending_approval',
+          'in_progress': 'in_progress',
+          'done': 'complete',
+        };
+
+        // Build update query for owner_requests
+        const updates: string[] = ['approval_status = $1', 'current_phase = $2', 'updated_at = NOW()'];
+        const params: any[] = [status, phaseMap[status] || 'pending_approval'];
+        let paramIndex = 3;
 
         if (reviewedBy) {
           updates.push(`reviewed_by = $${paramIndex++}`);
@@ -1059,8 +1087,7 @@ export class SDLCApiServer {
         }
 
         if (notes) {
-          // Store notes in rationale or a notes field
-          updates.push(`rationale = COALESCE(rationale || E'\\n\\n--- Review Notes ---\\n' || $${paramIndex++}, $${paramIndex - 1})`);
+          updates.push(`review_notes = $${paramIndex++}`);
           params.push(notes);
         }
 
@@ -1071,14 +1098,20 @@ export class SDLCApiServer {
 
         params.push(id);
 
+        // Handle both UUID and req_number lookups
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const whereClause = isUuid
+          ? `WHERE id = $${params.length}::uuid`
+          : `WHERE req_number = $${params.length}`;
+
         const result = await this.db.query(`
-          UPDATE recommendations
+          UPDATE owner_requests
           SET ${updates.join(', ')}
-          WHERE id = $${params.length}
+          ${whereClause}
           RETURNING
-            id, rec_number, title, description, rationale, expected_benefits,
-            recommended_by_agent, recommendation_type, urgency, impact_level,
-            affected_bus, status, source_req_number, reviewed_by, reviewed_at,
+            id, req_number, title, description, rationale, expected_benefits,
+            recommended_by_agent, request_type, priority, impact_level,
+            affected_bus, approval_status, current_phase, reviewed_by, reviewed_at,
             created_at, updated_at
         `, params);
 
@@ -1092,25 +1125,25 @@ export class SDLCApiServer {
         const r = result[0];
         const recommendation = {
           id: r.id,
-          recNumber: r.rec_number,
+          recNumber: r.req_number,
           title: r.title,
           description: r.description,
           rationale: r.rationale,
           expectedBenefits: r.expected_benefits,
           recommendedBy: r.recommended_by_agent,
-          type: r.recommendation_type,
-          urgency: r.urgency,
+          type: r.request_type,
+          urgency: r.priority,
           impactLevel: r.impact_level,
           affectedBus: r.affected_bus || [],
-          status: r.status,
-          sourceReq: r.source_req_number,
+          status: r.approval_status,
+          currentPhase: r.current_phase,
           reviewedBy: r.reviewed_by,
           reviewedAt: r.reviewed_at,
           createdAt: r.created_at,
           updatedAt: r.updated_at,
         };
 
-        console.log(`[SDLC API] Recommendation ${r.rec_number} status updated to: ${status}`);
+        console.log(`[SDLC API] Recommendation ${r.req_number} status updated to: ${status}`);
         res.json({ success: true, data: recommendation });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
@@ -1118,83 +1151,57 @@ export class SDLCApiServer {
     });
 
     // =========================================================================
-    // All Requests (combined view)
+    // All Requests (unified view from owner_requests only)
     // =========================================================================
 
     router.get('/requests', async (req: Request, res: Response) => {
       try {
-        // Get owner requests
-        const ownerRequests = await this.db.query(`
+        // UNIFIED: All items (REQ- and REC-) are in owner_requests
+        const allItems = await this.db.query(`
           SELECT
             id, req_number, title, description, request_type, priority,
             primary_bu, current_phase, assigned_to, is_blocked, tags,
-            source, created_at, updated_at
+            source, requires_approval, approval_status, recommended_by_agent,
+            created_at, updated_at
           FROM owner_requests
           ORDER BY created_at DESC
         `);
 
-        // Get recommendations (exclude converted ones - they become owner_requests)
-        const recommendations = await this.db.query(`
-          SELECT
-            id, rec_number, title, description, recommendation_type, urgency,
-            affected_bus, status, source_req_number, recommended_by_agent,
-            created_at, updated_at
-          FROM recommendations
-          WHERE status != 'converted'
-          ORDER BY created_at DESC
-        `);
+        // Transform and categorize based on requires_approval column
+        const requests = allItems.map((r: any) => {
+          return {
+            id: r.id,
+            reqNumber: r.req_number,
+            title: r.title,
+            description: r.description,
+            type: r.request_type,
+            priority: r.priority,
+            primaryBu: r.primary_bu,
+            currentPhase: r.current_phase,
+            assignedTo: r.assigned_to,
+            isBlocked: r.is_blocked,
+            tags: r.tags || [],
+            source: r.source || 'manual',
+            requiresApproval: r.requires_approval,
+            approvalStatus: r.approval_status,
+            recommendedBy: r.recommended_by_agent,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+            category: r.requires_approval ? 'recommendation' : 'request',
+          };
+        });
 
-        // Transform owner requests
-        const requests = ownerRequests.map((r: any) => ({
-          id: r.id,
-          reqNumber: r.req_number,
-          title: r.title,
-          description: r.description,
-          type: r.request_type,
-          priority: r.priority,
-          primaryBu: r.primary_bu,
-          currentPhase: r.current_phase,
-          assignedTo: r.assigned_to,
-          isBlocked: r.is_blocked,
-          tags: r.tags || [],
-          source: r.source || 'manual',
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-          category: 'request',
-        }));
-
-        // Transform recommendations
-        const recs = recommendations.map((r: any) => ({
-          id: r.id,
-          reqNumber: r.rec_number,
-          title: r.title,
-          description: r.description,
-          type: r.recommendation_type,
-          priority: r.urgency,
-          primaryBu: r.affected_bus?.[0] || 'core-infra',
-          currentPhase: r.status === 'pending' ? 'recommendation' : r.status,
-          assignedTo: null,
-          isBlocked: false,
-          tags: [],
-          source: r.recommended_by_agent,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-          category: 'recommendation',
-        }));
-
-        // Combine and sort by created_at
-        const allRequests = [...requests, ...recs].sort((a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        const totalRecommendations = requests.filter(r => r.requiresApproval).length;
+        const totalRequests = requests.filter(r => !r.requiresApproval).length;
 
         res.json({
           success: true,
           data: {
-            requests: allRequests,
+            requests,
             summary: {
-              totalRequests: requests.length,
-              totalRecommendations: recs.length,
-              total: allRequests.length,
+              totalRequests,
+              totalRecommendations,
+              total: requests.length,
             },
           },
         });
@@ -1207,46 +1214,40 @@ export class SDLCApiServer {
     // Request Stats Summary
     // =========================================================================
 
+    // UNIFIED: Stats from owner_requests only
     router.get('/request-stats', async (req: Request, res: Response) => {
       try {
-        // Get owner request stats
-        const reqStats = await this.db.query(`
-          SELECT
-            current_phase,
-            COUNT(*) as count
+        // Get all stats from owner_requests (unified table)
+        const phaseStats = await this.db.query(`
+          SELECT current_phase, COUNT(*) as count
           FROM owner_requests
           GROUP BY current_phase
         `);
 
-        // Get recommendation stats
-        const recStats = await this.db.query(`
-          SELECT
-            status,
-            COUNT(*) as count
-          FROM recommendations
-          GROUP BY status
+        // Get recommendation approval status (for items requiring approval)
+        const approvalStats = await this.db.query(`
+          SELECT approval_status, COUNT(*) as count
+          FROM owner_requests
+          WHERE requires_approval = true
+          GROUP BY approval_status
         `);
 
-        // Priority distribution
+        // Priority distribution (all items in owner_requests)
         const priorityStats = await this.db.query(`
           SELECT priority, COUNT(*) as count
           FROM owner_requests
           GROUP BY priority
-          UNION ALL
-          SELECT urgency, COUNT(*) as count
-          FROM recommendations
-          GROUP BY urgency
         `);
 
         res.json({
           success: true,
           data: {
-            byPhase: reqStats.reduce((acc: any, r: any) => {
+            byPhase: phaseStats.reduce((acc: any, r: any) => {
               acc[r.current_phase] = parseInt(r.count);
               return acc;
             }, {}),
-            byStatus: recStats.reduce((acc: any, r: any) => {
-              acc[r.status] = parseInt(r.count);
+            byStatus: approvalStats.reduce((acc: any, r: any) => {
+              acc[r.approval_status] = parseInt(r.count);
               return acc;
             }, {}),
             byPriority: priorityStats.reduce((acc: any, r: any) => {
@@ -1322,13 +1323,31 @@ export class SDLCApiServer {
       }
     });
 
-    // Update owner request status/phase
+    // Delete an owner request
+    router.delete('/requests/:reqNumber', async (req: Request, res: Response) => {
+      try {
+        const { reqNumber } = req.params;
+        const result = await this.db.query(
+          'DELETE FROM owner_requests WHERE req_number = $1 RETURNING req_number',
+          [reqNumber]
+        );
+        if (result.length === 0) {
+          return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
+        }
+        console.log(`[SDLC API] Deleted owner_request: ${reqNumber}`);
+        res.json({ success: true, data: { deleted: reqNumber } });
+      } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Update owner request status/phase (and optionally title/description)
     router.put('/requests/:reqNumber/status', async (req: Request, res: Response) => {
       try {
         const { reqNumber } = req.params;
-        const { phase, isBlocked, blockedReason, assignedTo } = req.body;
-        if (!phase && isBlocked === undefined) {
-          return res.status(400).json({ success: false, error: 'Must provide at least one of: phase, isBlocked' });
+        const { phase, isBlocked, blockedReason, assignedTo, title, description } = req.body;
+        if (!phase && isBlocked === undefined && !title && !description) {
+          return res.status(400).json({ success: false, error: 'Must provide at least one of: phase, isBlocked, title, description' });
         }
 
         // Build update clauses and parameters dynamically
@@ -1352,6 +1371,14 @@ export class SDLCApiServer {
           params.push(assignedTo);
           updates.push(`assigned_to = $${params.length}`);
         }
+        if (title !== undefined) {
+          params.push(title);
+          updates.push(`title = $${params.length}`);
+        }
+        if (description !== undefined) {
+          params.push(description);
+          updates.push(`description = $${params.length}`);
+        }
 
         // Add reqNumber as the final parameter for WHERE clause
         params.push(reqNumber);
@@ -1365,7 +1392,7 @@ export class SDLCApiServer {
         if (result.length === 0) return res.status(404).json({ success: false, error: `Request not found: ${reqNumber}` });
         const r = result[0];
         console.log(`[SDLC API] Updated ${reqNumber} -> phase: ${r.current_phase}, blocked: ${r.is_blocked}`);
-        res.json({ success: true, data: { id: r.id, reqNumber: r.req_number, currentPhase: r.current_phase, isBlocked: r.is_blocked, blockedReason: r.blocked_reason, assignedTo: r.assigned_to, updatedAt: r.updated_at } });
+        res.json({ success: true, data: { id: r.id, reqNumber: r.req_number, title: r.title, description: r.description, currentPhase: r.current_phase, isBlocked: r.is_blocked, blockedReason: r.blocked_reason, assignedTo: r.assigned_to, updatedAt: r.updated_at } });
       } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
       }
@@ -2135,33 +2162,34 @@ export class SDLCApiServer {
       }
     });
 
-    // Get highest impact recommendation
+    // UNIFIED: Get highest impact recommendation from owner_requests
     router.get('/recommendations/highest-impact', async (req: Request, res: Response) => {
       try {
         const urgency = req.query.urgency as string;
 
-        let whereClause = "WHERE status = 'pending'";
+        // Filter for items requiring approval with pending status
+        let whereClause = "WHERE requires_approval = true AND approval_status = 'pending'";
         const params: any[] = [];
 
         if (urgency) {
           params.push(urgency);
-          whereClause += ` AND urgency = $${params.length}`;
+          whereClause += ` AND priority = $${params.length}`;
         }
 
         const result = await this.db.query(`
           SELECT
             id,
-            rec_number,
+            req_number,
             title,
             description,
             rationale,
             expected_benefits,
-            urgency,
+            priority,
             impact_level,
             affected_bus,
-            status,
-            recommended_by
-          FROM recommendations
+            approval_status,
+            recommended_by_agent
+          FROM owner_requests
           ${whereClause}
           ORDER BY
             CASE impact_level
@@ -2171,7 +2199,7 @@ export class SDLCApiServer {
               WHEN 'low' THEN 4
               ELSE 5
             END,
-            CASE urgency
+            CASE priority
               WHEN 'critical' THEN 1
               WHEN 'high' THEN 2
               WHEN 'medium' THEN 3
@@ -2198,23 +2226,23 @@ export class SDLCApiServer {
         res.json({
           success: true,
           data: {
-            message: `${highest.rec_number}: "${highest.title}" has the highest impact (${highest.impact_level} impact, ${highest.urgency} urgency).`,
+            message: `${highest.req_number}: "${highest.title}" has the highest impact (${highest.impact_level} impact, ${highest.priority} urgency).`,
             highestImpact: {
-              recNumber: highest.rec_number,
+              recNumber: highest.req_number,
               title: highest.title,
               description: highest.description,
               rationale: highest.rationale,
               expectedBenefits: highest.expected_benefits,
-              urgency: highest.urgency,
+              urgency: highest.priority,
               impactLevel: highest.impact_level,
               affectedBus: highest.affected_bus,
-              recommendedBy: highest.recommended_by
+              recommendedBy: highest.recommended_by_agent
             },
             topRecommendations: result.map((r: any) => ({
-              recNumber: r.rec_number,
+              recNumber: r.req_number,
               title: r.title,
               impactLevel: r.impact_level,
-              urgency: r.urgency
+              urgency: r.priority
             }))
           }
         });
@@ -2223,7 +2251,7 @@ export class SDLCApiServer {
       }
     });
 
-    // Get recommendations for a specific feature
+    // UNIFIED: Get recommendations for a specific feature from owner_requests
     router.get('/recommendations/for-feature', async (req: Request, res: Response) => {
       try {
         const feature = req.query.feature as string;
@@ -2236,21 +2264,22 @@ export class SDLCApiServer {
 
         let statusClause = '';
         if (status !== 'all') {
-          statusClause = `AND status = '${status}'`;
+          statusClause = `AND approval_status = '${status}'`;
         }
 
         const result = await this.db.query(`
           SELECT
             id,
-            rec_number,
+            req_number,
             title,
             description,
-            urgency,
+            priority,
             impact_level,
-            status,
+            approval_status,
             affected_bus
-          FROM recommendations
-          WHERE (
+          FROM owner_requests
+          WHERE requires_approval = true
+          AND (
             LOWER(title) LIKE LOWER($1)
             OR LOWER(description) LIKE LOWER($1)
             OR EXISTS (SELECT 1 FROM unnest(affected_bus) AS bu WHERE LOWER(bu) LIKE LOWER($1))
@@ -2263,7 +2292,7 @@ export class SDLCApiServer {
               WHEN 'medium' THEN 3
               ELSE 4
             END,
-            CASE urgency
+            CASE priority
               WHEN 'critical' THEN 1
               WHEN 'high' THEN 2
               WHEN 'medium' THEN 3
@@ -2280,12 +2309,12 @@ export class SDLCApiServer {
               ? `Found ${result.length} recommendation(s) related to "${feature}".`
               : `No recommendations found related to "${feature}".`,
             recommendations: result.map((r: any) => ({
-              recNumber: r.rec_number,
+              recNumber: r.req_number,
               title: r.title,
               description: r.description,
-              urgency: r.urgency,
+              urgency: r.priority,
               impactLevel: r.impact_level,
-              status: r.status,
+              status: r.approval_status,
               affectedBus: r.affected_bus
             })),
             count: result.length
@@ -3456,6 +3485,7 @@ export class SDLCApiServer {
     });
 
     // PUT /api/agent/recommendations/:recNumber/tags - Update recommendation tags
+    // UNIFIED: Updates tags in owner_requests
     router.put('/recommendations/:recNumber/tags', async (req: Request, res: Response) => {
       try {
         const { recNumber } = req.params;
@@ -3469,9 +3499,9 @@ export class SDLCApiServer {
         }
 
         await this.db.query(`
-          UPDATE recommendations
+          UPDATE owner_requests
           SET tags = $1, updated_at = NOW()
-          WHERE rec_number = $2
+          WHERE req_number = $2
         `, [tags, recNumber]);
 
         res.json({
